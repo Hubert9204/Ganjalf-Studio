@@ -7,6 +7,10 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 from pydantic import BaseModel, ConfigDict, StrictBool, StrictStr
 
 from auth.authentication import get_current_subject
+from core.inference.skill_md_import import (
+    looks_like_markdown_upload,
+    markdown_to_archive,
+)
 from core.inference.skills import (
     MAX_SKILL_ARCHIVE_BYTES,
     SkillError,
@@ -145,6 +149,9 @@ def import_skill_route(
     if len(data) > MAX_SKILL_ARCHIVE_BYTES:
         raise HTTPException(status_code = 413, detail = "Skill archive exceeds the 20 MB limit.")
     try:
+        # A bare SKILL.md is wrapped into a one-skill archive; ZIPs pass through unchanged.
+        if looks_like_markdown_upload(file.filename, data):
+            data = markdown_to_archive(data)
         result = import_skill_archive(data)
     except SkillError as exc:
         raise _http_error(exc) from exc
