@@ -54,6 +54,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   type ChangeEvent,
+  type DragEvent as ReactDragEvent,
   type ReactElement,
   type ReactNode,
   useEffect,
@@ -80,6 +81,7 @@ import {
   updateSkill,
   useSkillsCatalog,
 } from "../api/skills-api";
+import { collectDroppedFiles } from "../utils/collect-dropped-files";
 
 type EditDraft = { description: string; instructions: string };
 type View = { kind: "library" } | { kind: "new" } | { kind: "skill"; key: string };
@@ -99,6 +101,11 @@ function describe(cause: unknown): string | undefined {
 
 function isEditable(skill: SkillRecord): boolean {
   return skill.valid && skill.source === "agents" && !skill.linked;
+}
+
+// Only drags that carry files; text or link drags are left to the browser.
+function hasFiles(event: ReactDragEvent): boolean {
+  return Array.from(event.dataTransfer?.types ?? []).includes("Files");
 }
 
 function ImportResultList({ imported, failed }: SkillImportResult): ReactElement {
@@ -155,6 +162,7 @@ export function ChatSkillsDialog({
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [changing, setChanging] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState<SkillRecord | null>(null);
@@ -173,6 +181,7 @@ export function ChatSkillsDialog({
       setConfirmingDelete(null);
       setConfirmingDiscard(null);
       setConfirmingReset(false);
+      setDragging(false);
     }
   }
   useEffect(() => {
@@ -388,6 +397,29 @@ export function ChatSkillsDialog({
     }
   }
 
+  function showImportResult({ imported, failed }: SkillImportResult) {
+    const count = imported.length;
+    if (failed.length === 0) {
+      toast.success(t(count === 1 ? "skills.importedOne" : "skills.importedMany", { count }), {
+        description: <ImportResultList imported={imported} failed={failed} />,
+      });
+      if (count === 1) {
+        // Never pull the user out of a skill they opened during the upload.
+        setView((current) =>
+          current.kind === "library" ? { kind: "skill", key: keyOf(imported[0]) } : current,
+        );
+        readManifest(imported[0]);
+      }
+    } else if (count === 0 && failed.length === 1) {
+      toast.error(t("skills.importError"), { description: failed[0].error });
+    } else {
+      const notify = count > 0 ? toast.warning : toast.error;
+      notify(t("skills.importPartial", { added: count, total: count + failed.length }), {
+        description: <ImportResultList imported={imported} failed={failed} />,
+      });
+    }
+  }
+
   async function importFile(event: ChangeEvent<HTMLInputElement>) {
     // Copied before the reset below clears the live FileList.
     const picked = Array.from(event.target.files ?? []);
@@ -397,34 +429,57 @@ export function ChatSkillsDialog({
     setImporting(true);
     try {
       // One file keeps the ZIP / bare SKILL.md path; several are grouped by the server.
-      const { imported, failed } =
-        picked.length === 1 ? await importSkills(picked[0]) : await importSkillFiles(picked);
-      const count = imported.length;
-      if (failed.length === 0) {
-        toast.success(t(count === 1 ? "skills.importedOne" : "skills.importedMany", { count }), {
-          description: <ImportResultList imported={imported} failed={failed} />,
-        });
-        if (count === 1) {
-          // Never pull the user out of a skill they opened during the upload.
-          setView((current) =>
-            current.kind === "library" ? { kind: "skill", key: keyOf(imported[0]) } : current,
-          );
-          readManifest(imported[0]);
-        }
-      } else if (count === 0 && failed.length === 1) {
-        toast.error(t("skills.importError"), { description: failed[0].error });
-      } else {
-        const notify = count > 0 ? toast.warning : toast.error;
-        notify(t("skills.importPartial", { added: count, total: count + failed.length }), {
-          description: <ImportResultList imported={imported} failed={failed} />,
-        });
-      }
+      showImportResult(
+        picked.length === 1 ? await importSkills(picked[0]) : await importSkillFiles(picked),
+      );
     } catch (cause) {
       toast.error(t("skills.importError"), { description: describe(cause) });
     } finally {
       setImporting(false);
     }
   }
+
+  async function importDropped(transfer: DataTransfer) {
+    if (importing) return;
+    setImporting(true);
+    try {
+      // Collected first: the browser empties the DataTransfer once the drop event returns.
+      const dropped = await collectDroppedFiles(transfer);
+      if (dropped.length === 0) return;
+      // A lone file at the top level keeps the ZIP / bare SKILL.md path; folders keep their paths.
+      const single = dropped.length === 1 && !dropped[0].path.includes("/");
+      showImportResult(
+        single
+          ? await importSkills(dropped[0].file)
+          : await importSkillFiles(
+              dropped.map((item) => item.file),
+              dropped.map((item) => item.path),
+            ),
+      );
+    } catch (cause) {
+      toast.error(t("skills.importError"), { description: describe(cause) });
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  // Dropping on the list view imports; elsewhere the drop is swallowed so the browser does not open the file.
+  const dropEnabled = view.kind === "library" && !importing;
+  const onDragOver = (event: ReactDragEvent<HTMLDivElement>) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = dropEnabled ? "copy" : "none";
+    setDragging(dropEnabled);
+  };
+  const onDragLeave = (event: ReactDragEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
+  };
+  const onDrop = (event: ReactDragEvent<HTMLDivElement>) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    setDragging(false);
+    if (dropEnabled) void importDropped(event.dataTransfer);
+  };
 
   async function exportSelected() {
     if (!selected || exporting) return;
@@ -468,7 +523,15 @@ export function ChatSkillsDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="rounded-3xl shadow-border ring-0 max-sm:flex max-sm:flex-col max-sm:overflow-hidden sm:max-w-2xl">
+      <DialogContent
+        className={cn(
+          "rounded-3xl shadow-border ring-0 max-sm:flex max-sm:flex-col max-sm:overflow-hidden sm:max-w-2xl",
+          dragging && "ring-2 ring-primary",
+        )}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+      >
         {view.kind === "library" ? (
           <>
             <DialogHeader>
