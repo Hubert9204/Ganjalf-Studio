@@ -7,6 +7,11 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 from pydantic import BaseModel, ConfigDict, StrictBool, StrictStr
 
 from auth.authentication import get_current_subject
+from core.inference.skill_md_import import (
+    files_to_archive,
+    looks_like_markdown_upload,
+    markdown_to_archive,
+)
 from core.inference.skills import (
     MAX_SKILL_ARCHIVE_BYTES,
     SkillError,
@@ -145,7 +150,31 @@ def import_skill_route(
     if len(data) > MAX_SKILL_ARCHIVE_BYTES:
         raise HTTPException(status_code = 413, detail = "Skill archive exceeds the 20 MB limit.")
     try:
+        # A bare SKILL.md is wrapped into a one-skill archive; ZIPs pass through unchanged.
+        if looks_like_markdown_upload(file.filename, data):
+            data = markdown_to_archive(data)
         result = import_skill_archive(data)
+    except SkillError as exc:
+        raise _http_error(exc) from exc
+    _invalidate_catalog()
+    return result
+
+
+# Several files picked together, or a folder: upload names carry the relative paths.
+@router.post("/import-files", response_model = SkillImportResult)
+def import_skill_files_route(
+    files: list[UploadFile] = File(...), current_subject: str = Depends(get_current_subject)
+) -> dict[str, Any]:
+    items: list[tuple[str, bytes]] = []
+    total = 0
+    for upload in files:
+        data = upload.file.read(MAX_SKILL_ARCHIVE_BYTES + 1)
+        total += len(data)
+        if total > MAX_SKILL_ARCHIVE_BYTES:
+            raise HTTPException(status_code = 413, detail = "Skill files exceed the 20 MB limit.")
+        items.append((upload.filename or "", data))
+    try:
+        result = import_skill_archive(files_to_archive(items))
     except SkillError as exc:
         raise _http_error(exc) from exc
     _invalidate_catalog()
