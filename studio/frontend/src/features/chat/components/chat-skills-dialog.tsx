@@ -67,6 +67,7 @@ import {
   deleteSkill,
   exportSkill,
   getSkillManifest,
+  importSkillFiles,
   importSkills,
   isValidSkillName,
   listSkills,
@@ -388,13 +389,16 @@ export function ChatSkillsDialog({
   }
 
   async function importFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+    // Copied before the reset below clears the live FileList.
+    const picked = Array.from(event.target.files ?? []);
     // Lets the same file fire change again.
     event.target.value = "";
-    if (!file || importing) return;
+    if (picked.length === 0 || importing) return;
     setImporting(true);
     try {
-      const { imported, failed } = await importSkills(file);
+      // One file keeps the ZIP / bare SKILL.md path; several are grouped by the server.
+      const { imported, failed } =
+        picked.length === 1 ? await importSkills(picked[0]) : await importSkillFiles(picked);
       const count = imported.length;
       if (failed.length === 0) {
         toast.success(t(count === 1 ? "skills.importedOne" : "skills.importedMany", { count }), {
@@ -547,7 +551,8 @@ export function ChatSkillsDialog({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".zip,application/zip"
+                multiple={true}
+                accept=".zip,.md,.markdown,application/zip,text/markdown"
                 className="hidden"
                 onChange={(event) => void importFile(event)}
               />
