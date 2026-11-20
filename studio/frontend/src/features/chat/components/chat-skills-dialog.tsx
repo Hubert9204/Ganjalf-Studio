@@ -547,7 +547,7 @@ export function ChatSkillsDialog({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".zip,application/zip"
+                accept=".zip,.md,.markdown,application/zip,text/markdown"
                 className="hidden"
                 onChange={(event) => void importFile(event)}
               />
