@@ -268,6 +268,22 @@ export async function importSkills(file: File): Promise<SkillImportResult> {
   return result;
 }
 
+/** Several files picked together (SKILL.md plus its references), or a folder. */
+export async function importSkillFiles(files: File[]): Promise<SkillImportResult> {
+  const form = new FormData();
+  for (const file of files) {
+    // webkitRelativePath is set for folder picks and keeps sub-folders; plain picks use the name.
+    form.append("files", file, file.webkitRelativePath || file.name);
+  }
+  const response = await authFetch("/api/skills/import-files", {
+    method: "POST",
+    body: form,
+  });
+  const result = await parseResponse<SkillImportResult>(response);
+  await skillsMutated();
+  return result;
+}
+
 export async function exportSkill(name: string): Promise<Blob> {
   const response = await authFetch(
     `/api/skills/${encodeURIComponent(name)}/export`,
