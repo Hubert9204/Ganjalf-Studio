@@ -45,6 +45,9 @@ FROM ${BASE_IMAGE}
 # Studio source ref to clone. Defaults to main; CI pins it (same UNSLOTH_REF as
 # the base) so the published image is reproducible.
 ARG UNSLOTH_STUDIO_REF=main
+# Repository to clone Studio from. Ganjalf Studio builds its own fork; pass
+# --build-arg UNSLOTH_STUDIO_REPO=https://github.com/unslothai/unsloth for upstream.
+ARG UNSLOTH_STUDIO_REPO=https://github.com/Hubert9204/Ganjalf-Studio
 # unsloth-zoo ref overlaid into the Studio venv by install.sh --local. The publish
 # workflow passes ONE zoo ref to both builds, so Studio runs the same zoo as base.
 ARG UNSLOTH_STUDIO_ZOO_REF=main
@@ -122,7 +125,7 @@ RUN set -eux \
  && touch /opt/unsloth/llama.cpp/.unsloth-studio-owned \
  && git init -q "${UNSLOTH_STUDIO_HOME}/src" \
  && cd "${UNSLOTH_STUDIO_HOME}/src" \
- && git remote add origin https://github.com/unslothai/unsloth \
+ && git remote add origin "${UNSLOTH_STUDIO_REPO}" \
  && git fetch -q --depth 1 origin "${UNSLOTH_STUDIO_REF}" \
  && git checkout -q FETCH_HEAD \
  && UNSLOTH_STUDIO_HOME="${UNSLOTH_STUDIO_HOME}" \
