@@ -13,12 +13,18 @@
 #   GANJALF_PORT=<port>     first port to try (default: 8890)
 #   GANJALF_NO_BROWSER=1    do not open the browser
 #   UNSLOTH_NO_TORCH=1      first run only: skip PyTorch (GGUF-only, much smaller install)
+#   ROLLING_INSTRUCTION_PIN_GROUPS=<n>  user messages kept in the prompt when the context
+#                           window rolls (default here: 2; 0 turns it off, as upstream does)
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export UNSLOTH_STUDIO_HOME="${GANJALF_HOME:-$HOME/.ganjalf-studio}"
 FIRST_PORT="${GANJALF_PORT:-8890}"
 STUDIO_BIN="$UNSLOTH_STUDIO_HOME/unsloth_studio/bin/unsloth"
+
+# On long agent runs the oldest turns fall out of the window and small local models lose the
+# task. This keeps the last substantive user instructions (capped by size) in the prompt.
+export ROLLING_INSTRUCTION_PIN_GROUPS="${ROLLING_INSTRUCTION_PIN_GROUPS:-2}"
 
 # True when something already accepts connections on the port.
 port_in_use() {
