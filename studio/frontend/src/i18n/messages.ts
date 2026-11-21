@@ -207,11 +207,16 @@ function warnMissingEnglishMessage(key: string): void {
   }
 }
 
-// Ganjalf Studio shows its own name wherever a catalog says "Unsloth"; "Unsloth AI" (the company) stays.
-const UPSTREAM_BRAND_PATTERN = /Unsloth(?! AI\b)/g;
+// Ganjalf Studio shows its own name wherever a catalog says "Unsloth", except in credit lines:
+// "Unsloth AI" and "the Unsloth team" keep the original name, and so does every message under
+// an about, license or attribution key (the upstream notices must stay intact).
+const UPSTREAM_BRAND_PATTERN = /Unsloth(?! (?:AI|team|Team)\b)/g;
+const CREDIT_KEY_PATTERN =
+  /(?:^|\.)(?:about|attribution|acknowledg\w*|copyright|credits?|legal|licen[cs]e\w*|notice)(?:\.|$)/i;
 
 // Applied to the template, before interpolation, so values passed in (model names, paths) are never touched.
-function rebrand(text: string): string {
+function rebrand(key: string, text: string): string {
+  if (CREDIT_KEY_PATTERN.test(key)) return text;
   return text.replace(UPSTREAM_BRAND_PATTERN, "Ganjalf");
 }
 
@@ -228,7 +233,7 @@ export function translate(
     return key;
   }
 
-  return interpolate(rebrand(fallback), values);
+  return interpolate(rebrand(key, fallback), values);
 }
 
 export function isSupportedLocale(value: unknown): value is Locale {
