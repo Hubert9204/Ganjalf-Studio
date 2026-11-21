@@ -207,6 +207,14 @@ function warnMissingEnglishMessage(key: string): void {
   }
 }
 
+// Ganjalf Studio shows its own name wherever a catalog says "Unsloth"; "Unsloth AI" (the company) stays.
+const UPSTREAM_BRAND_PATTERN = /Unsloth(?! AI\b)/g;
+
+// Applied to the template, before interpolation, so values passed in (model names, paths) are never touched.
+function rebrand(text: string): string {
+  return text.replace(UPSTREAM_BRAND_PATTERN, "Ganjalf");
+}
+
 export function translate(
   key: TranslationKey,
   values?: InterpolationValues,
@@ -220,7 +228,7 @@ export function translate(
     return key;
   }
 
-  return interpolate(fallback, values);
+  return interpolate(rebrand(fallback), values);
 }
 
 export function isSupportedLocale(value: unknown): value is Locale {
