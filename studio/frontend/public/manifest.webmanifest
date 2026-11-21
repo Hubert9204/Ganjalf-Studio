@@ -1,12 +1,12 @@
 {
-  "name": "Unsloth",
-  "short_name": "Unsloth",
+  "name": "Ganjalf Studio",
+  "short_name": "Ganjalf",
   "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#fefefd",
-  "theme_color": "#fefefd",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
   "icons": [
     {
       "src": "/pwa-192.png",

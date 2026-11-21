@@ -1,0 +1,73 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Ganjalf Studio theme: cool grey and silver with a blue accent.
+ *
+ * Loaded after index.css and scoped to the default palette, so any named palette
+ * (html[data-palette]) keeps its own colors. Standard shadcn token names. */
+
+html.light:not([data-palette]) {
+  --background: #f4f6fa;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #3b6fd4;
+  --primary-foreground: #f8fafc;
+  --secondary: #e4e9f1;
+  --secondary-foreground: #1e293b;
+  --muted: #e9edf4;
+  --muted-foreground: #5b6678;
+  --accent: #dbe4f3;
+  --accent-foreground: #1e293b;
+  --destructive: #dc2626;
+  --border: #d3dae6;
+  --input: #d3dae6;
+  --ring: #6c93df;
+  --chart-1: #5b8def;
+  --chart-2: #94a3b8;
+  --chart-3: #38bdf8;
+  --chart-4: #64748b;
+  --chart-5: #a5b4fc;
+  --sidebar: #eceff5;
+  --sidebar-foreground: #1e293b;
+  --sidebar-primary: #3b6fd4;
+  --sidebar-primary-foreground: #f8fafc;
+  --sidebar-accent: #dbe4f3;
+  --sidebar-accent-foreground: #1e293b;
+  --sidebar-border: #d3dae6;
+  --sidebar-ring: #6c93df;
+}
+
+html.dark:not([data-palette]) {
+  --background: #0b1220;
+  --foreground: #e6ebf4;
+  --card: #111a2c;
+  --card-foreground: #e6ebf4;
+  --popover: #111a2c;
+  --popover-foreground: #e6ebf4;
+  --primary: #7ea6f0;
+  --primary-foreground: #0b1220;
+  --secondary: #1a2540;
+  --secondary-foreground: #dbe3f2;
+  --muted: #162033;
+  --muted-foreground: #94a3b8;
+  --accent: #1d2a47;
+  --accent-foreground: #e6ebf4;
+  --destructive: #f87171;
+  --border: #223049;
+  --input: #223049;
+  --ring: #7ea6f0;
+  --chart-1: #7ea6f0;
+  --chart-2: #94a3b8;
+  --chart-3: #38bdf8;
+  --chart-4: #cbd5e1;
+  --chart-5: #a5b4fc;
+  --sidebar: #0e1626;
+  --sidebar-foreground: #dbe3f2;
+  --sidebar-primary: #7ea6f0;
+  --sidebar-primary-foreground: #0b1220;
+  --sidebar-accent: #1d2a47;
+  --sidebar-accent-foreground: #e6ebf4;
+  --sidebar-border: #223049;
+  --sidebar-ring: #7ea6f0;
+}
