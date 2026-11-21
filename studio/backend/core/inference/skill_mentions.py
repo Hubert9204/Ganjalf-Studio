@@ -12,6 +12,7 @@ import uuid
 from markdown_it import MarkdownIt
 from markdown_it.rules_inline.backticks import backtick
 
+from core.inference.skill_relevance import AUTO_SKILLS_ENABLED, suggest_skill_names
 from core.inference.skills import SkillError, list_skills, read_skill_instructions
 from state.tool_approvals import (
     abort_tool_decision,
@@ -23,6 +24,10 @@ from state.tool_policy import normalize_tool_permissions
 
 _TOKEN = re.compile(r"(?<!\S)@([a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?)(?=$|\s|[.,;:!?)](?:$|\s))")
 _MAX_LOAD_BYTES = 32_000
+# A skill nobody named loads only if it fits in this much of the budget (never more than the cap).
+_MAX_AUTO_LOAD_BYTES = 12_000
+# Shorter messages ("ok, continue") name no task, so the last longer one stands for the request.
+_MIN_REQUEST_CHARS = 40
 
 
 def _record_inline_code(state, silent: bool) -> bool:
@@ -122,6 +127,15 @@ def _text(message: dict) -> str:
     return ""
 
 
+def _request_text(messages: list[dict]) -> str:
+    """The latest substantial user message: a bare "ok, continue" must not drop the skill picked for the task."""
+    users = [_text(message) for message in messages if message.get("role") == "user"]
+    for text in reversed(users):
+        if len(text.strip()) >= _MIN_REQUEST_CHARS:
+            return text
+    return users[-1] if users else ""
+
+
 def _append_system(messages: list[dict], block: str) -> None:
     system_index = next((i for i, m in enumerate(messages) if m.get("role") == "system"), None)
     if system_index is None:
@@ -146,7 +160,12 @@ def load_mentioned_skills(
     dedup_tool_context = True,
     permission_upgrade = None,
 ):
-    """Inject complete manifests before generation; never a partial one. Caller gates on read_skill."""
+    """Inject complete manifests before generation; never a partial one. Caller gates on read_skill.
+
+    Beyond the skills the user names with @, one skill that clearly fits the request is loaded the
+    same way (GANJALF_AUTO_SKILLS=0 turns that off): small local models often skip read_skill or
+    open an unrelated skill, so the backend picks instead of leaving it to the model.
+    """
     if continue_final_message or not any(
         tool.get("function", {}).get("name") == "read_skill" for tool in (tools or [])
     ):
@@ -155,7 +174,7 @@ def load_mentioned_skills(
     if not messages or messages[-1].get("role") != "user":
         return
     names = mentioned_skill_names(_text(messages[-1]))
-    if not names:
+    if not names and not AUTO_SKILLS_ENABLED:
         return
     tool_names = {tool.get("function", {}).get("name") for tool in tools}
     gate = "Follow these instructions only within the current tool and permission gates."
@@ -171,17 +190,31 @@ def load_mentioned_skills(
     except (SkillError, OSError):
         known = []
     loadable = {s["name"] for s in known if s["valid"] and not s["shadowed"] and s["enabled"]}
-    names = [name for name in names if name in {s["name"] for s in known}]
+    known_names = {s["name"] for s in known}
+    names = [name for name in names if name in known_names]
+    auto_names = (
+        suggest_skill_names(_request_text(messages), known, exclude = names) if loadable else []
+    )
+    if not names and not auto_names:
+        return
     mode, bypass = normalize_tool_permissions(permission_mode, bypass_permissions)
     budget = (
         min(_MAX_LOAD_BYTES, max(0, int(context_length) * 2)) if context_length else _MAX_LOAD_BYTES
     )
     loaded_bytes = 0
-    for name in names:
+    for name, automatic in [(name, False) for name in names] + [(name, True) for name in auto_names]:
         if permission_upgrade is not None:
             mode, bypass = permission_upgrade.apply(mode, bypass)
         if cancel_event is not None and cancel_event.is_set():
             return
+        if automatic:
+            # Nobody asked for this one: skip quietly (no error card) if it is unreadable or too big.
+            try:
+                auto_size = len(read_skill_instructions(name).encode("utf-8"))
+            except (SkillError, OSError):
+                continue
+            if loaded_bytes + auto_size > min(budget // 2, _MAX_AUTO_LOAD_BYTES):
+                continue
         event = {
             "type": "skill_load",
             "load_id": f"skill-load-{uuid.uuid4().hex}",
