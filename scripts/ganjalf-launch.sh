@@ -5,6 +5,9 @@
 # - installs from this checkout on first run, then just starts the server
 # - picks the first free port from 8890 and opens the browser once the server answers
 #
+# Run it as your normal user, not as root: the folder picker only offers folders under
+# the home of the user Studio runs as.
+#
 # Optional environment:
 #   GANJALF_HOME=<dir>      data and environment folder (default: ~/.ganjalf-studio)
 #   GANJALF_PORT=<port>     first port to try (default: 8890)
@@ -43,9 +46,16 @@ open_browser() {
   fi
 }
 
-if [ ! -x "$STUDIO_BIN" ]; then
+if [ "$(id -u)" = "0" ]; then
+  echo "Warning: running as root. Studio will only offer folders under $HOME, and its tools can write anywhere." >&2
+fi
+
+# Written only after install.sh succeeds: a half-finished install already has the binary.
+INSTALLED_MARKER="$UNSLOTH_STUDIO_HOME/.ganjalf-installed"
+if [ ! -f "$INSTALLED_MARKER" ]; then
   echo "First run: installing into $UNSLOTH_STUDIO_HOME (this can take a while)..."
-  (cd "$REPO_DIR" && UNSLOTH_SKIP_AUTOSTART=1 ./install.sh --local)
+  (cd "$REPO_DIR" && UNSLOTH_SKIP_AUTOSTART=1 bash ./install.sh --local)
+  touch "$INSTALLED_MARKER"
 fi
 if [ ! -x "$STUDIO_BIN" ]; then
   STUDIO_BIN="$(command -v unsloth || true)"
