@@ -71,3 +71,19 @@ html.dark:not([data-palette]) {
   --sidebar-border: #223049;
   --sidebar-ring: #7ea6f0;
 }
+
+/* Sidebar brand. The app draws the Unsloth badge and the word "unsloth" itself, in a file too
+ * large to edit here, so they are swapped by CSS: the bitmap is pushed out of its box and the
+ * Ganjalf icon is drawn behind it; the word is blanked and "ganjalf" is drawn in its place. */
+img[src="/circle-logo-small.png"] {
+  object-fit: none;
+  object-position: -9999px 0;
+  background: url("/favicon.svg") center / contain no-repeat;
+}
+img[src="/circle-logo-small.png"] + span {
+  font-size: 0 !important;
+}
+img[src="/circle-logo-small.png"] + span::after {
+  content: "ganjalf";
+  font-size: calc(13px + 0.5rem * var(--ui-font-scale, 1));
+}
