@@ -33,9 +33,9 @@ AUTO_SKILLS_ENABLED = os.environ.get("GANJALF_AUTO_SKILLS", "1").strip().lower()
     "no",
 }
 MAX_AUTO_SKILLS = max(0, _env_int("GANJALF_AUTO_SKILLS_MAX", 1))
-# Three distinct shared terms and a weighted score: one generic word ("write") never selects a skill.
+# Three distinct shared terms and a minimum score: one generic word ("write") never selects a skill.
 MIN_MATCHED_TERMS = 3
-MIN_SCORE = 4.5
+MIN_SCORE = 3.0
 NAME_TERM_BOOST = 1.5
 # A multi-word skill name said outright ("deep research") selects it on its own.
 NAME_PHRASE_BONUS = 6.0
