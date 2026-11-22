@@ -2,7 +2,8 @@
 # Ganjalf Studio launcher for Linux, macOS and WSL.
 #
 # - keeps data and the Python environment in its own folder, apart from any Unsloth Studio
-# - installs from this checkout on first run, then just starts the server
+# - installs from this checkout on first run, and again after a `git pull` (the frontend
+#   is rebuilt by the installer, so a new revision needs it)
 # - on first run also copies the coding-agent skill and switches on the skill-creator
 # - picks the first free port from 8890 and opens the browser once the server answers
 #
@@ -81,12 +82,16 @@ if [ "$(id -u)" = "0" ]; then
   echo "Warning: running as root. Studio will only offer folders under $HOME, and its tools can write anywhere." >&2
 fi
 
-# Written only after install.sh succeeds: a half-finished install already has the binary.
+# The marker holds the revision that was installed, and is written only after install.sh
+# succeeds: a half-finished install already has the binary. A different revision (after a
+# `git pull`) or an empty marker from an older launcher installs again.
 INSTALLED_MARKER="$UNSLOTH_STUDIO_HOME/.ganjalf-installed"
-if [ ! -f "$INSTALLED_MARKER" ]; then
-  echo "First run: installing into $UNSLOTH_STUDIO_HOME (this can take a while)..."
+REPO_REV="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo unknown)"
+if [ "$(cat "$INSTALLED_MARKER" 2>/dev/null || true)" != "$REPO_REV" ]; then
+  echo "Installing into $UNSLOTH_STUDIO_HOME (first run or new version; this can take a while)..."
   (cd "$REPO_DIR" && UNSLOTH_SKIP_AUTOSTART=1 bash ./install.sh --local)
-  touch "$INSTALLED_MARKER"
+  mkdir -p "$UNSLOTH_STUDIO_HOME"
+  echo "$REPO_REV" > "$INSTALLED_MARKER"
 fi
 seed_defaults
 if [ ! -x "$STUDIO_BIN" ]; then
