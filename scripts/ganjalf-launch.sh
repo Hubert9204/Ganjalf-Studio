@@ -129,13 +129,16 @@ if [ "$(id -u)" = "0" ]; then
   echo "Warning: running as root. Studio will only offer folders under $HOME, and its tools can write anywhere." >&2
 fi
 
-# The marker holds the revision that was installed, and is written only after install.sh
-# succeeds: a half-finished install already has the binary. A different revision (after a
-# `git pull`) or an empty marker from an older launcher installs again.
+# The marker records what the installation was built from and is written only after install.sh
+# succeeds: a half-finished install already has the binary. That is the frontend source tree and
+# pyproject.toml; the backend is installed editable, so changes to it, to skills or to this
+# script need no reinstall. A different value (after a `git pull` that touched the frontend)
+# or an empty marker from an older launcher installs again.
 INSTALLED_MARKER="$UNSLOTH_STUDIO_HOME/.ganjalf-installed"
-REPO_REV="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo unknown)"
+REPO_REV="$(git -C "$REPO_DIR" rev-parse HEAD:studio/frontend HEAD:pyproject.toml 2>/dev/null | tr '\n' ' ' || true)"
+[ -n "${REPO_REV// /}" ] || REPO_REV="unknown"
 if [ "$(cat "$INSTALLED_MARKER" 2>/dev/null || true)" != "$REPO_REV" ]; then
-  echo "Installing into $UNSLOTH_STUDIO_HOME (first run or new version; this can take a while)..."
+  echo "Installing into $UNSLOTH_STUDIO_HOME (first run, or the frontend or dependencies changed; this can take a while)..."
   (cd "$REPO_DIR" && UNSLOTH_SKIP_AUTOSTART=1 bash ./install.sh --local)
   mkdir -p "$UNSLOTH_STUDIO_HOME"
   echo "$REPO_REV" > "$INSTALLED_MARKER"
