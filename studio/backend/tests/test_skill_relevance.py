@@ -3,10 +3,16 @@
 
 """Choosing the skill that fits a request, so a small local model does not have to."""
 
+from pathlib import Path
+
 import pytest
+import yaml
 
 from core.inference import skill_relevance as relevance
 from core.inference.skill_relevance import suggest_skill_names
+
+# The shipped skill, so these cases follow its description when someone edits it.
+SHIPPED = Path(__file__).resolve().parents[2] / "ganjalf_skills" / "coding-agent" / "SKILL.md"
 
 
 def rec(name, description, **extra):
@@ -20,13 +26,9 @@ def rec(name, description, **extra):
     }
 
 
-CODING = (
-    "Work on code in a project folder. Explore files, read large files in chunks, fix bugs and "
-    "compile errors, edit source code, build, run programs and verify the result. Use for "
-    "debugging, programming, scripts, refactoring, crashes and broken builds. Italiano - codice, "
-    "programma, errore, bug, correggere, compilare, progetto, file di sorgente."
-)
+CODING = yaml.safe_load(SHIPPED.read_text(encoding = "utf-8").split("---")[1])["description"]
 OPENGL_BUG = "fix the OpenGL rendering bug in src/render.c, the program shows only a diagonal line"
+GAME_REQUEST = "creami un gioco in stile tekken 3. lavora nella cartella di lavoro del progetto"
 SKILLS = [
     rec("coding-agent", CODING),
     rec("deep-research", "Conduct multi-source web research and write a long cited report on a topic."),
@@ -49,13 +51,17 @@ SKILLS = [
     "request_text, expected",
     [
         (OPENGL_BUG, ["coding-agent"]),
+        (GAME_REQUEST, ["coding-agent"]),
         ("correggi il bug nel codice del programma, non compila", ["coding-agent"]),
+        ("crea un sito web per il mio negozio", ["coding-agent"]),
+        ("write a script to rename the files in this folder", ["coding-agent"]),
         ("Write a long cited report researching the history of tokenization", ["deep-research"]),
         ("do some deep research on GPUs", ["deep-research"]),
         ("ok continua", []),
         ("what is the weather today", []),
         ("write me a poem about the sea", []),
         ("create a document with the meeting notes", []),
+        ("scrivi una email al mio capo", []),
         ("", []),
     ],
 )

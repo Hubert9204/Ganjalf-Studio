@@ -4,7 +4,9 @@
 # - keeps data and the Python environment in its own folder, apart from any Unsloth Studio
 # - installs from this checkout on first run, and again after a `git pull` (the frontend
 #   is rebuilt by the installer, so a new revision needs it)
-# - on first run also copies the coding-agent skill and switches on the skill-creator
+# - keeps the skills in studio/ganjalf_skills in your skills folder: copied when missing,
+#   updated when you have not edited them, left alone when you have
+# - switches on the bundled skill-creator once, so a model can write the skills it needs
 # - picks the first free port from 8890 and opens the browser once the server answers
 #
 # Run it as your normal user, not as root: the folder picker only offers folders under
@@ -55,27 +57,72 @@ open_browser() {
   fi
 }
 
-# Ganjalf defaults, applied once: copies the skills in studio/ganjalf_skills into the skills
-# folder (a skill you already have under that name is left alone) and switches on the bundled
-# skill-creator, so a model can write the skills a task needs. Delete the marker to repeat it.
-seed_defaults() {
-  local marker="$UNSLOTH_STUDIO_HOME/.ganjalf-defaults-seeded"
-  [ -f "$marker" ] && return 0
+# Hash of a folder's files (names and contents), the same on Linux and macOS.
+dir_hash() {
+  local hasher="sha256sum"
+  command -v sha256sum >/dev/null 2>&1 || hasher="shasum -a 256"
+  (cd "$1" && find . -type f | LC_ALL=C sort | tr '\n' '\0' | xargs -0 $hasher | $hasher | cut -d' ' -f1)
+}
+# Hashes of earlier shipped versions of a skill, so an untouched copy made before the stamps
+# existed is still recognised and updated.
+legacy_skill_hashes() {
+  case "$1" in
+    coding-agent) echo "a29910d48871b9e93f0341bdf74705f04fbac1634e9c795bb30d27856e82ac3e" ;;
+  esac
+}
+seed_skills() {
   local skills_home="${UNSLOTH_STUDIO_SKILLS_HOME:-$HOME/.agents/skills}"
   local source_dir="$REPO_DIR/studio/ganjalf_skills"
-  local dir name
+  local dir name dest stamp shipped installed known
+  [ -d "$source_dir" ] || return 0
   mkdir -p "$UNSLOTH_STUDIO_HOME" "$skills_home"
-  if [ -d "$source_dir" ]; then
-    for dir in "$source_dir"/*/; do
-      [ -d "$dir" ] || continue
-      name="$(basename "$dir")"
-      [ -e "$skills_home/$name" ] || cp -r "$dir" "$skills_home/$name"
-    done
-  fi
-  if [ ! -e "$UNSLOTH_STUDIO_HOME/skill-overrides.json" ]; then
-    printf '{"skill-creator":true}\n' > "$UNSLOTH_STUDIO_HOME/skill-overrides.json"
+  for dir in "$source_dir"/*/; do
+    [ -d "$dir" ] || continue
+    name="$(basename "$dir")"
+    dest="$skills_home/$name"
+    stamp="$UNSLOTH_STUDIO_HOME/.seeded-$name"
+    shipped="$(dir_hash "$dir")"
+    if [ ! -e "$dest" ]; then
+      cp -r "$dir" "$dest"
+      echo "$shipped" > "$stamp"
+      echo "Installed the $name skill."
+      continue
+    fi
+    installed="$(dir_hash "$dest")"
+    if [ "$installed" = "$shipped" ]; then
+      echo "$shipped" > "$stamp"
+      continue
+    fi
+    known="$(cat "$stamp" 2>/dev/null || true) $(legacy_skill_hashes "$name")"
+    case " $known " in
+      *" $installed "*)
+        rm -rf "$dest"
+        cp -r "$dir" "$dest"
+        echo "$shipped" > "$stamp"
+        echo "Updated the $name skill to the version in this checkout."
+        ;;
+      *)
+        echo "The $name skill was edited here, so it was left as it is."
+        ;;
+    esac
+  done
+}
+
+# skill-creator is switched on once, and only if there is no overrides file yet: after that the
+# toggles in the Skills window decide.
+seed_overrides() {
+  local file="$UNSLOTH_STUDIO_HOME/skill-overrides.json"
+  local marker="$UNSLOTH_STUDIO_HOME/.ganjalf-defaults-seeded"
+  mkdir -p "$UNSLOTH_STUDIO_HOME"
+  if [ ! -e "$file" ] && [ ! -f "$marker" ]; then
+    printf '{"skill-creator":true}\n' > "$file"
   fi
   touch "$marker"
+}
+
+seed_defaults() {
+  seed_skills
+  seed_overrides
 }
 
 if [ "$(id -u)" = "0" ]; then
