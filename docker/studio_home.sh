@@ -197,6 +197,36 @@ if [ -n "$skills" ]; then
     fi
 fi
 
+# Ganjalf ships skills in studio/ganjalf_skills (as scripts/ganjalf-launch.sh seeds them outside
+# Docker): a missing one is copied, one still as shipped is updated, one the user edited is left.
+skill_dir_hash() {
+    (cd "$1" && find . -type f | LC_ALL=C sort | tr '\n' '\0' | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
+}
+seed_ganjalf_skills() {
+    local source_dir="$APP/src/studio/ganjalf_skills" dir name dest stamp shipped installed
+    [ -n "$skills" ] && [ -d "$source_dir" ] && [ -d "$skills" ] || return 0
+    for dir in "$source_dir"/*/; do
+        [ -f "$dir/SKILL.md" ] || continue
+        name="$(basename -- "$dir")"
+        dest="$skills/$name"
+        stamp="$HOME_DIR/.seeded-skill-$name"
+        shipped="$(skill_dir_hash "$dir")"
+        if [ ! -e "$dest" ] && [ ! -L "$dest" ]; then
+            (umask 077 && cp -r -- "$dir" "$dest") && echo "$shipped" > "$stamp" && log "installed the $name skill"
+            continue
+        fi
+        [ -d "$dest" ] && [ ! -L "$dest" ] || continue
+        installed="$(skill_dir_hash "$dest")"
+        if [ "$installed" = "$shipped" ]; then
+            echo "$shipped" > "$stamp"
+        elif [ "$installed" = "$(cat -- "$stamp" 2>/dev/null || true)" ]; then
+            rm -rf -- "$dest" && (umask 077 && cp -r -- "$dir" "$dest") && echo "$shipped" > "$stamp" \
+                && log "updated the $name skill"
+        fi
+    done
+}
+seed_ganjalf_skills || log "WARNING: could not seed the Ganjalf skills into ${skills:-the skills folder}"
+
 if [ "${#moved[@]}" -gt 0 ]; then
     size="$(du -sh -- "$legacy" 2>/dev/null | cut -f1)"
     log "kept aside in $legacy (${size:-?}): ${moved[*]}"
