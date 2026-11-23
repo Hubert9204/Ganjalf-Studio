@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble the copy-paste system prompts from parts/: core.md plus one model addendum each.
+"""Assemble the copy-paste system prompts from sections/: core.md plus one model addendum each.
 
     python3 studio/ganjalf_prompts/build.py          # rewrite agentic-*.md
     python3 studio/ganjalf_prompts/build.py --check  # exit 1 if a file is out of date
@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-PARTS = HERE / "parts"
+PARTS = HERE / "sections"
 VARIANTS = {
     "agentic-generic.md": [],
     "agentic-qwen.md": ["qwen.md"],

@@ -218,17 +218,39 @@ def _saved_sampling(model_id: Optional[str]) -> Dict[str, Any]:
         return {}
 
 
+def _agentic_presence_cap() -> Optional[float]:
+    """GANJALF_AGENTIC_PRESENCE_PENALTY: the most presence_penalty a tool request is recommended
+    (default 0.0; "off" keeps the family value). llama-server applies it to the last 64 tokens, which
+    in a tool call are tags, parameter names and paths, so a high value garbles calls."""
+    raw = (os.environ.get("GANJALF_AGENTIC_PRESENCE_PENALTY") or "").strip().lower()
+    if raw in ("off", "none", "no", "false"):
+        return None
+    if not raw:
+        return 0.0
+    try:
+        value = _clean_sampling_value("presence_penalty", float(raw))
+    except ValueError:
+        value = None
+    # An unusable value falls back to the default rather than switching the cap off.
+    return 0.0 if value is None else value
+
+
 def resolve_effective_sampling(
     model_id: Optional[str],
     explicit: Dict[str, Any],
     *,
     fill_defaults: bool = True,
     thinking: Optional[bool] = None,
+    agentic: bool = False,
 ) -> Dict[str, Any]:
-    """Resolve the effective sampling params for a request. ``explicit`` maps each field in :data:`SAMPLING_FIELD_NAMES` to the client-sent value, or ``None`` when the client omitted it. Precedence, highest first: an operator ``UNSLOTH_SAMPLING_*`` pin, the client's explicit value, the defaults the user saved for this model, the per-model recommendation, then the static schema default. When ``fill_defaults`` is False a field with none of the first four is omitted rather than set to the static default, so a raw proxy body (``/v1/completions``) keeps llama-server's own default for that field."""
+    """Resolve the effective sampling params for a request. ``explicit`` maps each field in :data:`SAMPLING_FIELD_NAMES` to the client-sent value, or ``None`` when the client omitted it. Precedence, highest first: an operator ``UNSLOTH_SAMPLING_*`` pin, the client's explicit value, the defaults the user saved for this model, the per-model recommendation, then the static schema default. When ``fill_defaults`` is False a field with none of the first four is omitted rather than set to the static default, so a raw proxy body (``/v1/completions``) keeps llama-server's own default for that field. ``agentic`` (the request carries tools) caps the recommended presence_penalty, see :func:`_agentic_presence_cap`."""
     recommended = _recommended_sampling(model_id or "")
     if thinking is not None and "qwen3" in (model_id or "").lower():
         recommended = {**recommended, **_QWEN3_THINKING_SAMPLING[thinking]}
+    # A tool request: cap only the recommendation, so a saved default or a client value still wins.
+    cap = _agentic_presence_cap() if agentic else None
+    if cap is not None and recommended.get("presence_penalty", 0.0) > cap:
+        recommended = {**recommended, "presence_penalty": cap}
     saved = _saved_sampling(model_id)
     if saved:
         recommended = {**recommended, **saved}

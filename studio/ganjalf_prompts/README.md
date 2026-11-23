@@ -9,13 +9,22 @@ Prompt di sistema pensati per far lavorare i modelli locali come un agente: pian
 | `agentic-nemotron.md` | Nemotron 3 / 3.5 (Super 120B, Nano) |
 | `agentic-gemma.md` | Gemma 4 / 3 |
 
-I file `agentic-*.md` sono generati: si modificano `parts/core.md` e `parts/<famiglia>.md`, poi si lancia `python3 studio/ganjalf_prompts/build.py` (con `--check` verifica che siano allineati).
+I file `agentic-*.md` sono generati: si modificano `sections/core.md` e `sections/<famiglia>.md`, poi si lancia `python3 studio/ganjalf_prompts/build.py` (con `--check` verifica che siano allineati).
 
 ## Come usarli
 
-1. Apri la chat, impostazioni del modello, campo **System prompt**.
-2. Incolla il contenuto del file della famiglia del modello.
-3. Salvalo come preset (es. "Agente Qwen") così lo richiami in un clic.
+**In automatico (default).** Quando nella chat sono attivi dei tool locali, Ganjalf mette il protocollo in testa alle istruzioni sui tool (`core/inference/agentic_protocol.py`): `sections/core.md` più l'addendum della famiglia, riconosciuta dal nome del modello. Non serve fare niente.
+
+| Variabile | Effetto |
+|---|---|
+| `GANJALF_AGENT_PROTOCOL=auto` | default: Qwen, Nemotron, Gemma da 9B in su |
+| `GANJALF_AGENT_PROTOCOL=all` | tutti i modelli da 9B in su, testo generico per le altre famiglie |
+| `GANJALF_AGENT_PROTOCOL=off` | mai |
+| `GANJALF_AGENT_PROTOCOL_DIR=/percorso` | legge `core.md` e gli addenda da un'altra cartella (per provare varianti senza ricostruire l'immagine) |
+
+Non entra nei provider esterni (OpenAI, Anthropic, Codex…) né nelle chat senza tool. I file vengono letti una volta per processo: dopo averli modificati riavvia Studio.
+
+**A mano, come preset.** Se vuoi modificarlo per un singolo preset, incolla il file della famiglia nel campo **System prompt** e salva il preset. Ganjalf si accorge che il protocollo c'è già (riga `# How you work`) e non lo aggiunge una seconda volta.
 
 Il prompt è in inglese di proposito: i modelli seguono meglio le istruzioni in inglese, ma rispondono nella lingua dell'utente (regola in testa al prompt).
 
@@ -35,7 +44,7 @@ Ganjalf accoda già al system prompt dei suggerimenti per i singoli tool (`web_s
 
 Regole generali:
 - `repetition_penalty` sempre 1.0: penalizza i token ripetuti e rovina JSON, codice e percorsi.
-- `presence_penalty` alto (1.5) in modalità thinking fa male alle tool call: llama-server lo applica sugli ultimi 64 token, che durante una chiamata sono proprio tag, nomi di parametro e percorsi. Oggi Ganjalf mette 1.5 anche in thinking per Qwen 3.5/3.6/3.8 (`qwen-sampling-table.ts`, `inference_defaults.json`): per l'uso agentico impostalo a 0 nel preset.
+- `presence_penalty` alto (1.5) fa male alle tool call: llama-server lo applica sugli ultimi 64 token, che durante una chiamata sono proprio tag, nomi di parametro e percorsi. Lato server, una richiesta con tool riceve al massimo `GANJALF_AGENTIC_PRESENCE_PENALTY` (default `0.0`, `off` per disattivare) come valore *consigliato*: vale per i client API (OpenCode, Claude Code, script) che non mandano il campo. L'interfaccia di Ganjalf invece manda sempre il suo valore (1.5 per Qwen 3.5/3.6/3.8), che ha la precedenza: nel preset agentico impostalo a 0 a mano.
 - Con MTP una temperatura più bassa aumenta l'accettazione dei token speculativi, quindi 0.6 è anche più veloce di 1.0.
 - Thinking acceso per i task agentici; spegnilo solo per risposte brevi senza tool.
 - Contesto: almeno 64K per loop lunghi; `max_tokens` almeno 32K quando il thinking è acceso.
