@@ -5,6 +5,9 @@
 export const SKILL_MENTION_PATTERN =
   /(^|\s)@([a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?)(?=$|\s|[.,;:!?)](?:$|\s))/g;
 
+// A plugin command typed first, "/review-pr 42"; mirrors skill_mentions._COMMAND in the backend.
+export const SKILL_COMMAND_PATTERN = /^\s*\/([a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?)(?=$|\s)/;
+
 export interface SkillToolEntry {
   name: string;
   valid: boolean;
@@ -27,10 +30,12 @@ export function skillToolNames(
   if (codeToolsOn) return ["read_skill", "create_skill"];
   // earlier turns count because follow-ups must re-read SKILL.md contents that are not replayed.
   // do not mask code or quotes because frontend Markdown guesses can hide backend-literal mentions.
-  const mentioned = userTexts.some((text) =>
-    Array.from(text.matchAll(SKILL_MENTION_PATTERN)).some((match) =>
-      usable.has(match[2] ?? ""),
-    ),
+  const mentioned = userTexts.some(
+    (text) =>
+      usable.has(SKILL_COMMAND_PATTERN.exec(text)?.[1] ?? "") ||
+      Array.from(text.matchAll(SKILL_MENTION_PATTERN)).some((match) =>
+        usable.has(match[2] ?? ""),
+      ),
   );
   return mentioned ? ["read_skill"] : [];
 }

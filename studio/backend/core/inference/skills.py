@@ -524,8 +524,16 @@ def _skill_roots(home: Optional[Path] = None) -> tuple[tuple[str, Path], ...]:
     return (
         ("agents", _owner_skills_dir() or base / ".agents" / "skills"),
         ("claude", base / ".claude" / "skills"),
+        # Skills and commands of installed plugins (core/plugins/manager.py), rebuilt on change.
+        ("plugin", _plugin_skills_root()),
         _BUNDLED_ROOT,
     )
+
+
+def _plugin_skills_root() -> Path:
+    # Same place as core.plugins.manager.skills_root(), through this module's studio_root.
+    override = (os.environ.get("GANJALF_PLUGINS_HOME") or "").strip()
+    return (Path(override).expanduser() if override else studio_root() / "plugins") / "skills"
 
 
 def _default_enabled(source: str) -> bool:

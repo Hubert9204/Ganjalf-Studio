@@ -13,12 +13,12 @@ export { SKILL_MENTION_PATTERN } from "./skill-tools";
 export type SkillRecord = {
   name: string;
   description: string;
-  source: "agents" | "claude" | "bundled";
+  source: "agents" | "claude" | "plugin" | "bundled";
   enabled: boolean;
   valid: boolean;
   shadowed: boolean;
   linked?: boolean;
-  shadowed_by?: "agents" | "claude" | "bundled" | null;
+  shadowed_by?: "agents" | "claude" | "plugin" | "bundled" | null;
   error?: string | null;
   license?: string | null;
   compatibility?: string | null;

@@ -45,6 +45,7 @@ import {
   Cancel01Icon,
   Download01Icon,
   MoreHorizontalIcon,
+  PlugSocketIcon,
   PlusSignIcon,
   Refresh01Icon,
   Scroll01Icon,
@@ -82,13 +83,14 @@ import {
   useSkillsCatalog,
 } from "../api/skills-api";
 import { collectDroppedFiles } from "../utils/collect-dropped-files";
+import { PluginsDialog } from "./plugins-dialog";
 
 type EditDraft = { description: string; instructions: string };
 type View = { kind: "library" } | { kind: "new" } | { kind: "skill"; key: string };
 
 const EMPTY_DRAFT: SkillDraft = { name: "", description: "", instructions: "" };
 const LIBRARY: View = { kind: "library" };
-const SECTIONS: ReadonlyArray<SkillRecord["source"]> = ["agents", "claude", "bundled"];
+const SECTIONS: ReadonlyArray<SkillRecord["source"]> = ["agents", "claude", "plugin", "bundled"];
 // `*` is the bulk-change sentinel because skill names cannot contain it.
 const ALL_SKILLS = "*";
 
@@ -168,6 +170,7 @@ export function ChatSkillsDialog({
   const [confirmingDelete, setConfirmingDelete] = useState<SkillRecord | null>(null);
   const [confirmingDiscard, setConfirmingDiscard] = useState<(() => void) | null>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const [pluginsOpen, setPluginsOpen] = useState(false);
   // Reseeded on render so the first frame after opening is already reset.
   const [seenOpen, setSeenOpen] = useState(open);
   if (open !== seenOpen) {
@@ -193,7 +196,9 @@ export function ChatSkillsDialog({
       ? t("skills.sourceAgents")
       : source === "claude"
         ? t("skills.sourceClaude")
-        : t("skills.sourceBundled");
+        : source === "plugin"
+          ? t("skills.sourcePlugin")
+          : t("skills.sourceBundled");
 
   const query = searchQuery.trim().toLowerCase();
   const narrowed = query !== "";
@@ -633,6 +638,18 @@ export function ChatSkillsDialog({
                 {importing ? <Spinner /> : <HugeiconsIcon icon={Upload01Icon} strokeWidth={2} />}
                 <span className="max-sm:hidden">{t("skills.import")}</span>
               </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="max-sm:size-[calc(1lh_+_14px*var(--ui-space-scale,1)_+_2px)] max-sm:p-0"
+                aria-label={t("skills.openPlugins")}
+                title={t("skills.openPlugins")}
+                onClick={() => setPluginsOpen(true)}
+              >
+                <HugeiconsIcon icon={PlugSocketIcon} strokeWidth={2} />
+                <span className="max-sm:hidden">{t("skills.openPlugins")}</span>
+              </Button>
               <Button variant="secondary" type="button" size="sm" onClick={openNew}>
                 <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
                 {t("skills.newSkill")}
@@ -960,12 +977,13 @@ export function ChatSkillsDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <PluginsDialog open={pluginsOpen} onOpenChange={setPluginsOpen} />
     </Dialog>
   );
 }
 
-function sectionSuffix(source: SkillRecord["source"]): "Agents" | "Claude" | "Bundled" {
-  return source === "agents" ? "Agents" : source === "claude" ? "Claude" : "Bundled";
+function sectionSuffix(source: SkillRecord["source"]): "Agents" | "Claude" | "Plugin" | "Bundled" {
+  return source === "agents" ? "Agents" : source === "claude" ? "Claude" : source === "plugin" ? "Plugin" : "Bundled";
 }
 
 function detailsOf(

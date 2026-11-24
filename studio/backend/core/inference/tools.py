@@ -15496,6 +15496,20 @@ def execute_tool(
                 tool_execution_mode = tool_execution_mode,
                 host_access_approved = host_access_approved,
             )
+    if name == "run_agent":
+        from core.plugins.agents import run_agent
+
+        with _session_in_flight(session_id):
+            return _fit_result_to_room(
+                run_agent(
+                    arguments,
+                    session_id = session_id,
+                    cancel_event = cancel_event,
+                    disable_sandbox = disable_sandbox,
+                    website_policy = website_policy,
+                ),
+                name,
+            )
     if name == "check_page":
         from .page_check import check_page
 
@@ -15537,6 +15551,33 @@ def execute_tool(
                 name,
             )
     return f"Unknown tool: {name}"
+
+
+_execute_tool_unhooked = execute_tool
+
+
+@functools.wraps(_execute_tool_unhooked)
+def execute_tool(name: str, arguments: dict, *args, **kwargs) -> str:
+    """Runs a tool by name (``_execute_tool_unhooked``), between the PreToolUse and PostToolUse
+    hooks of plugins whose hooks the user switched on (core/plugins/hooks.py)."""
+    from core.plugins import hooks as plugin_hooks
+
+    try:
+        hooked = plugin_hooks.has_hooks("PreToolUse") or plugin_hooks.has_hooks("PostToolUse")
+    except Exception:
+        hooked = False
+    if not hooked:
+        return _execute_tool_unhooked(name, arguments, *args, **kwargs)
+    import inspect as _inspect
+
+    bound = _inspect.signature(_execute_tool_unhooked).bind_partial(name, arguments, *args, **kwargs)
+    session_id = bound.arguments.get("session_id")
+    workdir = plugin_hooks.workdir_for(session_id)
+    refused = plugin_hooks.before_tool(name, arguments, session_id = session_id, workdir = workdir)
+    if refused is not None:
+        return refused
+    result = _execute_tool_unhooked(name, arguments, *args, **kwargs)
+    return plugin_hooks.after_tool(name, arguments, result, session_id = session_id, workdir = workdir)
 
 
 def _opt_int(v) -> int | None:

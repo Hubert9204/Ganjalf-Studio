@@ -452,6 +452,7 @@ from routes import (
     mcp_servers_router,
     openai_fine_tuning_router,
     skills_router,
+    plugins_router,
     computer_use_router,
     models_router,
     providers_router,
@@ -2276,6 +2277,7 @@ app.include_router(settings_router, prefix = "/api/settings", tags = ["settings"
 app.include_router(sandbox_capability_router, prefix = "/api/sandbox", tags = ["sandbox"])
 app.include_router(mcp_servers_router, prefix = "/api/mcp/servers", tags = ["mcp"])
 app.include_router(skills_router, prefix = "/api/skills", tags = ["skills"])
+app.include_router(plugins_router, prefix = "/api/plugins", tags = ["plugins"])
 app.include_router(computer_use_router, prefix = "/api/computer-use", tags = ["computer-use"])
 app.include_router(prompts_router, prefix = "/api/prompts", tags = ["prompts"])
 app.include_router(scheduled_tasks_router, prefix = "/api/scheduled-tasks", tags = ["scheduled-tasks"])

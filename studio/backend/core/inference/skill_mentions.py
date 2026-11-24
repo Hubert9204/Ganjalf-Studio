@@ -22,6 +22,7 @@ from state.tool_approvals import (
 )
 from state.tool_policy import normalize_tool_permissions
 
+_COMMAND = re.compile(r"^\s*/([a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?)(?=$|\s)")
 _TOKEN = re.compile(r"(?<!\S)@([a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?)(?=$|\s|[.,;:!?)](?:$|\s))")
 _MAX_LOAD_BYTES = 32_000
 # A skill nobody named loads only if it fits in this much of the budget (never more than the cap).
@@ -111,7 +112,12 @@ def mentioned_skill_names(text: str) -> list[str]:
         parts.extend((text[end:start], " "))
         end = stop
     text = _mask_quoted("".join(parts) + text[end:])
-    return list(dict.fromkeys(match[1] for match in _TOKEN.finditer(text)))
+    names = [match[1] for match in _TOKEN.finditer(text)]
+    # A plugin command typed as the first word: "/review-pr 42" loads like "@review-pr 42".
+    command = _COMMAND.match(text)
+    if command:
+        names.insert(0, command[1])
+    return list(dict.fromkeys(names))
 
 
 def _text(message: dict) -> str:
@@ -166,6 +172,18 @@ def load_mentioned_skills(
     same way (GANJALF_AUTO_SKILLS=0 turns that off): small local models often skip read_skill or
     open an unrelated skill, so the backend picks instead of leaving it to the model.
     """
+    if not continue_final_message and messages and messages[-1].get("role") == "user":
+        # Plugins' SessionStart and UserPromptSubmit hooks (core/plugins/hooks.py).
+        try:
+            from core.plugins import hooks as plugin_hooks
+
+            hooked = plugin_hooks.prompt_context(
+                messages, session_id = session_id, workdir = plugin_hooks.workdir_for(session_id)
+            )
+        except Exception:
+            hooked = None
+        if hooked:
+            _append_system(messages, hooked)
     if continue_final_message or not any(
         tool.get("function", {}).get("name") == "read_skill" for tool in (tools or [])
     ):

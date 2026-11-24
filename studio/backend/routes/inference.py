@@ -6477,6 +6477,11 @@ async def _select_request_tools(
         and (supports_vision or tool["function"]["name"] != "view_image")
         and _check_page_offered(tool)
     ]
+    # A plugin's agents ride with the local code tools, on a llama.cpp model (core/plugins/agents.py).
+    if any(tool["function"]["name"] == "terminal" for tool in tools):
+        _agent_tool = _plugin_agent_tool()
+        if _agent_tool is not None:
+            tools = tools + [_agent_tool]
     # Inline on purpose: an await here escapes the api_monitor cancel handling; the cache bounds it.
     enabled_skills = _enabled_agent_skills() if tools_on else []
     if enabled_skills:
@@ -32943,6 +32948,19 @@ def _anthropic_offers_tools(payload) -> bool:
     if kind == "none":
         return False
     return bool(getattr(payload, "tools", None)) or bool(getattr(payload, "enable_tools", None))
+
+
+def _plugin_agent_tool() -> Optional[dict]:
+    """run_agent when an enabled plugin has agents and a llama.cpp model is loaded."""
+    try:
+        from core.plugins.agents import tool_definition
+
+        if not get_llama_cpp_backend().is_loaded:
+            return None
+        return tool_definition()
+    except Exception as exc:
+        logger.debug("Plugin agents unavailable: %s", exc)
+        return None
 
 
 def _check_page_offered(tool: dict) -> bool:

@@ -40613,6 +40613,7 @@ class LlamaCppBackend:
         _reprompt_count = 0
         # Budgeted apart from _reprompt_count so a pre-tool nudge can't spend it.
         _post_tool_reprompts = 0
+        _stop_hook_rounds = 0
         # A browser task is many steps, each a chance to announce the next one and stop: there the
         # budget is one nudge per tool turn, as in the external loop, not one per request.
         _browser_turns = any(
@@ -42200,6 +42201,38 @@ class LlamaCppBackend:
                             # Blank first (the route resets its cursor only on empty status).
                             yield {"type": "status", "text": ""}
                             yield {"type": "status", "text": _NUDGE_TOOL_CALLS_STATUS}
+                            continue
+
+                        # A plugin's Stop hook may send the agent back to work (core/plugins/hooks.py).
+                        _stop_hook_reason = None
+                        if active_tools and not tool_controller.awaiting_user:
+                            try:
+                                from core.plugins import hooks as _plugin_hooks
+
+                                if _plugin_hooks.has_hooks("Stop"):
+                                    _stop_hook_reason = _plugin_hooks.stop_check(
+                                        _stripped,
+                                        session_id = session_id,
+                                        workdir = _plugin_hooks.workdir_for(session_id),
+                                        rounds = _stop_hook_rounds,
+                                    )
+                            except Exception as _hook_exc:
+                                logger.warning(f"Plugin Stop hooks failed: {_hook_exc}")
+                        if _stop_hook_reason:
+                            _stop_hook_rounds += 1
+                            append_assistant_turn(
+                                conversation,
+                                {"role": "assistant", "content": _stripped},
+                                continue_final_message = continue_final_message,
+                            )
+                            conversation.append({"role": "user", "content": _stop_hook_reason})
+                            _fu_s = _backfill_usage_from_timings(_iter_usage, _iter_timings) or {}
+                            _accumulated_completion_tokens += _fu_s.get("completion_tokens", 0)
+                            _it_s = _iter_timings or {}
+                            _accumulated_predicted_ms += _it_s.get("predicted_ms", 0)
+                            _accumulated_predicted_n += _it_s.get("predicted_n", 0)
+                            yield {"type": "status", "text": ""}
+                            yield {"type": "status", "text": "Plugin hook: keep working"}
                             continue
 
                         if _forced_tool_call_pending:
