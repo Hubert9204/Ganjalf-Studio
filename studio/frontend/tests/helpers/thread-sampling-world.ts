@@ -79,8 +79,9 @@ function qwenTable(thinkingOn: boolean, checkpoint: string) {
     ? { temperature: 0.6, topP: 0.95, topK: 20, minP: 0 }
     : { temperature: 0.7, topP: 0.8, topK: 20, minP: 0 };
   const lower = checkpoint.toLowerCase();
+  // Ganjalf: thinking pins presence to 0 for these families; non-thinking keeps 1.5.
   return lower.includes("qwen3.5") || lower.includes("qwen3.6")
-    ? { ...base, presencePenalty: 1.5 }
+    ? { ...base, presencePenalty: thinkingOn ? 0 : 1.5 }
     : base;
 }
 
