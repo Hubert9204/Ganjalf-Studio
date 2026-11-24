@@ -14,7 +14,7 @@ import { readSrcAsync } from "./helpers/kit.ts";
 const INTERVAL = 1000;
 
 test("uses an eight-second production checkpoint interval", () => {
-  assert.equal(RUN_CHECKPOINT_INTERVAL_MS, 8_000);
+  assert.equal(RUN_CHECKPOINT_INTERVAL_MS, 4_000);
 });
 
 async function flushMicrotasks(): Promise<void> {

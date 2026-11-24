@@ -11,6 +11,7 @@ import type { ThreadMessage } from "@assistant-ui/react";
 
 import type { MessageRecord } from "../src/features/chat/types.ts";
 import { readSrc } from "./helpers/kit.ts";
+import { unmarkLiveElsewhere } from "../src/features/chat/utils/remote-live-stream.ts";
 
 const PROVIDER = readSrc("features/chat/runtime-provider.tsx");
 const SYNC = readSrc("features/chat/utils/delete-thread-message.ts");
@@ -46,6 +47,8 @@ function loadToThreadMessage(): (m: MessageRecord) => ThreadMessage {
     cloneAttachments: () => [],
     restoredAssistantStatus: () => ({ type: "complete", reason: "stop" }),
     generationIsCorroboratedLive: () => false,
+    isLiveElsewhere: () => false,
+    markLiveElsewhere: (custom: Record<string, unknown>) => custom,
     Date,
   });
 }
@@ -60,7 +63,10 @@ function loadExportedItemToRecord(): (
     "function snapshotContent(",
     "async function withStoredResearchMessages",
   );
-  return run(source, "globalThis.__fn = exportedItemToRecord;", { Date });
+  return run(source, "globalThis.__fn = exportedItemToRecord;", {
+    Date,
+    unmarkLiveElsewhere,
+  });
 }
 
 function loadStoredMessageToRunMessage(): (record: MessageRecord) => ThreadMessage {

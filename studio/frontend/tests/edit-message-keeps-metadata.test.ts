@@ -9,6 +9,7 @@ import type { ThreadMessage } from "@assistant-ui/react";
 import ts from "@typescript/typescript6";
 import type { MessageRecord } from "../src/features/chat/types.ts";
 import * as researchSync from "../src/features/chat/utils/research-message-sync.ts";
+import * as remoteLiveStream from "../src/features/chat/utils/remote-live-stream.ts";
 import * as savedUsage from "../src/features/chat/utils/saved-context-usage.ts";
 import {
   branchContextUsage,
@@ -57,6 +58,7 @@ const RECORD_MODULE = loadWithStubs<{
       ) => records,
     },
     "./research-message-sync": researchSync,
+    "./remote-live-stream": remoteLiveStream,
     "./saved-context-usage": savedUsage,
   },
 );
@@ -104,6 +106,7 @@ function harness(persist?: () => Promise<void>) {
       },
       "./delete-thread-message": RECORD_MODULE,
       "./research-message-sync": researchSync,
+      "./remote-live-stream": remoteLiveStream,
       "./saved-context-usage": savedUsage,
     },
   );

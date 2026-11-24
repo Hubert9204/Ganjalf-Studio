@@ -865,7 +865,7 @@ test("flushAll writes a thread that was restarted after stopAll", async () => {
 });
 
 test("the checkpoint interval constant is still eight seconds", () => {
-  assert.equal(RUN_CHECKPOINT_INTERVAL_MS, 8_000);
+  assert.equal(RUN_CHECKPOINT_INTERVAL_MS, 4_000);
 });
 
 test("quiet time is measured after the checkpoint settles, not on a fixed cadence", async () => {

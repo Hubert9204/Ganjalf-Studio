@@ -192,7 +192,11 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { forkChatThread } from "@/features/chat/api/chat-api";
+import { forkChatThread, getActiveGenerations } from "@/features/chat/api/chat-api";
+import {
+  LIVE_ELSEWHERE_KEY,
+  streamHeartbeatIsFresh,
+} from "@/features/chat/utils/remote-live-stream";
 import { syncThreadScroll } from "@/features/chat/thread-scroll-flag";
 import {
   findLatestUserAudioBase64,
@@ -7908,6 +7912,55 @@ const ComposerRightControls: FC<{
   );
 };
 
+/** A reply another device is still streaming (see remote-live-stream.ts). The heartbeat or the
+ *  backend's in-flight list keeps it live; once both lapse the owner is gone and the reply stalled. */
+const LiveElsewhereNotice: FC = () => {
+  const custom = useAuiState(
+    ({ message }) =>
+      (message.metadata as { custom?: Record<string, unknown> } | undefined)?.custom,
+  );
+  const threadId = useAuiState(({ threadListItem }) => threadListItem.remoteId);
+  const flagged = custom?.[LIVE_ELSEWHERE_KEY] === true;
+  const [now, setNow] = useState(() => Date.now());
+  const [backendActive, setBackendActive] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!flagged || !threadId) return;
+    let cancelled = false;
+    const check = () => {
+      setNow(Date.now());
+      getActiveGenerations()
+        .then((res) => {
+          if (!cancelled) setBackendActive(res.thread_ids.includes(threadId));
+        })
+        .catch(() => {
+          if (!cancelled) setBackendActive(null);
+        });
+    };
+    check();
+    const timer = setInterval(check, 10_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [flagged, threadId]);
+
+  if (!flagged) return null;
+  const alive = streamHeartbeatIsFresh(custom, now) || backendActive === true;
+  return (
+    <div className="mt-2 flex items-center gap-2 text-muted-foreground text-sm">
+      {alive ? (
+        <>
+          <Spinner className="size-3.5" />
+          <span>Generating on another device…</span>
+        </>
+      ) : (
+        <span>The other device stopped generating. Reload the chat to continue from here.</span>
+      )}
+    </div>
+  );
+};
+
 const MessageError: FC = () => {
   const researchRunId = useResearchMessageRunId();
   const researchActive = useThreadResearchActive();
@@ -8608,6 +8661,7 @@ const AssistantMessage: FC = () => {
                 <ContinueMessageBar />
               </>
             )}
+            <LiveElsewhereNotice />
             <MessageError />
           </>
         )}

@@ -299,6 +299,7 @@ import {
   type RunCheckpointScheduler,
   createRunCheckpointScheduler,
 } from "./utils/run-checkpoint-scheduler";
+import { isLiveElsewhere, markLiveElsewhere } from "./utils/remote-live-stream";
 import { isAssistantLocalThreadId } from "./utils/thread-ids";
 import { sanitizeThreadScopedSettings } from "./utils/thread-scoped-settings";
 import { VideoAttachmentAdapter } from "./video-attachment-adapter";
@@ -1472,7 +1473,10 @@ function toThreadMessage(m: MessageRecord): ThreadMessage {
     !needsGenerationRecovery &&
     custom.incomplete === undefined
       ? { ...custom, incomplete: { reason: "interrupted" as const } }
-      : custom;
+      : // Another tab's legacy stream: its provisional stamp is not a failure while it heartbeats.
+        isLiveElsewhere(custom)
+        ? markLiveElsewhere(custom)
+        : custom;
   const restoredStatus = restoredAssistantStatus({ custom: restoredCustom });
   return {
     id: m.id,
@@ -4296,6 +4300,8 @@ function ThreadBackendAutosave({
       if (!partial) fullSaveDueRef.current.add(threadId);
       await syncExportedRepositoryToBackend(remoteId, exported, {
         replyOnly: partial,
+        // replyOnly comes only from the mid-stream checkpoint: it is the heartbeat other devices read.
+        heartbeat: replyOnly,
       });
       if (!partial) fullSaveDueRef.current.delete(threadId);
       if (isChatThreadDeleted(remoteId)) {

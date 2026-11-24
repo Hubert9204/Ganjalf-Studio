@@ -7,6 +7,7 @@ import test from "node:test";
 import { MessageRepository } from "@assistant-ui/core/internal";
 import { skillLoadCardEvent } from "../src/features/chat/api/skill-load-event.ts";
 import * as researchSync from "../src/features/chat/utils/research-message-sync.ts";
+import * as remoteLiveStream from "../src/features/chat/utils/remote-live-stream.ts";
 import * as savedUsage from "../src/features/chat/utils/saved-context-usage.ts";
 import { loadWithStubs } from "./helpers/module-stubs.ts";
 
@@ -152,6 +153,7 @@ function exportHarness() {
         },
       },
       "./research-message-sync": researchSync,
+      "./remote-live-stream": remoteLiveStream,
       "./saved-context-usage": savedUsage,
     },
   );

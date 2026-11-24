@@ -19,6 +19,7 @@ import {
   hasResearchMetadata,
   reconcileServerManagedMessages,
 } from "./research-message-sync";
+import { unmarkLiveElsewhere, withStreamHeartbeat } from "./remote-live-stream";
 import { withMessageRevision } from "./saved-context-usage";
 
 function snapshotContent(
@@ -79,7 +80,10 @@ export function exportedItemToRecord(
       createdAt: toEpochMillis(message.createdAt),
     };
   }
-  const custom = (message.metadata?.custom ?? {}) as Record<string, unknown>;
+  // A reply another device is streaming is shown flagged; store the owner's stamp, not the flag.
+  const custom = unmarkLiveElsewhere(
+    (message.metadata?.custom ?? {}) as Record<string, unknown>,
+  );
   return {
     id: message.id,
     threadId,
@@ -119,22 +123,28 @@ export async function syncExportedRepositoryToBackend(
     pruneMissing?: boolean;
     deletedMessageIds?: string[];
     replyOnly?: boolean;
+    /** A mid-stream checkpoint: stamp the streaming reply so other devices see it as live. */
+    heartbeat?: boolean;
   } = {},
 ): Promise<void> {
+  const toRecord = (parentId: string | null, message: ThreadMessage) => {
+    const record = exportedItemToRecord(remoteId, parentId, message);
+    return options.heartbeat && record.role === "assistant" && message.id === exp.headId
+      ? { ...record, metadata: withStreamHeartbeat(record.metadata ?? {}) }
+      : record;
+  };
   const reply = options.replyOnly
     ? exp.messages.find(
         ({ message }) => message.id === exp.headId && message.role === "assistant",
       )
     : undefined;
   if (reply) {
-    await saveStoredChatMessage(
-      exportedItemToRecord(remoteId, reply.parentId, reply.message),
-    );
+    await saveStoredChatMessage(toRecord(reply.parentId, reply.message));
     return;
   }
   // syncStoredChatMessages ensures the row itself.
   const records = exp.messages.map(({ message, parentId }) =>
-    exportedItemToRecord(remoteId, parentId, message),
+    toRecord(parentId, message),
   );
   await syncStoredChatMessages(
     remoteId,

@@ -6,6 +6,7 @@ import test from "node:test";
 
 import { MessageRepository } from "@assistant-ui/core/internal";
 import * as researchSync from "../src/features/chat/utils/research-message-sync.ts";
+import * as remoteLiveStream from "../src/features/chat/utils/remote-live-stream.ts";
 import * as savedUsage from "../src/features/chat/utils/saved-context-usage.ts";
 import { readSrc } from "./helpers/kit.ts";
 import { loadWithStubs } from "./helpers/module-stubs.ts";
@@ -41,6 +42,7 @@ function harness() {
         },
       },
       "./research-message-sync": researchSync,
+      "./remote-live-stream": remoteLiveStream,
       "./saved-context-usage": savedUsage,
     },
   );
@@ -123,6 +125,6 @@ test("a failed whole-chat save keeps later checkpoints whole until one lands", (
   const provider = readSrc("features/chat/runtime-provider.tsx");
   assert.match(
     provider,
-    /const partial = replyOnly && !fullSaveDueRef\.current\.has\(threadId\);\s*if \(!partial\) fullSaveDueRef\.current\.add\(threadId\);\s*await syncExportedRepositoryToBackend\(remoteId, exported, \{\s*replyOnly: partial,\s*\}\);\s*if \(!partial\) fullSaveDueRef\.current\.delete\(threadId\);/,
+    /const partial = replyOnly && !fullSaveDueRef\.current\.has\(threadId\);\s*if \(!partial\) fullSaveDueRef\.current\.add\(threadId\);\s*await syncExportedRepositoryToBackend\(remoteId, exported, \{\s*replyOnly: partial,[^}]*heartbeat: replyOnly,\s*\}\);\s*if \(!partial\) fullSaveDueRef\.current\.delete\(threadId\);/,
   );
 });
