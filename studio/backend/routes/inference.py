@@ -92,6 +92,11 @@ from urllib.parse import quote as _urlquote, unquote as _urlunquote
 
 # Model size extraction (shared with core/inference/llama_cpp.py)
 from utils.models import extract_model_size_b as _extract_model_size_b
+from core.inference.agentic_protocol import (
+    agentic_protocol,
+    drop_repeated_protocol,
+    with_protocol,
+)
 from utils.models.checkpoints import is_full_finetune_output
 
 from utils.api_errors import (
@@ -5977,6 +5982,8 @@ def _build_tool_action_nudge(
     model_size_b = _extract_model_size_b(model_name)
     # Small models get the shorter web tip and the smaller skill catalog.
     compact = model_size_b is not None and model_size_b < 9
+    # Ganjalf's plan / call / recover / verify protocol for local families; never on full_access_only.
+    protocol = "" if full_access_only else agentic_protocol(model_name, model_size_b)
     skill_tip = _skill_tool_tip(
         can_create = "create_skill" in tool_names,
         can_run_scripts = bool({"python", "terminal"} & tool_names),
@@ -5998,7 +6005,7 @@ def _build_tool_action_nudge(
             tips.append(_TOOL_RESEARCH_TIP)
         if has_skills:
             tips.append(skill_tip)
-        return " ".join(tip for tip in tips if tip)
+        return with_protocol(protocol, " ".join(tip for tip in tips if tip))
 
     compact_web_tip = compact
     tool_tip_parts: list[str] = []
@@ -6021,7 +6028,7 @@ def _build_tool_action_nudge(
     if memory_tip:
         tool_tip_parts.append(memory_tip)
     # the date rides on the system prompt instead, so a tool-less chat is not left date-blind.
-    return _TOOL_BASE_NUDGE + " " + " ".join(tool_tip_parts)
+    return with_protocol(protocol, _TOOL_BASE_NUDGE + " " + " ".join(tool_tip_parts))
 
 
 # Ground answers in attached documents, not model memory; used when the RAG tool is active.
@@ -32579,9 +32586,27 @@ def _fill_recommended_sampling_openai(
 
     if explicit is None:
         explicit = _client_sampling(payload)
-    effective = resolve_effective_sampling(model_id, explicit, thinking = thinking)
+    effective = resolve_effective_sampling(
+        model_id, explicit, thinking = thinking, agentic = _payload_offers_tools(payload)
+    )
     for field, value in effective.items():
         setattr(payload, field, value)
+
+
+def _anthropic_offers_tools(payload) -> bool:
+    """The Messages API spells tool_choice as {"type": "none"}; anything else may call a tool."""
+    choice = getattr(payload, "tool_choice", None)
+    kind = choice.get("type") if isinstance(choice, dict) else getattr(choice, "type", choice)
+    if kind == "none":
+        return False
+    return bool(getattr(payload, "tools", None)) or bool(getattr(payload, "enable_tools", None))
+
+
+def _payload_offers_tools(payload) -> bool:
+    """Client tools or Studio tools on, and tool_choice not "none": the turn may call a tool."""
+    if getattr(payload, "tool_choice", None) == "none":
+        return False
+    return bool(getattr(payload, "tools", None)) or bool(getattr(payload, "enable_tools", None))
 
 
 # llama-server names it repeat_penalty; mirrors _build_passthrough_payload.
@@ -34433,6 +34458,8 @@ async def produce_openai_chat_completions(
                 payload = payload,
             )
 
+            # A preset that already holds the agentic protocol keeps the only copy.
+            _nudge = drop_repeated_protocol(system_prompt, _nudge)
             if _nudge:
                 # Append nudge to system prompt (preserve user's prompt)
                 if system_prompt:
@@ -36520,6 +36547,7 @@ async def produce_openai_chat_completions(
             tools = True,
             controls = _date_controls,
         )
+        _sf_nudge = drop_repeated_protocol(_sf_system_prompt, _sf_nudge)
         if _sf_nudge:
             if _sf_system_prompt:
                 _sf_system_prompt = _sf_system_prompt.rstrip() + "\n\n" + _sf_nudge
@@ -44433,7 +44461,8 @@ def _append_to_system_message(messages: list[dict], addition: str) -> list[dict]
             continue
         content = msg.get("content", "")
         if isinstance(content, str):
-            msg["content"] = content.rstrip() + "\n\n" + addition
+            addition = drop_repeated_protocol(content, addition)
+            msg["content"] = (content.rstrip() + "\n\n" + addition) if addition else content
             return copied
     return [{"role": "system", "content": addition}, *copied]
 
@@ -44698,6 +44727,7 @@ async def _mlx_count_chat_tokens(
                 tools = True,
                 controls = _date_controls,
             )
+        _nudge = drop_repeated_protocol(system_prompt, _nudge)
         if _nudge:
             system_prompt = (system_prompt.rstrip() + "\n\n" + _nudge) if system_prompt else _nudge
         _auto_heal = (
@@ -46705,6 +46735,7 @@ async def anthropic_messages(
             "presence_penalty": payload.presence_penalty,
         },
         thinking = _sampling_thinking_mode(llama_backend, payload),
+        agentic = _anthropic_offers_tools(payload),
     )
     temperature = _anthropic_sampling["temperature"]
     top_p = _anthropic_sampling["top_p"]
@@ -47166,6 +47197,8 @@ async def anthropic_messages(
             user_folder = await _tools_run_in_user_folder(payload, openai_tools),
         )
 
+        if _nudge and openai_messages and openai_messages[0].get("role") == "system":
+            _nudge = drop_repeated_protocol(openai_messages[0].get("content"), _nudge)
         if _nudge:
             # Inject into system prompt
             if openai_messages and openai_messages[0].get("role") == "system":

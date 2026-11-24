@@ -121,9 +121,11 @@ RENDER_HTML_REPEAT_NUDGE = (
     "Provide the final answer now."
 )
 
+# Static text: replay re-appends it verbatim (restore_replayed_tool_results) and tools.py prices its length.
 TOOL_ERROR_NUDGE = (
-    "\n\nThe tool call encountered an issue. Please try a different "
-    "approach or rephrase your request."
+    "\n\nThis call failed. Find the cause in the error above, then retry with corrected "
+    "arguments (never the identical call) or use another approach. After two failures of "
+    "one approach, change it or tell the user the exact error. Do not report this step as done."
 )
 
 BUDGET_EXHAUSTED_NUDGE = (
