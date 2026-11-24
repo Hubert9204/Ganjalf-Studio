@@ -62,6 +62,9 @@ I tool di Studio vengono presentati agli hook con i nomi di Claude Code: `termin
 matcher (`Edit|Write`) e le condizioni `if` (`Bash(git commit*)`) funzionano senza modifiche. Gli
 hook asincroni (`async`, `asyncRewake`) e quelli non di tipo `command` vengono saltati.
 
+Ogni hook gira in un proprio gruppo di processi: allo **Stop** della chat (o alla disconnessione del
+client) viene ucciso subito, gli hook successivi non partono e la chiamata tool non viene eseguita.
+
 ## Agenti
 
 `run_agent` affida un compito a un agente di un plugin: il suo file Markdown diventa il prompt di
@@ -70,7 +73,8 @@ sistema e la riga `tools` sceglie gli strumenti (`Bash`, `Read`, `Grep`, `Glob` 
 una conversazione separata sul modello GGUF già caricato, nella stessa cartella e con la stessa
 sandbox della chat, per al massimo 25 passaggi o 20 minuti; alla chat torna solo il suo rapporto
 finale, così le ricerche lunghe non riempiono il contesto. Le sue chiamate ai tool non chiedono
-conferma: approvare `run_agent` approva il suo lavoro.
+conferma: approvare `run_agent` approva il suo lavoro. Le risposte del modello arrivano in streaming:
+allo **Stop** la connessione si chiude, llama-server smette di generare e `run_agent` ritorna subito.
 
 ## Dove stanno i file
 

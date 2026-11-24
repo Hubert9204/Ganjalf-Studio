@@ -48,3 +48,5 @@ Regole generali:
 - Con MTP una temperatura più bassa aumenta l'accettazione dei token speculativi, quindi 0.6 è anche più veloce di 1.0.
 - Thinking acceso per i task agentici; spegnilo solo per risposte brevi senza tool.
 - Contesto: almeno 64K per loop lunghi; `max_tokens` almeno 32K quando il thinking è acceso.
+- **Max Tool Calls Per Message** parte da "Max" in Ganjalf: un lavoro lungo si ferma al contesto o dopo 8 chiamate fallite di fila (`GANJALF_TOOL_FAILURE_STREAK`). Un valore salvato in passato resta finché non lo cambi.
+- **Thinking Budget** (impostazioni della chat, solo modelli locali): Auto lascia il budget del modello; intorno a 4096 token accorcia le pause di ragionamento tra un passo e l'altro. Via API: `thinking_budget_tokens` o `thinking.budget_tokens`.

@@ -20,6 +20,7 @@ Chromium.
   bloccate, dimensioni dei canvas, testo visibile e uno screenshot 1280x720. Se lo screenshot è di un
   solo colore lo dice esplicitamente (lo script si è fermato).
 - WebGL funziona senza GPU (SwiftShader).
+- Allo **Stop** della chat ritorna subito; il browser headless si chiude da solo.
 - Raggiunge Internet pubblico e il loopback; blocca le porte di Studio, le reti private e i siti
   esclusi dalla policy di accesso web. Il testo della pagina arriva al modello dentro il recinto dei
   contenuti non fidati.
