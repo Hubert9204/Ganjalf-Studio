@@ -27,7 +27,7 @@ import {
 } from "./training-config-policy";
 
 export const TRAINING_CONFIG_PERSISTENCE_NAME = "unsloth_training_config_v1";
-export const TRAINING_CONFIG_PERSISTENCE_VERSION = 24;
+export const TRAINING_CONFIG_PERSISTENCE_VERSION = 25;
 
 const NON_PERSISTED_STATE_KEYS: ReadonlySet<keyof TrainingConfigState> =
   new Set([
@@ -313,6 +313,26 @@ function migrateThroughVersion23(
   );
 }
 
+// Ganjalf made offload "auto" the default in 25. A saved 0 was the old default, not a choice the
+// state can tell apart from one, and "auto" changes nothing for a model that fits; so 0 moves once.
+function migrateThroughVersion25(
+  state: PersistedTrainingConfig,
+  version: number,
+): void {
+  if (version >= 25) return;
+  if (state.offloadLayers === 0 || state.offloadLayers == null) {
+    state.offloadLayers = "auto";
+  }
+  const baseline = state.advancedSettingsBaseline;
+  if (
+    typeof baseline === "object" &&
+    baseline !== null &&
+    (baseline as Record<string, unknown>).offloadLayers === 0
+  ) {
+    (baseline as Record<string, unknown>).offloadLayers = "auto";
+  }
+}
+
 function isDatasetFormat(value: unknown): value is DatasetFormat {
   return (
     value === "auto" ||
@@ -414,6 +434,7 @@ export function migrateTrainingConfig(
   migrateThroughVersion21(state, version);
   migrateThroughVersion22(state, version);
   migrateThroughVersion23(state, version);
+  migrateThroughVersion25(state, version);
   return state as unknown as TrainingConfigStore;
 }
 

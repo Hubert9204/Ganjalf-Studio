@@ -174,7 +174,9 @@ export const DEFAULT_HYPERPARAMS = {
   packing: true,
   trainOnCompletions: true,
   gradientCheckpointing: "unsloth" as const,
-  offloadLayers: 0 as number | "auto",
+  // Ganjalf: "auto" keeps a model that fits entirely on the GPU and streams only the layers that do
+  // not fit from system RAM. The payload still sends 0 wherever offload cannot apply.
+  offloadLayers: "auto" as number | "auto",
   offloadVramGb: null as number | null,
   offloadVramGbPerDevice: {} as Record<string, number | null>,
   prefetchDepth: 2 as number | "auto",
