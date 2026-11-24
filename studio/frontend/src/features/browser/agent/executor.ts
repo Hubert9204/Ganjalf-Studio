@@ -1108,8 +1108,8 @@ async function navigateTo(address: string, action: BrowserAction, context: Run):
     return {
       ok: false,
       error: useNativeBrowser.getState().enabled
-        ? `${host} is on the user's computer, and the browser panel opens a local address only in the tab where the user types it in this chat's address bar. Ask the user to open it there first.`
-        : `${host} is a local address, and the browser only opens public sites.`,
+        ? `${host} is on the user's computer, and the browser panel opens a local address only in the tab where the user types it in this chat's address bar. To test a page or a server you started, use check_page (an HTML file, a built dist/index.html, or this http://localhost URL) instead; otherwise ask the user to open it there first.`
+        : `${host} is a local address, and the browser only opens public sites. To test a page or a server you started, use check_page (an HTML file, a built dist/index.html, or this http://localhost URL); do not retry it here.`,
     };
   }
   const gate = gateNavigation(url, navigationContext(action, context));

@@ -20,6 +20,10 @@ Chromium.
   bloccate, dimensioni dei canvas, testo visibile e uno screenshot 1280x720. Se lo screenshot è di un
   solo colore lo dice esplicitamente (lo script si è fermato).
 - WebGL funziona senza GPU (SwiftShader).
+- Progetti con bundler (Vite, webpack, TypeScript): si controlla la pagina compilata, es.
+  `dist/index.html` dopo `npm run build`; i percorsi assoluti come `/assets/...` vengono cercati
+  anche nella cartella della pagina. Se la pagina carica sorgenti `.ts`/`.tsx`, il risultato dice al
+  modello di compilare o di passare l'indirizzo `http://localhost` del dev server.
 - Allo **Stop** della chat ritorna subito; il browser headless si chiude da solo.
 - Promemoria a fine turno: se il modello ha modificato file web (HTML/CSS/Vue/Svelte/JSX/TSX, o
   JS/TS in una cartella con un file HTML) e sta per dare la risposta finale senza aver lanciato

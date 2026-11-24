@@ -40,8 +40,10 @@ Use this for code in a project folder: building a program, game, app or script, 
 
 ## Web pages and browser games
 - Check a page with `check_page` when you have it: it runs the file in a headless browser on the server, as from a web server (modules, import maps and sibling files load), and returns its JavaScript errors, failed requests, visible text and a screenshot. Pass `keys` (e.g. `["Enter"]`) to start a game or test its controls. Run it after every change, before you say the page works.
-- Without `check_page`, use the browser panel: `browser_navigate` with a file path loads that one file only, so for a page made of several files start a static server (`nohup python3 -m http.server 8080 > server.log 2>&1 &`) and open `http://localhost:8080/`. Snapshots list the page's errors since it loaded. If Ganjalf runs inside Docker that address does not reach the panel: inline the scripts into one HTML file.
-- No bundler is needed: `<script type="module">` with relative imports works. For an npm package add an import map, e.g. `"three": "./node_modules/three/build/three.module.js"` (recent three.js has no `three.min.js`).
+- With a bundler (Vite, webpack, TypeScript): `npx tsc --noEmit`, then `npm run build`, then `check_page` on the built page (`dist/index.html`). No dev server is needed for the check. The project's own `index.html` loads `/src/main.ts` and only works through the bundler.
+- Without `check_page`: the browser panel opens public sites only, never `localhost`, and `browser_navigate` with a file path loads that one file only. Do not retry it: say the page is unchecked and give the user the command to run it.
+- No bundler is needed for a small page: `<script type="module">` with relative imports works. For an npm package add an import map, e.g. `"three": "./node_modules/three/build/three.module.js"` (recent three.js has no `three.min.js`).
+- Tell the user how to open the result: a page with modules does not work from a double-click (`file://`). Give the command, e.g. `npm run dev` (or `npx vite preview` after a build, or `python3 -m http.server` in the folder) and the address it prints.
 - A black canvas, a one-color screenshot or a HUD showing 0/0 means the script stopped: read the first error, fix that line, check again. Do not start over.
 - If you could not run the page or cannot read images, say the picture is unchecked.
 

@@ -152,3 +152,26 @@ def test_a_stop_does_not_wait_for_the_browser(monkeypatch, tmp_path):
     started = time.monotonic()
     assert page_check.check_page({"path": "index.html"}, str(tmp_path), cancel) == "Error: check_page was cancelled."
     assert time.monotonic() - started < 3
+
+
+@pytest.mark.skipif(
+    os.environ.get("GANJALF_PAGE_CHECK_LIVE") != "1" or not page_check.check_page_available(refresh = True),
+    reason = "set GANJALF_PAGE_CHECK_LIVE=1 with Playwright and Chromium installed",
+)
+def test_live_built_page_in_dist_and_unbuilt_source(tmp_path):
+    # Vite's dist/index.html asks for /assets/... from the site root, which is dist/ here.
+    (tmp_path / "dist" / "assets").mkdir(parents = True)
+    (tmp_path / "dist" / "assets" / "index-abc.js").write_text("document.body.textContent = 'Built OK';")
+    (tmp_path / "dist" / "index.html").write_text(
+        '<!doctype html><title>B</title><script type="module" crossorigin src="/assets/index-abc.js"></script>'
+    )
+    text = page_check.check_page({"path": "dist/index.html", "wait_seconds": 0.3}, str(tmp_path))
+    head = text.split(SENTINEL, 1)[0]
+    assert "Visible text: Built OK" in head and "404" not in head
+
+    # The dev index.html loads TypeScript source: the model is told to build or use the dev server.
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.ts").write_text("const x: number = 1; console.log(x);")
+    (tmp_path / "index.html").write_text('<!doctype html><script type="module" src="/src/main.ts"></script>')
+    head = page_check.check_page({"path": "index.html", "wait_seconds": 0.3}, str(tmp_path)).split(SENTINEL, 1)[0]
+    assert "needs its bundler" in head and "dist/index.html" in head

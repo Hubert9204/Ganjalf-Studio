@@ -41,12 +41,12 @@ test("the agent opens a local address only once the user has typed it in the add
   const refused = await navigate("a3", "http://localhost:7860/");
   globals.__native = false;
   assert.equal(refused.ok, false);
-  assert.match(refused.error ?? "", /^localhost:7860 is on the user's computer.*Ask the user to open it there first\.$/);
+  assert.match(refused.error ?? "", /^localhost:7860 is on the user's computer.*use check_page .*ask the user to open it there first\.$/);
   // A search engine's redirect link opens its target, so the target needs the grant too.
   const redirected = await navigate("a3-redirect", "https://www.google.com/url?q=http://localhost:7860/");
-  assert.equal(redirected.error, "localhost:7860 is a local address, and the browser only opens public sites.");
+  assert.match(redirected.error ?? "", /^localhost:7860 is a local address, and the browser only opens public sites\. .*check_page/);
   const web = await navigate("a3-web", "http://localhost:7860/");
-  assert.equal(web.error, "localhost:7860 is a local address, and the browser only opens public sites.");
+  assert.match(web.error ?? "", /^localhost:7860 is a local address, and the browser only opens public sites\. .*check_page/);
   assert.equal(JSON.stringify(useBrowserStore.getState().tabs).includes("localhost"), false);
   assert.deepEqual(commands, []);
 

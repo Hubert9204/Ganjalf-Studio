@@ -74,8 +74,9 @@ CHECK_PAGE_TOOL = {
             "screenshot. Use it after writing or changing an HTML page or browser game, before "
             "you say it works. Takes a file in the working directory (served as from a web "
             "server, so ES modules, import maps and fetch() of sibling files work) or an "
-            "http://localhost URL of a server you started. Optionally presses keys after the wait, "
-            "to start a game or test controls."
+            "http://localhost URL of a server you started. For a Vite/webpack/TypeScript project, "
+            "build it and pass the built page (e.g. dist/index.html); no server is needed. "
+            "Optionally presses keys after the wait, to start a game or test controls."
         ),
         "parameters": {
             "type": "object",
@@ -176,6 +177,13 @@ def check_page_available(refresh: bool = False) -> bool:
 def _clip(text: Any, limit: int = MAX_REPORT_CHARS) -> str:
     flat = " ".join(str(text).split())
     return flat if len(flat) <= limit else flat[: limit - 1] + "…"
+
+
+def _inside(root: str, target: str) -> bool:
+    try:
+        return os.path.commonpath([root, target]) == root
+    except ValueError:
+        return False
 
 
 def _workspace_file(root: str, url_path: str) -> Optional[str]:
@@ -327,6 +335,14 @@ def _run(url: str, root: str, wait_s: float, keys: list[str], website_policy: Op
     requests: list[str] = []
     notes: list[str] = []
     resolved: dict[str, Optional[str]] = {}
+    # A built page in a subfolder (Vite/webpack dist/index.html) asks for /assets/... from its own
+    # folder: root-absolute paths that miss the working directory are tried there too.
+    page_root = root
+    opened = urlsplit(url)
+    if (opened.hostname or "").lower() == _WORKSPACE_HOST:
+        folder = os.path.dirname(unquote(opened.path).lstrip("/"))
+        if folder:
+            page_root = os.path.realpath(os.path.join(root, folder))
 
     def add(target: list[str], line: str) -> None:
         line = _clip(line)
@@ -346,6 +362,15 @@ def _run(url: str, root: str, wait_s: float, keys: list[str], website_policy: Op
             return
         if (parts.hostname or "").lower() == _WORKSPACE_HOST:
             path = _workspace_file(root, parts.path)
+            if path is None and page_root != root and _inside(root, page_root):
+                path = _workspace_file(page_root, parts.path)
+            if path is not None and path.lower().endswith((".ts", ".tsx", ".jsx", ".vue", ".svelte")):
+                add(
+                    notes,
+                    f"The page loads source that browsers cannot run ({parts.path}): it needs its "
+                    "bundler. Build it (e.g. `npm run build`) and check the built page (e.g. "
+                    "dist/index.html), or start the dev server with nohup and pass its http://localhost URL.",
+                )
             if path is None:
                 add(requests, f"404 {parts.path} (no such file in the working directory)")
                 route.fulfill(status = 404, content_type = "text/plain", body = "Not found")
