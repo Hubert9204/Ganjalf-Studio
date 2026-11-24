@@ -180,8 +180,11 @@ export const CHAT_ALLOW_ARTIFACT_NETWORK_ACCESS_KEY =
   "unsloth_chat_allow_artifact_network_access";
 export const CHAT_SEARCH_IMAGES_KEY = "unsloth_chat_search_images";
 export const CHAT_MCP_ENABLED_KEY = "unsloth_chat_mcp_enabled";
-export const DEFAULT_MAX_TOOL_CALLS_PER_MESSAGE = 50;
 export const UNLIMITED_TOOL_CALLS = 9999;
+// Ganjalf: no cap by default. Long agent runs on a local model end at the context policy
+// (rolling or compaction) or at a run of failed calls (backend GANJALF_TOOL_FAILURE_STREAK),
+// not at an arbitrary count; the slider still sets one.
+export const DEFAULT_MAX_TOOL_CALLS_PER_MESSAGE = UNLIMITED_TOOL_CALLS;
 // The slider value from before MCP lifted it to Max, so turning MCP off can put it back.
 const MAX_TOOL_CALLS_BEFORE_MCP_KEY = "unsloth_max_tool_calls_before_mcp";
 const MAX_TOOL_CALLS_PICKED_WITH_MCP_KEY =

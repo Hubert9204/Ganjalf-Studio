@@ -1345,6 +1345,18 @@ class ToolLoopController:
         return tuple(self._history)
 
     @property
+    def failure_streak(self) -> int:
+        """Executed calls in a row, at the end of the history, that failed."""
+        streak = 0
+        for record in reversed(self._history):
+            if not record.executed:
+                continue
+            if not record.is_error:
+                break
+            streak += 1
+        return streak
+
+    @property
     def force_final_answer(self) -> bool:
         """True once a terminal no-op should transition to a no-tools pass."""
         return self._force_final_answer

@@ -45,10 +45,10 @@ function cap(runtime: RuntimeModule): number {
   return runtime.useChatRuntimeStore.getState().maxToolCallsPerMessage;
 }
 
-test("the default is 50 tool calls per message", async (t) => {
+test("Ganjalf's default is no cap on tool calls (Max)", async (t) => {
   const runtime = await boot(t);
-  assert.equal(runtime.DEFAULT_MAX_TOOL_CALLS_PER_MESSAGE, 50);
-  assert.equal(cap(runtime), 50);
+  assert.equal(runtime.DEFAULT_MAX_TOOL_CALLS_PER_MESSAGE, MAX);
+  assert.equal(cap(runtime), MAX);
 });
 
 test("turning MCP on lifts the cap to Max and turning it off restores it", async (t) => {
@@ -104,6 +104,7 @@ test("Off and Max are restored as they were", async (t) => {
 test("Deep Research switching MCP off restores the cap", async (t) => {
   const runtime = await boot(t);
   const state = () => runtime.useChatRuntimeStore.getState();
+  state().setMaxToolCallsPerMessage(50);
   state().setMcpEnabledForChat(true);
   assert.equal(cap(runtime), MAX);
   state().setDeepResearchEnabled(true);

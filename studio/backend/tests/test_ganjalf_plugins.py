@@ -356,3 +356,22 @@ def test_routes_refuse_api_keys_and_install_for_the_owner(studio, tmp_path):
     assert client.post("/api/plugins/install", json = {"token": "0" * 32}).status_code == 400
     assert client.delete("/api/plugins/demo").status_code == 204
     assert client.get("/api/plugins/demo").status_code == 400
+
+
+def test_a_run_of_failed_calls_is_counted_from_the_end(monkeypatch):
+    from core.inference import tool_call_parser
+    from core.inference.tool_loop_controller import ToolLoopController, _ToolCallRecord
+
+    controller = ToolLoopController.__new__(ToolLoopController)
+    controller._history = [
+        _ToolCallRecord(key = "a", is_error = True, executed = True, action = None),
+        _ToolCallRecord(key = "b", is_error = False, executed = True, action = None),
+        _ToolCallRecord(key = "c", is_error = True, executed = True, action = None),
+        _ToolCallRecord(key = "d", is_error = False, executed = False, action = None),
+        _ToolCallRecord(key = "e", is_error = True, executed = True, action = None),
+    ]
+    assert controller.failure_streak == 2
+    assert tool_call_parser.failure_streak_limit() == 8
+    monkeypatch.setenv("GANJALF_TOOL_FAILURE_STREAK", "0")
+    assert tool_call_parser.failure_streak_limit() == 0
+    assert "8 tool calls all failed" in tool_call_parser.FAILURE_STREAK_NUDGE.format(count = 8)

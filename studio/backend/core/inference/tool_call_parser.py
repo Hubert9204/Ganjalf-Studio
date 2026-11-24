@@ -136,6 +136,23 @@ BUDGET_EXHAUSTED_NUDGE = (
     "any more tools."
 )
 
+# With no cap on calls (Max), a run that only fails stops here instead of at the context's end.
+FAILURE_STREAK_NUDGE = (
+    "Your last {count} tool calls all failed. Stop calling tools. Tell the user the exact last "
+    "error, what you tried, what already works, and the one next step you would take."
+)
+
+
+def failure_streak_limit() -> int:
+    """GANJALF_TOOL_FAILURE_STREAK (default 8; 0 turns the stop off)."""
+    import os
+
+    try:
+        return max(0, int(os.environ.get("GANJALF_TOOL_FAILURE_STREAK", "8")))
+    except ValueError:
+        return 8
+
+
 # The exact-args dup guard misses paraphrased re-searches, so also cap KB searches per turn
 RAG_MAX_SEARCHES_PER_TURN = 3
 # Retrieved passages land in the protected current exchange, so uncapped searches overflow.

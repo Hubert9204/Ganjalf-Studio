@@ -483,6 +483,7 @@ from utils.process_lifetime import is_signalable_pid as _is_signalable_pid
 from utils.process_lifetime import spawn_on_lifetime_thread as _spawn_on_lifetime_thread
 from core.inference.tool_call_parser import (
     BUDGET_EXHAUSTED_NUDGE,
+    FAILURE_STREAK_NUDGE,
     MAX_ACT_REPROMPTS as _MAX_REPROMPTS,
     NUDGE_TOOL_CALLS_STATUS as _NUDGE_TOOL_CALLS_STATUS,
     REPROMPT_MAX_CHARS as _REPROMPT_MAX_CHARS,
@@ -40614,6 +40615,8 @@ class LlamaCppBackend:
         # Budgeted apart from _reprompt_count so a pre-tool nudge can't spend it.
         _post_tool_reprompts = 0
         _stop_hook_rounds = 0
+        # What the final pass is told when tools stop: the call cap, or a run of failures.
+        _budget_nudge_text = BUDGET_EXHAUSTED_NUDGE
         # A browser task is many steps, each a chance to announce the next one and stop: there the
         # budget is one nudge per tool turn, as in the external loop, not one per request.
         _browser_turns = any(
@@ -43511,6 +43514,13 @@ class LlamaCppBackend:
                         _post_tool_reprompts = 0
                     if _tool_iters_done >= max_tool_iterations:
                         break
+                    from core.inference.tool_call_parser import failure_streak_limit
+
+                    _streak_limit = failure_streak_limit()
+                    if _streak_limit and tool_controller.failure_streak >= _streak_limit:
+                        logger.info(f"Stopping tools: {_streak_limit} calls in a row failed")
+                        _budget_nudge_text = FAILURE_STREAK_NUDGE.format(count = _streak_limit)
+                        break
                 continue
 
             except _LlamaStreamCancelled:
@@ -43554,18 +43564,18 @@ class LlamaCppBackend:
         if max_tool_iterations > 0 and _append_budget_exhausted_nudge:
             # Banned opener: nudge as a user turn; in the tool result LFM writes almost nothing.
             if _final_opener_id is not None or not _attach_internal_feedback_to_tool_result(
-                BUDGET_EXHAUSTED_NUDGE
+                _budget_nudge_text
             ):
                 # Ride the trailing user turn (over-cap notice or promoted image): two in a row break Gemma.
                 if conversation[-1].get("role") == "user":
                     conversation[-1] = {
                         **conversation[-1],
                         "content": with_appended_text(
-                            conversation[-1]["content"], f"\n\n{BUDGET_EXHAUSTED_NUDGE}"
+                            conversation[-1]["content"], f"\n\n{_budget_nudge_text}"
                         ),
                     }
                 else:
-                    conversation.append({"role": "user", "content": BUDGET_EXHAUSTED_NUDGE})
+                    conversation.append({"role": "user", "content": _budget_nudge_text})
 
         while _model_note_events:
             yield _model_note_events.pop(0)

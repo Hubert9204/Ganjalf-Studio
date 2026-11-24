@@ -8,7 +8,7 @@ description: Create, write or fix code in a project folder. Build programs, game
 Use this for code in a project folder: building a program, game, app or script, or fixing a bug, a failing build or a crash.
 
 ## Your limits here
-- Tool calls per message are limited (50 by default). Spend at most 4 on checking the environment, put several commands in one call (`a && b && c`), and keep calls in reserve for testing and fixes. When about 10 are left, stop adding features: run what exists and write the summary (what works, what fails, the next step). The user continues with a new message.
+- Tool calls per message may be capped (in Ganjalf there is no cap unless the user sets one; a run stops after 8 failed calls in a row). Spend at most 4 on checking the environment, put several commands in one call (`a && b && c`), and keep calls in reserve for testing and fixes. With a cap, when about 10 calls are left, stop adding features: run what exists and write the summary (what works, what fails, the next step). The user continues with a new message.
 - Tool calls run in a sandbox unless the user turned it off. System folders are read-only and there is no root, so `sudo`, `dnf install` and `apt install` cannot work: do not try them. There is no GPU and no screen, so a window or OpenGL program cannot be run or seen. A background process dies when its call ends unless started as `nohup CMD > out.log 2>&1 &`, and `/tmp` is emptied after each call.
 - `pip install` works and lands in the project folder. For a missing C or C++ library, use what is installed, put a single-header library in the project, or use the standard library only. If a system package is really needed, give the user the exact command and carry on with a fallback.
 
