@@ -3390,7 +3390,7 @@ def test_first_download_toast_is_informative_not_alarming():
     helper = src.split("async function ensureDefaultModelDownloaded", 1)[1]
     helper = helper.split("async function autoLoadSmallestModel", 1)[0]
     assert "Getting ${DEFAULT_CHAT_MODEL_LABEL} ready" in helper
-    assert "Unsloth couldn\u2019t find an existing model." in helper
+    assert "Ganjalf couldn\u2019t find an existing model." in helper
     assert "You can stop the download or " in helper
     assert "manage models later in the 'Model hub'" in helper
 

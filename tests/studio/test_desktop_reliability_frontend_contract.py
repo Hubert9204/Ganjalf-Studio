@@ -675,8 +675,8 @@ def test_desktop_titlebar_separates_navigation_from_sidebar_brand():
     assert "<ArrowRight" in titlebar
     assert "window.history.back()" in titlebar
     assert "window.history.forward()" in titlebar
-    assert 'src="/circle-logo-small.png"' in header
-    assert header.index("<DesktopTitlebarNavigation") < header.index('src="/circle-logo-small.png"')
+    assert 'src="/favicon.svg"' in header
+    assert header.index("<DesktopTitlebarNavigation") < header.index('src="/favicon.svg"')
 
 
 def _new_chat_button_class_tokens(chat_page: str) -> list[str]:

@@ -17,7 +17,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[2]
 DRIVERS = sorted((REPO / "tests" / "studio").glob("playwright_*.py"))
-BRANDS = ("Unsloth", "Studio")
+BRANDS = ("Unsloth", "Ganjalf", "Studio")
 LOCATORS = {"get_by_text", "get_by_label", "get_by_placeholder", "get_by_title"}
 
 
@@ -31,6 +31,8 @@ def _app_text():
             "-I",
             "-e",
             "Unsloth",
+            "-e",
+            "Ganjalf",
             "-e",
             "Studio",
             "--",
@@ -82,7 +84,7 @@ def _branded_labels(path):
 def test_the_scan_sees_the_drivers():
     assert DRIVERS, "no tests/studio/playwright_*.py drivers found; update this guard"
     found = [label for path in DRIVERS for _, label in _branded_labels(path)]
-    assert "Unsloth-managed folder" in found
+    assert "Ganjalf-managed folder" in found
 
 
 @pytest.mark.parametrize("driver", DRIVERS, ids = lambda p: p.name)

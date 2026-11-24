@@ -26,7 +26,7 @@ parser.add_argument("--before-url")
 parser.add_argument("--out", type = Path, default = Path("work/project-folders-review"))
 ARGS = parser.parse_args()
 OUT = ARGS.out.resolve()
-MANAGED_FOLDER = "Unsloth-managed folder"  # working-folder-picker.tsx with no folder set
+MANAGED_FOLDER = "Ganjalf-managed folder"  # working-folder-picker.tsx with no folder set
 
 # The picker button's three labels, read from the component rather than copied: #15080 dropped the
 # ellipses ("Choose folder…" -> "Choose folder", "Change…" -> "Change folder") and every lookup here

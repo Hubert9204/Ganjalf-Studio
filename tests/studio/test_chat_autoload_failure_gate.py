@@ -1631,7 +1631,7 @@ def test_the_first_download_toast_explains_rather_than_alarms():
     descriptions = [event["description"] or "" for event in _toasts(out, "toast.message")]
     assert any("Getting Gemma 4 E2B ready" in msg for msg in messages)
     assert any(
-        "Unsloth couldn\u2019t find an existing model. Unsloth is now getting "
+        "Ganjalf couldn\u2019t find an existing model. Ganjalf is now getting "
         "Gemma 4 E2B ready for use. You can stop the download or manage models "
         "later in the 'Model hub'" == text
         for text in descriptions
