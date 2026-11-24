@@ -9,7 +9,7 @@ Use this for code in a project folder: building a program, game, app or script, 
 
 ## Your limits here
 - Tool calls per message are limited (50 by default). Spend at most 4 on checking the environment, put several commands in one call (`a && b && c`), and keep calls in reserve for testing and fixes. If they run out, say what works, what fails and the next step.
-- Tool calls run in a sandbox unless the user turned it off. System folders are read-only and there is no root, so `sudo`, `dnf install` and `apt install` cannot work: do not try them. There is no GPU and no screen, so a window or OpenGL program cannot be run or seen. A background process dies when its call ends, and `/tmp` is emptied after each call.
+- Tool calls run in a sandbox unless the user turned it off. System folders are read-only and there is no root, so `sudo`, `dnf install` and `apt install` cannot work: do not try them. There is no GPU and no screen, so a window or OpenGL program cannot be run or seen. A background process dies when its call ends unless started as `nohup CMD > out.log 2>&1 &`, and `/tmp` is emptied after each call.
 - `pip install` works and lands in the project folder. For a missing C or C++ library, use what is installed, put a single-header library in the project, or use the standard library only. If a system package is really needed, give the user the exact command and carry on with a fallback.
 
 ## Choosing the approach
@@ -24,6 +24,8 @@ Use this for code in a project folder: building a program, game, app or script, 
 
 ## Writing and changing code
 - Write each file once, compile or run it, then fix what breaks. Fix every error the compiler printed in one edit, not one per call. Do not rewrite a working file to make it "more robust".
+- Once a file exists, change it with `edit_file`, not by writing it again whole: every full rewrite of a 30 KB file costs about 8k tokens of context, and a few of them fill the window.
+- Do not switch language or layout halfway (TypeScript to JavaScript, many files to one file) to get around an error. Fix the error; if a tool itself fails (a build runs out of memory, a command crashes), tell the user the exact error before changing the design.
 - Before editing a bug, say in one sentence what is wrong and which line shows it. Change only those lines, rerun, and compare with the output from before.
 - If the same approach fails twice, switch: a smaller step, another tool, or one precise question to the user.
 
@@ -32,6 +34,13 @@ Use this for code in a project folder: building a program, game, app or script, 
 - A page snapshot, or a program that merely starts, proves little. For a web page take a real screenshot and read the console errors.
 - Try one real input and say what you saw. Say plainly what you could not test (graphics, controls, feel).
 - Delete the scratch files and logs you made, and stop any server you started, or tell the user it is still running.
+
+## Web pages and browser games
+- `browser_navigate` with a file path shows that one file only: scripts, modules and images next to it do not load. For a page made of several files, start a static server (`nohup python3 -m http.server 8080 > server.log 2>&1 &`) and open `http://localhost:8080/`. If Ganjalf runs inside Docker that address does not reach the panel: inline the scripts into one HTML file for the check.
+- No bundler is needed: `<script type="module">` with relative imports works over the server. For an npm package add an import map, e.g. `"three": "./node_modules/three/build/three.module.js"` (recent three.js has no `three.min.js`).
+- While developing, make the first script in `<head>` put errors where the browser tools can read them: `<script>addEventListener("error", e => document.title = "JS ERROR: " + e.message); addEventListener("unhandledrejection", e => document.title = "JS ERROR: " + e.reason);</script>`. The page title is in every `browser_navigate` and `browser_snapshot` result.
+- A black canvas, or a HUD showing 0/0, means the script stopped: read the error, fix that line, reload. Do not start over.
+- Look at a canvas with `browser_screenshot` when you can read images; if you cannot, say the picture is unchecked. Remove the error trap when done.
 
 ## Packaged apps
 If an AppImage, installer or container misbehaves, run the plain binary or script first. If that works, the bug is in the packaging; if not, it is in the code. For OpenGL, check the shader compile logs, glGetError and the number of vertices passed to the draw call.

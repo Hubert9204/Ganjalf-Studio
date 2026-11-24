@@ -62,6 +62,8 @@ docker run --rm --gpus all -p 8000:8000 -v ganjalf-data:/opt/unsloth-studio ganj
 
 In Docker lo script di avvio non gira: le skill di serie vengono copiate nel volume a ogni avvio del container, le variabili sopra vanno impostate a mano.
 
+**Limite di memoria dei tool (Linux)**: il limite di *Impostazioni > Sicurezza > Limite di memoria* vale sulla memoria usata davvero (un controllo ogni secondo ferma il comando che lo supera). Lo spazio di indirizzi riservabile ha 48 GB in più, perché Node riserva circa 10 GB per ogni modulo WebAssembly e con un tetto stretto `vite build` non parte; si cambia con `GANJALF_SANDBOX_AS_HEADROOM_GB` (`0` torna al tetto rigido di Unsloth).
+
 **Aggiornamenti**: Ganjalf si aggiorna solo da questo repository, mai dal pacchetto PyPI di Unsloth. Fuori da Docker: `git pull && bash scripts/ganjalf-launch.sh`. In Docker: `docker exec <container> unsloth-studio-update` (segue il branch `main` di questo fork; `--pypi` installa invece la release di Unsloth, sostituendo Ganjalf). Quando il branch ha commit nuovi l'interfaccia mostra un avviso con il comando. Dettagli, variabili e procedura di allineamento con Unsloth in [studio/GANJALF_UPDATES.md](studio/GANJALF_UPDATES.md).
 
 Per le altre opzioni di installazione (HTTPS, accesso da rete locale, solo GGUF) valgono le [istruzioni di Unsloth](https://unsloth.ai/docs/new/studio/).

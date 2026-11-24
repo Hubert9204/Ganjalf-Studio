@@ -2571,7 +2571,9 @@ def test_a_sandboxed_run_gets_the_configured_memory_limit(monkeypatch, env, save
         tools._bash_exec(f"python3 -c \"{code.replace(chr(10), ';')}\"", None, 60, _SESSION),
     ):
         lines = dict(line.split(" ", 1) for line in out.splitlines() if line.startswith("AS "))
-        assert int(lines["AS"]) == expected * 1024**3, out
+        # Ganjalf: the address-space cap carries headroom for reservations; the RSS watchdog
+        # enforces the limit itself (see test_ganjalf_sandbox_memory.py).
+        assert int(lines["AS"]) == expected * 1024**3 + tools._as_headroom_bytes(), out
 
 
 _OVER_THE_LIMIT = (
@@ -2591,7 +2593,7 @@ def test_a_sandboxed_run_over_the_memory_limit_does_not_survive(monkeypatch):
     monkeypatch.setenv(sandbox_memory_limit.MEMORY_LIMIT_ENV, "1")
     out = tools._python_exec(_OVER_THE_LIMIT, None, 120, _SESSION)
     assert "SURVIVED" not in out, out
-    if sys.platform == "darwin":
+    if sys.platform == "darwin" or (sys.platform == "linux" and tools._linux_rss_watchdog):
         assert "1 GB sandbox memory limit" in out, out
     else:
         assert "MemoryError" in out, out

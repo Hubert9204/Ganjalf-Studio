@@ -9874,6 +9874,9 @@ def _build_safe_env(workdir: str, shell: "str | None" = None) -> dict[str, str]:
         "PYTHONUNBUFFERED": "1",
         # A GUI backend opens a native window and blocks plt.show() until closed.
         "MPLBACKEND": "Agg",
+        # npm and npx enable Node's compile cache under TMPDIR, the project's scratch dir: hundreds
+        # of files per command that bury the real outputs in every result.
+        "NODE_DISABLE_COMPILE_CACHE": "1",
         # Remaps ChatGPT code-interpreter paths (/mnt/data) onto the sandbox cwd.
         "PYTHONPATH": _SANDBOX_SITE_DIR,
         # Read by sandbox_site: refuses connects to cloud-metadata addresses at runtime.
@@ -10060,20 +10063,45 @@ def _build_bypass_env(workdir: str) -> dict[str, str]:
         if var in os.environ:
             env[var] = workdir
     env.setdefault("MPLBACKEND", "Agg")
+    env.setdefault("NODE_DISABLE_COMPILE_CACHE", "1")
     env["PYTHONUNBUFFERED"] = "1"
     return env
 
 
 # Read by _sandbox_preexec after the fork, so it is resolved here first: the settings store cannot be read in the child.
 _sandbox_as_bytes = 8 * 1024 * 1024 * 1024
+# Ganjalf: RLIMIT_AS counts address space reserved, not memory used. Node reserves ~10 GiB per
+# WebAssembly instance (Vite, Rollup, esbuild-wasm, lightningcss), so a cap equal to the memory
+# limit kills `vite build` of an empty project. Linux gets this much extra address space and the
+# RSS watchdog other platforms use for the real limit; without psutil the strict cap stays.
+_DEFAULT_AS_HEADROOM_GB = 48
+_linux_rss_watchdog = False
+
+
+def _as_headroom_bytes() -> int:
+    raw = (os.environ.get("GANJALF_SANDBOX_AS_HEADROOM_GB") or "").strip()
+    try:
+        gb = int(raw) if raw else _DEFAULT_AS_HEADROOM_GB
+    except ValueError:
+        gb = _DEFAULT_AS_HEADROOM_GB
+    return max(0, min(gb, 1024)) * 1024**3
+
+
+def _psutil_available() -> bool:
+    try:
+        import psutil  # noqa: F401
+    except Exception:  # noqa: BLE001 - any import failure means no watchdog
+        return False
+    return True
 
 
 def _refresh_sandbox_memory_limit() -> None:
-    global _sandbox_as_bytes
+    global _sandbox_as_bytes, _linux_rss_watchdog
     # RLIMIT_AS only works on Linux; Windows and macOS get the limit from _cap_tool_memory.
-    _sandbox_as_bytes = (
-        sandbox_memory_limit.memory_limit_bytes() if sys.platform == "linux" else None
-    )
+    limit = sandbox_memory_limit.memory_limit_bytes() if sys.platform == "linux" else None
+    headroom = _as_headroom_bytes() if limit is not None else 0
+    _linux_rss_watchdog = bool(headroom) and _psutil_available()
+    _sandbox_as_bytes = limit + headroom if _linux_rss_watchdog else limit
 
 
 _MEMORY_WATCHDOG_POLL_S = 1.0
@@ -10153,7 +10181,7 @@ def _memory_watchdog(
 
 def _cap_tool_memory(proc, pgid, sandboxed: bool) -> None:
     """The sandbox memory limit where RLIMIT_AS does not work: a job memory limit on Windows, a watchdog elsewhere."""
-    if not sandboxed or sys.platform == "linux":
+    if not sandboxed or (sys.platform == "linux" and not _linux_rss_watchdog):
         return
     limit_bytes = sandbox_memory_limit.memory_limit_bytes()
     if limit_bytes is None:
