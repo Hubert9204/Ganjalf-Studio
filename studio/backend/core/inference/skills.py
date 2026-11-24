@@ -782,18 +782,139 @@ def _render_manifest(frontmatter: dict, instructions: str) -> bytes:
     return f"---\n{dumped}---\n\n{instructions.strip()}\n".encode("utf-8")
 
 
+# Ganjalf: a skill the model writes may carry its own files, and the model may replace a skill it
+# wrote itself (never one the user made or imported); the old version is kept in a hidden folder.
+MODEL_SKILL_MARKER = ".ganjalf-created"
+SKILL_HISTORY_DIR = ".ganjalf-skill-history"
+SKILL_HISTORY_KEEP = 3
+SKILL_FILE_DIRS = ("references", "scripts", "templates", "assets", "examples")
+MAX_CREATED_SKILL_FILES = 24
+MAX_CREATED_SKILL_FILE_BYTES = 256 * 1024
+MAX_CREATED_SKILL_TOTAL_BYTES = 1024 * 1024
+
+
+def _draft_files(files) -> list:
+    """Validated (path, bytes, executable) triples for create_skill's ``files``."""
+    if files is None:
+        return []
+    if not isinstance(files, list):
+        raise SkillError("files must be a list of {path, content} objects.")
+    if len(files) > MAX_CREATED_SKILL_FILES:
+        raise SkillError(f"A skill can carry at most {MAX_CREATED_SKILL_FILES} files.")
+    drafted = []
+    seen = set()
+    total = 0
+    for item in files:
+        if not isinstance(item, dict):
+            raise SkillError("Each skill file must be an object with path and content.")
+        path = _normalize_resource_path(item.get("path") or "")
+        shown = path.as_posix()
+        if len(path.parts) < 2 or path.parts[0] not in SKILL_FILE_DIRS:
+            raise SkillError(
+                f"Skill file '{shown}' must be inside one of: "
+                + ", ".join(f"{folder}/" for folder in SKILL_FILE_DIRS)
+                + " (SKILL.md is the instructions field)."
+            )
+        if any(part.startswith(".") for part in path.parts):
+            raise SkillError(f"Skill file '{shown}' cannot be hidden.")
+        key = shown.casefold()
+        if key in seen:
+            raise SkillError(f"Skill file '{shown}' is listed twice.")
+        seen.add(key)
+        content = item.get("content")
+        if not isinstance(content, str):
+            raise SkillError(f"Skill file '{shown}' needs its text in content.")
+        try:
+            data = content.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise SkillError(f"Skill file '{shown}' must be valid UTF-8 text.") from exc
+        if b"\x00" in data:
+            raise SkillError(f"Skill file '{shown}' must be text, not binary data.")
+        if len(data) > MAX_CREATED_SKILL_FILE_BYTES:
+            raise SkillError(f"Skill file '{shown}' exceeds {MAX_CREATED_SKILL_FILE_BYTES // 1024} KB.")
+        total += len(data)
+        if total > MAX_CREATED_SKILL_TOTAL_BYTES:
+            raise SkillError(f"A skill's files exceed {MAX_CREATED_SKILL_TOTAL_BYTES // 1024} KB in all.")
+        drafted.append((path, data, path.parts[0] == "scripts"))
+    return drafted
+
+
 def create_skill(
     name: str,
     description: str,
     instructions: str,
     *,
+    files = None,
+    replace: bool = False,
+    model_made: bool = False,
     home: Optional[Path] = None,
 ) -> dict:
     normalized = _normalize_skill_name(name)
     description = _validate_draft(description, instructions)
+    extra = _draft_files(files)
     manifest = _render_manifest({"name": normalized, "description": description}, instructions)
     metadata = _parse_skill_markdown(manifest, normalized)
-    return _install_new_skill(normalized, manifest, metadata, home = home)
+    if model_made:
+        extra.append((PurePosixPath(MODEL_SKILL_MARKER), b"Written by the model with create_skill.\n", False))
+    if replace:
+        return _replace_model_skill(normalized, manifest, metadata, extra, home = home)
+    return _install_new_skill(normalized, manifest, metadata, files = extra, home = home)
+
+
+def _replace_model_skill(normalized: str, manifest: bytes, metadata: dict, files, *, home) -> dict:
+    """Swap a model-written skill for a new version; the old folder goes to the history."""
+    base, root = _agents_base(home)
+    try:
+        resolved = base.resolve(strict = True)
+    except OSError:
+        return _install_new_skill(normalized, manifest, metadata, files = files, home = home)
+    ancestors = _agents_ancestors(resolved, root)
+    skills_root = ancestors[-1]
+    skill_dir = skills_root / normalized
+    with _LOCK:
+        if not os.path.lexists(skill_dir):
+            backup = None
+        else:
+            _require_unlinked_agent_path(resolved, *ancestors)
+            marker = skill_dir / MODEL_SKILL_MARKER
+            if (
+                _is_linked_path(skill_dir)
+                or not skill_dir.is_dir()
+                or _is_linked_path(marker)
+                or not marker.is_file()
+            ):
+                raise SkillExistsError(
+                    f"Skill '{normalized}' already exists and was not written with create_skill, "
+                    "so it cannot be replaced. Use a new name."
+                )
+            history = skills_root / SKILL_HISTORY_DIR
+            if _is_linked_path(history):
+                raise SkillError("Agent Skills history folder is unsafe.")
+            history.mkdir(mode = 0o700, exist_ok = True)
+            import time as _time
+
+            stamp = _time.strftime("%Y%m%d-%H%M%S")
+            backup = history / f"{normalized}-{stamp}"
+            counter = 1
+            while os.path.lexists(backup):
+                counter += 1
+                backup = history / f"{normalized}-{stamp}-{counter}"
+            os.rename(skill_dir, backup)
+        try:
+            record = _install_new_skill(normalized, manifest, metadata, files = files, home = home)
+        except Exception:
+            if backup is not None and not os.path.lexists(skill_dir):
+                os.rename(backup, skill_dir)
+            raise
+        if backup is not None:
+            old = sorted(
+                (entry for entry in backup.parent.iterdir() if entry.name.startswith(f"{normalized}-")),
+                key = lambda entry: entry.name,
+            )
+            for stale in old[:-SKILL_HISTORY_KEEP]:
+                if not _is_linked_path(stale):
+                    shutil.rmtree(stale, ignore_errors = True)
+    return {**record, "replaced": backup is not None}
 
 
 def _install_new_skill(
@@ -1267,6 +1388,7 @@ def _read_enabled_skill_text(
     resource: str,
     *,
     home: Optional[Path] = None,
+    files_out: Optional[list] = None,
 ):
     with _LOCK:
         record, skill_dir, identity = _selected_skill(name, home = home)
@@ -1309,6 +1431,8 @@ def _read_enabled_skill_text(
             raise SkillError("Skill resources must be UTF-8 text.") from exc
         if "\x00" in content:
             raise SkillError("Skill resources must be UTF-8 text, not binary data.")
+        if files_out is not None and path.as_posix() == "SKILL.md":
+            files_out.extend(_list_skill_files(skill_dir, identity, limit = 40, max_chars = 2000))
         return record, path.as_posix(), content
 
 
@@ -1332,7 +1456,8 @@ def read_skill_resource(
         raise SkillError("Skill resource offset must be a non-negative integer.")
     if isinstance(page_chars, bool) or not isinstance(page_chars, int) or page_chars <= 0:
         raise SkillError("Skill resource page size must be a positive integer.")
-    record, normalized, content = _read_enabled_skill_text(name, resource, home = home)
+    files: list = []
+    record, normalized, content = _read_enabled_skill_text(name, resource, home = home, files_out = files)
     if offset > len(content):
         raise SkillError("Skill resource offset is past the end of the file.")
     end = min(offset + min(page_chars, MAX_SKILL_PAGE_CHARS), len(content))
@@ -1345,4 +1470,12 @@ def read_skill_resource(
             "\n\nResource continues. Call read_skill again with "
             f'name="{record["name"]}", resource="{normalized}", offset={end}.'
         )
+    else:
+        # Ganjalf: the end of SKILL.md names the skill's other files, so references are found.
+        others = [item for item in files if item != "SKILL.md"]
+        if normalized == "SKILL.md" and others:
+            result += (
+                f"\n\n[Files in this skill: {', '.join(others)}. Read one with read_skill "
+                f'name="{record["name"]}" resource="<path>" when the instructions call for it.]'
+            )
     return result

@@ -6957,9 +6957,16 @@ def _browser_opens_workspace_file(name: str, arguments: dict) -> bool:
     return name == "browser_navigate" and workspace_path_of(arguments.get("url")) is not None
 
 
+def _read_skill_writes(name: str, arguments: dict) -> bool:
+    """read_skill with copy_to writes a file into the working directory, so it asks like edit_file."""
+    return name == "read_skill" and bool(str((arguments or {}).get("copy_to") or "").strip())
+
+
 def is_potentially_unsafe_tool_call(name: str, arguments: dict) -> bool:
     """Auto mode prompts for anything that can mutate state or run code; unknown tools fail closed."""
     if _web_search_fetches_url(name, arguments) or _browser_opens_workspace_file(name, arguments):
+        return True
+    if _read_skill_writes(name, arguments):
         return True
     if name in _ALWAYS_SAFE_TOOLS:
         return False
@@ -9635,6 +9642,8 @@ def is_high_risk_tool_call(name: str, arguments: dict) -> bool:
     """Auto mode prompts only for sensitive actions (credentials, privilege, destructive, network exfil); unknown tools fail closed; hard blocks still apply."""
     if _web_search_fetches_url(name, arguments) or _browser_opens_workspace_file(name, arguments):
         return True
+    if _read_skill_writes(name, arguments):
+        return True  # asks in Auto like the edit_file it runs
     if name in _ALWAYS_SAFE_TOOLS:
         return False
     if name == "render_html":
@@ -13910,6 +13919,14 @@ READ_SKILL_TOOL = {
                     "minimum": 0,
                     "description": "Character offset for the next page. Defaults to 0.",
                 },
+                "copy_to": {
+                    "type": "string",
+                    "description": (
+                        "Copy the resource into the working directory at this path instead of "
+                        "reading it (templates, scripts): the file is written without passing "
+                        "through the conversation. Fails if the file already exists."
+                    ),
+                },
             },
             "required": ["name"],
         },
@@ -13920,8 +13937,10 @@ CREATE_SKILL_TOOL = {
     "function": {
         "name": "create_skill",
         "description": (
-            "Create a new Agent Skill in ~/.agents/skills. Use the skill-creator instructions "
-            "first. Existing skills are never overwritten."
+            "Create a new Agent Skill in ~/.agents/skills. Read the skill-creator instructions "
+            "first. A skill may carry extra text files (references, scripts, templates) that it "
+            "reads only when needed. Skills you did not write with this tool are never overwritten; "
+            "set replace to true to publish a new version of one you wrote (the old one is kept)."
         ),
         "parameters": {
             "type": "object",
@@ -13936,7 +13955,28 @@ CREATE_SKILL_TOOL = {
                 },
                 "instructions": {
                     "type": "string",
-                    "description": "Complete Markdown instructions for the skill body.",
+                    "description": "Complete Markdown body of SKILL.md (the procedure).",
+                },
+                "files": {
+                    "type": "array",
+                    "description": (
+                        "Optional extra files, at most 24, 256 KB each: paths under references/, "
+                        "scripts/, templates/, assets/ or examples/ (e.g. references/formulas.md, "
+                        "scripts/selftest.py, templates/main.ts). Name each one in the instructions "
+                        "with when to read or run it."
+                    ),
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "path": {"type": "string"},
+                            "content": {"type": "string"},
+                        },
+                        "required": ["path", "content"],
+                    },
+                },
+                "replace": {
+                    "type": "boolean",
+                    "description": "Replace a skill you created earlier with this new version.",
                 },
             },
             "required": ["name", "description", "instructions"],
@@ -15249,10 +15289,20 @@ def execute_tool(
         from .skills import SkillError, create_skill
 
         try:
+            files = arguments.get("files")
+            if isinstance(files, str) and files.strip().startswith("["):
+                # Small models send the array as a JSON string.
+                try:
+                    files = json.loads(files)
+                except ValueError:
+                    return "Error: files must be a JSON array of {path, content} objects."
             record = create_skill(
                 arguments.get("name", ""),
                 arguments.get("description", ""),
                 arguments.get("instructions", ""),
+                files = files if files not in (None, "") else None,
+                replace = arguments.get("replace") is True,
+                model_made = True,
             )
         except SkillError as exc:
             return f"Error: {exc}"
@@ -15260,9 +15310,13 @@ def execute_tool(
         from routes.inference import _invalidate_agent_skills_cache
 
         _invalidate_agent_skills_cache()
+        carried = len(files) if isinstance(files, list) else 0
         return (
-            f"Created Agent Skill '{record['name']}' at {record['path']}. "
-            f"It is enabled and ready to use."
+            f"{'Updated' if record.get('replaced') else 'Created'} Agent Skill '{record['name']}' "
+            f"at {record['path']}"
+            + (f" with {carried} extra file{'s' if carried != 1 else ''}" if carried else "")
+            + (" (the previous version is kept in .ganjalf-skill-history)" if record.get("replaced") else "")
+            + ". It is enabled and ready to use."
         )
 
     if name == "read_skill":
@@ -15273,6 +15327,29 @@ def execute_tool(
             SkillError,
             read_skill_resource,
         )
+        copy_to = arguments.get("copy_to")
+        if isinstance(copy_to, str) and copy_to.strip():
+            # Ganjalf: a template or script lands in the project without costing context twice.
+            from .skills import _read_enabled_skill_text
+
+            resource = arguments.get("resource") or "SKILL.md"
+            try:
+                record, normalized, content = _read_enabled_skill_text(arguments.get("name") or "", resource)
+            except SkillError as exc:
+                return f"Error: {exc}"
+            with _session_in_flight(session_id):
+                written = _edit_file(
+                    {"path": copy_to.strip(), "edits": [{"old_string": "", "new_string": content}]},
+                    session_id = session_id,
+                    disable_sandbox = disable_sandbox,
+                )
+            if written.startswith("Error"):
+                return written
+            lines = content.count("\n") + (0 if content.endswith("\n") or not content else 1)
+            return (
+                f"Copied {normalized} from skill '{record['name']}' to {copy_to.strip()} "
+                f"({lines} lines). Edit it with edit_file if it needs changes.\n\n" + written
+            )
         try:
             page_chars = MAX_SKILL_PAGE_CHARS
             # A model that spells out every optional argument sends null, not nothing.
