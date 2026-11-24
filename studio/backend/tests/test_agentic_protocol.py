@@ -137,7 +137,7 @@ def test_tool_error_nudge_asks_for_a_changed_retry():
 
 class TestAgenticPresenceCap:
     @staticmethod
-    def _presence(monkeypatch, *, agentic, explicit = None, saved = None, env = None):
+    def _presence(monkeypatch, *, agentic, explicit = None, saved = None, env = None, thinking = False):
         from utils.inference import inference_config as cfg
 
         if env is not None:
@@ -148,7 +148,7 @@ class TestAgenticPresenceCap:
         effective = cfg.resolve_effective_sampling(
             "unsloth/Qwen3.8-27B-GGUF",
             {"presence_penalty": explicit},
-            thinking = True,
+            thinking = thinking,
             agentic = agentic,
         )
         return effective["presence_penalty"]
@@ -164,6 +164,15 @@ class TestAgenticPresenceCap:
 
     def test_a_saved_default_still_wins(self, monkeypatch):
         assert self._presence(monkeypatch, agentic = True, saved = {"presence_penalty": 1.0}) == 1.0
+
+    def test_thinking_recommends_zero_even_without_tools(self, monkeypatch):
+        # Ganjalf: Qwen3.5/3.6/3.8 with thinking default to 0; the cap's "off" does not bring 1.5 back.
+        assert self._presence(monkeypatch, agentic = False, thinking = True) == 0.0
+        assert self._presence(monkeypatch, agentic = True, thinking = True, env = "off") == 0.0
+
+    def test_thinking_keeps_an_explicit_or_saved_value(self, monkeypatch):
+        assert self._presence(monkeypatch, agentic = False, thinking = True, explicit = 1.5) == 1.5
+        assert self._presence(monkeypatch, agentic = False, thinking = True, saved = {"presence_penalty": 1.0}) == 1.0
 
     def test_env_sets_or_disables_it(self, monkeypatch):
         assert self._presence(monkeypatch, agentic = True, env = "0.5") == 0.5

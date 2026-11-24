@@ -185,7 +185,7 @@ test("the Qwen thinking switch skips only the keys the user moved", () => {
   saveSystemPrompt("Be terse.");
   load(QWEN);
   applyQwenThinkingParams(true);
-  assert.deepEqual(sampling(), { temperature: 0.6, topP: 0.95, topK: 20, presencePenalty: 1.5 });
+  assert.deepEqual(sampling(), { temperature: 0.6, topP: 0.95, topK: 20, presencePenalty: 0 });
   moveSlider("temperature", 0.2);
   applyQwenThinkingParams(false);
   assert.deepEqual(sampling(), { temperature: 0.2, topP: 0.8, topK: 20, presencePenalty: 1.5 });

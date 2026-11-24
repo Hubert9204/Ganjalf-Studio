@@ -459,3 +459,76 @@ def test_a_stop_ends_a_sub_agent_mid_reply(studio, tmp_path, monkeypatch):
         server.shutdown()
     assert result == "Error: run_agent was cancelled."
     assert time.monotonic() - started < 5
+
+
+def test_run_agent_context_budget_and_clipping(monkeypatch):
+    monkeypatch.delenv("GANJALF_AGENT_CONTEXT_CHARS", raising = False)
+    assert plugin_agents.context_budget_chars(None) == plugin_agents.DEFAULT_CONTEXT_CHARS
+    assert plugin_agents.context_budget_chars(4096) == plugin_agents.MIN_CONTEXT_CHARS
+    assert plugin_agents.context_budget_chars(65536) == (65536 - 4096) * 9 // 4
+    assert plugin_agents.context_budget_chars(10**7) == plugin_agents.MAX_CONTEXT_CHARS
+    monkeypatch.setenv("GANJALF_AGENT_CONTEXT_CHARS", "20000")
+    assert plugin_agents.context_budget_chars(65536) == 20000
+
+    log = "start\n" + "x" * 20_000 + "\nFAILED test_a"
+    clipped = plugin_agents._clip_result(log)
+    assert clipped.startswith("start") and clipped.endswith("FAILED test_a") and "chars cut" in clipped
+    assert len(clipped) < plugin_agents.MAX_TOOL_RESULT_CHARS + 100
+
+    messages = [{"role": "system", "content": "s"}, {"role": "user", "content": "task"}]
+    for i in range(6):
+        messages.append({"role": "assistant", "content": "", "tool_calls": [{"id": f"c{i}"}]})
+        messages.append({"role": "tool", "tool_call_id": f"c{i}", "content": f"r{i} " + "y" * 6000})
+    assert plugin_agents.trim_history(messages, 20_000) > 0
+    assert sum(plugin_agents._message_chars(m) for m in messages) <= 20_000
+    assert messages[-1]["content"].startswith("r5 ") and messages[-3]["content"].startswith("r4 ")
+    assert messages[3]["content"].startswith("[older result shortened")
+    assert messages[1]["content"] == "task"
+
+
+def test_run_agent_keeps_its_conversation_under_the_budget(studio, tmp_path, monkeypatch):
+    from core.inference import tools
+
+    manager.install(manager.preview(str(_demo(tmp_path)))["token"])
+    monkeypatch.setenv("GANJALF_AGENT_CONTEXT_CHARS", "16000")
+    sizes = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_POST(self):
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            sizes.append(sum(plugin_agents._message_chars(m) for m in body["messages"]))
+            if len(sizes) < 8:
+                call = {"command": f"cat big{len(sizes)}.log"}
+                message = {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [{"id": f"c{len(sizes)}", "type": "function", "function": {"name": "terminal", "arguments": json.dumps(call)}}],
+                }
+            else:
+                message = {"role": "assistant", "content": "done"}
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.end_headers()
+            for chunk in _sse_chunks(message):
+                self.wfile.write(chunk)
+                self.wfile.flush()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target = server.serve_forever, daemon = True).start()
+    monkeypatch.setattr(tools, "execute_tool", lambda name, arguments, **kwargs: "z" * 9000)
+    monkeypatch.setattr(tools, "_get_workdir", lambda session_id = None: str(tmp_path))
+    try:
+        report = plugin_agents.run_agent(
+            {"agent": "demo:tester", "task": "Read the logs"},
+            session_id = "s",
+            server = (f"http://127.0.0.1:{server.server_port}", None),
+        )
+    finally:
+        server.shutdown()
+    assert report.startswith("Agent demo:tester finished (7 tool calls).")
+    # Each result is clipped to 6k; the budget keeps every request near 16k however many rounds run.
+    assert max(sizes) <= 16_000 + plugin_agents.MAX_TOOL_RESULT_CHARS
+    assert sizes[-1] < 7 * plugin_agents.MAX_TOOL_RESULT_CHARS

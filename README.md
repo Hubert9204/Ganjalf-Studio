@@ -21,6 +21,8 @@
 - **Protocollo agentico**: con i tool attivi, Ganjalf mette in testa al prompt un metodo di lavoro (pianificare, chiamare i tool correttamente, non inventare risultati, gestire gli errori, verificare prima di dire "fatto"), con note specifiche per Qwen, Nemotron e Gemma. Dettagli in [studio/ganjalf_prompts/README.md](studio/ganjalf_prompts/README.md).
 - **Nessun tetto alle chiamate**: *Max Tool Calls Per Message* parte da "Max". Un lavoro lungo si ferma al contesto (finestra scorrevole o compattazione) oppure quando le ultime 8 chiamate di fila falliscono: il modello deve allora riportare l'errore esatto, cosa funziona e il passo successivo (`GANJALF_TOOL_FAILURE_STREAK`, `0` lo disattiva).
 - **Thinking Budget**: un cursore nelle impostazioni della chat limita i token di ragionamento dei modelli locali (Auto lascia quello del modello).
+- **Guardrail morbidi**: dopo 6 scritture di file di fila senza eseguire niente, il modello riceve una nota che gli chiede di provare quello che ha scritto (build, test, script) se si può (`GANJALF_VERIFY_AFTER_WRITES`, `0` la disattiva). Se ha modificato pagine web (HTML/CSS, o JS/TS accanto a un HTML) e sta per chiudere senza aver lanciato `check_page`, viene rimandato una sola volta a controllare la pagina (`GANJALF_CHECK_PAGE_GATE=0` lo disattiva). Nessuno dei due blocca: se il controllo non è possibile, il modello lo dice e chiude.
+- **Log di build leggibili**: quando l'output di `terminal` o `python` è troppo lungo, oltre all'inizio il modello vede le righe d'errore della parte tagliata e le ultime righe; npm non stampa più barre di avanzamento, colori e avvisi di fund/audit.
 - **Istruzioni fissate nel contesto**: quando la finestra di contesto scorre, le ultime due istruzioni dell'utente restano nel prompt, così il modello non perde il compito a metà lavoro.
 - **Il modello vede le pagine che crea**: il tool `check_page` apre una pagina o un gioco della cartella di lavoro in un Chromium senza finestra sul server (anche in Docker, anche a chat chiusa) e restituisce errori JavaScript, richieste fallite, testo visibile e uno screenshot; può premere tasti per avviare un gioco. Nel pannello browser della chat le letture riportano gli errori della pagina dal caricamento in poi, e `browser_screenshot` funziona anche nella versione web (canvas e WebGL compresi). Dettagli in [studio/PAGE_CHECK.md](studio/PAGE_CHECK.md).
 - **Limite di memoria dei tool più realistico (Linux)**: conta la memoria usata davvero, così `node`, `vite build` e WebAssembly girano nella sandbox.
@@ -107,7 +109,7 @@ Per un modello locale che lavora da agente (es. Qwen3.6-35B-A3B con thinking), n
 
 | Impostazione | Valore | Perché |
 |---|---|---|
-| **Presence Penalty** | `0` (1.0 se va in loop) | l'interfaccia manda 1.5 per i Qwen 3.5/3.6/3.8; durante le tool call penalizza proprio tag, parametri e percorsi |
+| **Presence Penalty** | `0` (1.0 se va in loop) | predefinito con thinking per i Qwen 3.5/3.6/3.8 (1.5 resta senza thinking); durante le tool call un valore alto penalizza proprio tag, parametri e percorsi. Un 1.5 salvato in passato per un modello resta: rimettilo a 0 o usa il ripristino del valore consigliato |
 | **Max Tool Calls Per Message** | `Max` | predefinito in Ganjalf; un valore salvato in passato resta finché non lo cambi |
 | **Thinking Budget** | `Auto`, o ~4096 per i lavori lunghi | ragionamenti più brevi tra un passo e l'altro |
 | Temperature / Top P / Top K / Min P | 0.6 / 0.95 / 20 / 0 | campionamento consigliato per thinking e codice |

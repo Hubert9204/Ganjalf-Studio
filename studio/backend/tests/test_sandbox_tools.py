@@ -2780,6 +2780,13 @@ class TestSandboxEnvIsolation:
             "TMP",
             "HOMEDRIVE",  # Windows only; Path.home() at the workdir, never inherited
             "HOMEPATH",
+            # Ganjalf: fixed values that only quiet Node/npm output; nothing inherited.
+            "NODE_DISABLE_COMPILE_CACHE",
+            "NO_COLOR",
+            "npm_config_progress",
+            "npm_config_fund",
+            "npm_config_audit",
+            "npm_config_update_notifier",
         }
         extras = set(env.keys()) - allowed
         assert not extras, f"sandbox env added unexpected keys: {extras}"

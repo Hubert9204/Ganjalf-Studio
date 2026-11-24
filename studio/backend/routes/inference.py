@@ -47762,9 +47762,13 @@ async def anthropic_messages(
         )
 
     # ── No-tool path ──────────────────────────────────────────
+    # Ganjalf: stop sequences enforced by the generator so the reply can name the one that matched.
+    _stop_report: dict = {}
+
     def _run_plain_gen():
         return llama_backend.generate_chat_completion(
             reasoning_provenance = _think_prov,
+            stop_report = _stop_report,
             messages = openai_messages,
             temperature = temperature,
             top_p = top_p,
@@ -47800,6 +47804,7 @@ async def anthropic_messages(
                 count_template_kwargs = _anthropic_count_template_kwargs(
                     llama_backend, _reasoning_args
                 ),
+                stop_report = _stop_report,
             )
         )
     return await _admitted_anthropic(
@@ -47811,6 +47816,7 @@ async def anthropic_messages(
             parse_think = _think_parsing_expected(llama_backend, payload),
             think_provenance = _think_prov,
             cancel_event = cancel_event,
+            stop_report = _stop_report,
         )
     )
 
@@ -48036,6 +48042,7 @@ async def _anthropic_plain_stream(
     parse_think = True,
     think_provenance = None,
     count_template_kwargs = None,
+    stop_report = None,
 ):
     """Streaming response for the no-tool path."""
     _sentinel = object()
@@ -48124,7 +48131,10 @@ async def _anthropic_plain_stream(
             stop_reason = openai_finish_to_anthropic_stop(
                 captured_finish_reason, had_tool_calls = False
             )
-            for line in emitter.finish(stop_reason = stop_reason, stop_sequence = None):
+            for line in emitter.finish(
+                stop_reason = stop_reason,
+                stop_sequence = (stop_report or {}).get("hit") if stop_reason == "stop_sequence" else None,
+            ):
                 yield line
         finally:
             _tracker.__exit__(None, None, None)
@@ -48174,7 +48184,7 @@ def _collect_anthropic_events(run_gen, think_provenance = None) -> list:
 
 
 def _anthropic_message_json_response(
-    message_id, model_name, content_blocks, stop_reason, usage
+    message_id, model_name, content_blocks, stop_reason, usage, stop_sequence = None
 ) -> Response:
     """Assemble the terminal Anthropic non-streaming JSON response shared by the
     tool / plain / passthrough paths."""
@@ -48185,6 +48195,7 @@ def _anthropic_message_json_response(
             model = model_name,
             content = content_blocks,
             stop_reason = stop_reason,
+            stop_sequence = stop_sequence,
             usage = AnthropicUsage(
                 input_tokens = input_tokens,
                 cache_read_input_tokens = cache_read,
@@ -48453,6 +48464,7 @@ def _anthropic_plain_response_from_events(
     model_name,
     parse_think = True,
     think_provenance = None,
+    stop_report = None,
 ):
     """Reduce collected plain events into one non-streaming response."""
     text_parts = []
@@ -48488,7 +48500,12 @@ def _anthropic_plain_response_from_events(
     stop_reason = openai_finish_to_anthropic_stop(captured_finish_reason, had_tool_calls = False)
 
     return _anthropic_message_json_response(
-        message_id, model_name, content_blocks, stop_reason, usage
+        message_id,
+        model_name,
+        content_blocks,
+        stop_reason,
+        usage,
+        stop_sequence = (stop_report or {}).get("hit") if stop_reason == "stop_sequence" else None,
     )
 
 
@@ -48500,6 +48517,7 @@ async def _anthropic_plain_non_streaming(
     parse_think = True,
     think_provenance = None,
     cancel_event = None,
+    stop_report = None,
 ):
     """Generate and reduce a plain response entirely off the event loop."""
 
@@ -48510,6 +48528,7 @@ async def _anthropic_plain_non_streaming(
             model_name,
             parse_think = parse_think,
             think_provenance = think_provenance,
+            stop_report = stop_report,
         )
 
     disconnect_watcher = asyncio.create_task(_await_disconnect_then_cancel(request, cancel_event))

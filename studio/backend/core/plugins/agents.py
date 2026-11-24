@@ -27,6 +27,13 @@ MAX_SECONDS = 20 * 60
 MAX_TOKENS_PER_TURN = 4096
 MAX_TOOL_RESULT_CHARS = 6_000
 MAX_REPORT_CHARS = 12_000
+# Ganjalf: the sub-agent's own conversation is kept under a budget of its own (characters, ~3 per
+# token), so 25 rounds of tool output cannot overflow the model's window. Older tool results are
+# shortened to a stub first; the system prompt, the task and the last results always stay.
+DEFAULT_CONTEXT_CHARS = 64_000
+MIN_CONTEXT_CHARS = 16_000
+MAX_CONTEXT_CHARS = 400_000
+KEEP_RECENT_RESULTS = 2
 MAX_LISTED_AGENTS = 30
 
 _TOOL_MAP = {
@@ -169,6 +176,60 @@ def _post(base_url: str, headers: Optional[dict], payload: dict, timeout: float,
     }
 
 
+def context_budget_chars(context_tokens: Optional[int] = None) -> int:
+    """GANJALF_AGENT_CONTEXT_CHARS, else ~3/4 of the model's window (in chars) minus one reply."""
+    import os
+
+    raw = (os.environ.get("GANJALF_AGENT_CONTEXT_CHARS") or "").strip()
+    if raw:
+        try:
+            return max(MIN_CONTEXT_CHARS, int(raw))
+        except ValueError:
+            pass
+    if isinstance(context_tokens, int) and context_tokens > 0:
+        budget = (context_tokens - MAX_TOKENS_PER_TURN) * 3 * 3 // 4
+        return max(MIN_CONTEXT_CHARS, min(MAX_CONTEXT_CHARS, budget))
+    return DEFAULT_CONTEXT_CHARS
+
+
+def _message_chars(message: dict) -> int:
+    size = len(str(message.get("content") or ""))
+    if message.get("tool_calls"):
+        size += len(json.dumps(message["tool_calls"], ensure_ascii = False))
+    return size
+
+
+def trim_history(messages: list[dict], budget: int) -> int:
+    """Shorten the oldest tool results until the conversation fits ``budget``; returns how many."""
+    total = sum(_message_chars(message) for message in messages)
+    if total <= budget:
+        return 0
+    results = [index for index, message in enumerate(messages) if message.get("role") == "tool"]
+    trimmed = 0
+    for index in results[: max(0, len(results) - KEEP_RECENT_RESULTS)]:
+        old = str(messages[index].get("content") or "")
+        if old.startswith("[older result shortened"):
+            continue
+        stub = f"[older result shortened to save context; it was {len(old)} chars: {old[:200]}]"
+        if len(stub) >= len(old):
+            continue
+        messages[index] = {**messages[index], "content": stub}
+        total -= len(old) - len(stub)
+        trimmed += 1
+        if total <= budget:
+            break
+    return trimmed
+
+
+def _clip_result(text: str) -> str:
+    """Head and tail: a build or test log ends with what matters."""
+    if len(text) <= MAX_TOOL_RESULT_CHARS:
+        return text
+    tail = MAX_TOOL_RESULT_CHARS // 3
+    head = MAX_TOOL_RESULT_CHARS - tail
+    return f"{text[:head]}\n... ({len(text) - head - tail} chars cut) ...\n{text[-tail:]}"
+
+
 def _strip_images(result: str) -> str:
     from core.inference.mcp_images import SENTINEL
 
@@ -220,9 +281,13 @@ def run_agent(
             if not backend.is_loaded:
                 return "Error: run_agent needs a GGUF model loaded in llama.cpp; none is loaded."
             server = (backend.base_url, backend._auth_headers)
+            context_tokens = getattr(backend, "context_length", None)
         except Exception as exc:
             return f"Error: run_agent needs a GGUF model running in llama.cpp ({exc})."
+    else:
+        context_tokens = None
     base_url, headers = server
+    budget = context_budget_chars(context_tokens)
 
     from core.inference.llama_tool_schema import llama_grammar_tools
     from core.inference.tools import ALL_TOOLS, _get_workdir, execute_tool
@@ -240,6 +305,7 @@ def run_agent(
             return "Error: run_agent was cancelled."
         if time.monotonic() - started > MAX_SECONDS:
             return _report(agent, steps, "", f"stopped after {MAX_SECONDS // 60} minutes without finishing")
+        trim_history(messages, budget)
         payload: dict = {
             "model": "ganjalf",
             "messages": messages,
@@ -287,9 +353,7 @@ def run_agent(
             steps.append(name)
             if cancel_event is not None and cancel_event.is_set():
                 return "Error: run_agent was cancelled."
-            text = _strip_images(result)
-            if len(text) > MAX_TOOL_RESULT_CHARS:
-                text = text[:MAX_TOOL_RESULT_CHARS] + "\n... (cut)"
+            text = _clip_result(_strip_images(result))
             messages.append(
                 {"role": "tool", "tool_call_id": str(call.get("id") or f"call_{round_number}_{index}"), "content": text}
             )

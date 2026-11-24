@@ -32,30 +32,35 @@ test("Qwen3.8 reuses the Qwen3.6 sampling table in both modes", () => {
     );
 
     assert.deepEqual(qwen38, qwen36);
-    assert.equal(qwen38?.presencePenalty, 1.5);
+    // Ganjalf: thinking pins presence to 0; non-thinking keeps the family's 1.5.
+    assert.equal(qwen38?.presencePenalty, thinkingOn ? 0 : 1.5);
   }
 });
 
 test("an Ollama Qwen3.5 MLX tag gets the table by its checkpoint", () => {
   const checkpoint = "/h/.studio_links/0c918e29a9/mlx/qwen3.5-4b-mlx";
-  assert.equal(resolveQwenThinkingParams(checkpoint, true)?.presencePenalty, 1.5);
+  assert.equal(resolveQwenThinkingParams(checkpoint, true)?.presencePenalty, 0);
+  assert.equal(resolveQwenThinkingParams(checkpoint, false)?.presencePenalty, 1.5);
 });
 
-test("the Qwen3.8 Think toggle puts 1.5 in the live chat settings", () => {
+test("the Qwen3.8 Think toggle puts the mode's presence in the live chat settings", () => {
   for (const thinkingOn of [true, false]) {
     const store = useChatRuntimeStore.getState();
     useChatRuntimeStore.setState({
       params: {
         ...store.params,
         checkpoint: "unsloth/Qwen3.8-27B-GGUF",
-        presencePenalty: 0.0,
+        presencePenalty: 0.7,
       },
       activePresetSource: "builtin-default",
     });
 
     applyQwenThinkingParams(thinkingOn);
 
-    assert.equal(useChatRuntimeStore.getState().params.presencePenalty, 1.5);
+    assert.equal(
+      useChatRuntimeStore.getState().params.presencePenalty,
+      thinkingOn ? 0 : 1.5,
+    );
   }
 });
 

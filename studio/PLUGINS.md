@@ -76,6 +76,12 @@ finale, così le ricerche lunghe non riempiono il contesto. Le sue chiamate ai t
 conferma: approvare `run_agent` approva il suo lavoro. Le risposte del modello arrivano in streaming:
 allo **Stop** la connessione si chiude, llama-server smette di generare e `run_agent` ritorna subito.
 
+La conversazione dell'agente ha un budget suo: circa tre quarti della finestra del modello (in
+caratteri, ~3 per token; `GANJALF_AGENT_CONTEXT_CHARS` per fissarlo). Quando lo supera, i risultati
+dei tool più vecchi diventano una riga di riassunto; prompt, compito e gli ultimi due risultati
+restano interi. Ogni risultato è tagliato a 6.000 caratteri tenendo inizio e fine (dove un log
+mette gli errori), e il rapporto che torna alla chat a 12.000.
+
 ## Dove stanno i file
 
 `~/.ganjalf-studio/plugins/` (in Docker `/opt/unsloth-studio/plugins/`):

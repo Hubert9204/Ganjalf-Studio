@@ -275,6 +275,8 @@ class ToolCallCompletion:
     result: str
     is_error: bool = False
     executed: bool = False
+    # Ganjalf soft guard (core/inference/work_guards.py): model-only, never on the card.
+    guard_note: str = ""
 
     def tool_end_payload(self) -> dict[str, Any]:
         # Mask here too, not only in model_message: the frontend persists this payload and replays it.
@@ -303,6 +305,8 @@ class ToolCallCompletion:
         content = strip_result_for_model(self.result, self.decision.tool_name)
         if self.is_error:
             content = content + TOOL_ERROR_NUDGE
+        if self.guard_note and isinstance(content, str):
+            content = content + self.guard_note
         message: dict[str, Any] = {
             "role": "tool",
             "name": self.decision.tool_name,
@@ -1331,6 +1335,9 @@ class ToolLoopController:
         self._history: list[_ToolCallRecord] = []
         self._force_final_answer = False
         self._awaiting_user = False
+        from core.inference.work_guards import WorkLedger  # noqa: PLC0415 -- keep import light
+
+        self.work_ledger = WorkLedger()
 
     @property
     def awaiting_user(self) -> bool:
@@ -1547,6 +1554,7 @@ class ToolLoopController:
             result = result_text,
             is_error = failed,
             executed = True,
+            guard_note = self.work_ledger.note_call(decision.tool_name, decision.arguments, failed),
         )
 
     def _remember_mcp_tools(self, names) -> None:

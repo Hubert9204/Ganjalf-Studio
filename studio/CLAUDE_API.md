@@ -12,7 +12,7 @@ esterni. Codice: `studio/backend/core/inference/anthropic_compat.py`, rotte in
 | Richiesta | `model`, `messages`, `system` (stringa o blocchi, `cache_control` accettato), `max_tokens`, `temperature`, `top_p`, `top_k`, `stop_sequences`, `stream`, `metadata`, `thinking` (`enabled`/`adaptive`/`disabled`, `budget_tokens`), `output_config.effort`, `tools` (client, server `web_search`/`web_fetch`/`code_execution`, Anthropic-schema), `tool_choice` (`auto`, `any`, `tool`, `none`) |
 | Blocchi in input | `text`, `image` (base64 e URL), `document` (testo, contenuto, PDF base64), `search_result`, `tool_use`, `tool_result` (con `is_error` e immagini), `thinking`/`redacted_thinking` ripetuti dal client |
 | Streaming | `message_start`, `ping`, `content_block_start/delta/stop` (`text_delta`, `thinking_delta`, `input_json_delta` a pezzi), `message_delta` (`stop_reason`, `stop_sequence`, `usage`), `message_stop`, `error` a metà stream |
-| `stop_reason` | `end_turn`, `max_tokens`, `tool_use`, `stop_sequence` (provider esterni), `refusal` |
+| `stop_reason` | `end_turn`, `max_tokens`, `tool_use`, `stop_sequence` (provider esterni e GGUF locale senza tool), `refusal` |
 | Usage | `input_tokens`, `output_tokens`, `cache_read_input_tokens` (prompt riusato da llama-server), `cache_creation_input_tokens` sempre 0 |
 | Errori | corpo `{"type":"error","error":{"type":…,"message":…}}`, 400 `invalid_request_error` anche per la validazione, 401, 403, 404, 413, 429 `rate_limit_error`, 500, 529 `overloaded_error` |
 | Intestazioni | `request-id` su ogni risposta di `/v1/messages` |
@@ -70,9 +70,12 @@ Interventi di Ganjalf in questo audit:
 
 ## Limiti noti
 
-- Con un modello GGUF locale una `stop_sequence` taglia il testo correttamente, ma `stop_reason` è
-  `end_turn` invece di `stop_sequence`: llama-server non dice quale parola l'ha fermato nel formato
-  OpenAI.
+- Con un modello GGUF locale e senza tool, le `stop_sequences` le applica Ganjalf sul testo della
+  risposta (non sul thinking): il testo si ferma prima della sequenza, la generazione viene chiusa e
+  la risposta riporta `stop_reason: "stop_sequence"` e `stop_sequence` con quella trovata (anche in
+  streaming). `usage.output_tokens` in quel caso è contato con il tokenizer del modello. Con i tool
+  attivi le sequenze restano a llama-server, che taglia il testo ma non dice quale ha trovato:
+  lì `stop_reason` resta `end_turn`.
 - I blocchi `thinking` hanno `signature` vuota e non arriva un `signature_delta`: non c'è nulla da
   firmare in locale. Un client che rimanda quei blocchi a Ganjalf funziona; non vanno rimandati
   all'API di Anthropic.

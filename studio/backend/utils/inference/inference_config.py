@@ -247,6 +247,10 @@ def resolve_effective_sampling(
     recommended = _recommended_sampling(model_id or "")
     if thinking is not None and "qwen3" in (model_id or "").lower():
         recommended = {**recommended, **_QWEN3_THINKING_SAMPLING[thinking]}
+        # Ganjalf: the families that bump presence to 1.5 (Qwen3.5/3.6/3.8) get 0 with thinking,
+        # matching the chat UI. A saved default or a client value still wins (precedence below).
+        if thinking and recommended.get("presence_penalty", 0.0) > 0.0:
+            recommended = {**recommended, "presence_penalty": 0.0}
     # A tool request: cap only the recommendation, so a saved default or a client value still wins.
     cap = _agentic_presence_cap() if agentic else None
     if cap is not None and recommended.get("presence_penalty", 0.0) > cap:

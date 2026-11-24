@@ -432,10 +432,10 @@ def _qwen_backend(
 @pytest.mark.parametrize(
     "model_identifier, supports_reasoning, reasoning_default, request_kwargs, expected",
     [
-        ("unsloth/Qwen3.6-27B-MTP-GGUF", True, True, {}, (0.6, 0.95, 1.5)),
+        ("unsloth/Qwen3.6-27B-MTP-GGUF", True, True, {}, (0.6, 0.95, 0.0)),
         ("unsloth/Qwen3.6-27B-MTP-GGUF", True, True, {"enable_thinking": False}, (0.7, 0.8, 1.5)),
         ("unsloth/Qwen3.5-4B-GGUF", True, False, {}, (0.7, 0.8, 1.5)),
-        ("unsloth/Qwen3.5-4B-GGUF", True, False, {"reasoning_effort": "high"}, (0.6, 0.95, 1.5)),
+        ("unsloth/Qwen3.5-4B-GGUF", True, False, {"reasoning_effort": "high"}, (0.6, 0.95, 0.0)),
         ("unsloth/Qwen3-8B-GGUF", True, True, {"enable_thinking": False}, (0.7, 0.8, 0.0)),
         ("unsloth/Qwen3-4B-Instruct-2507-GGUF", False, True, {}, (0.6, 0.95, 0.0)),
     ],
@@ -525,7 +525,8 @@ def test_messages_route_recommends_the_qwen_sampling_for_the_active_thinking_mod
 
     assert response.status_code == 200
     assert (captured["temperature"], captured["top_p"]) == expected
-    assert captured["presence_penalty"] == 1.5
+    # Ganjalf: thinking (0.6/0.95) recommends presence 0, non-thinking keeps the family's 1.5.
+    assert captured["presence_penalty"] == (0.0 if expected == (0.6, 0.95) else 1.5)
 
 
 _QWEN_THINKING_TEMPLATE = (
@@ -606,7 +607,7 @@ def test_safetensors_chat_route_recommends_the_qwen_sampling_for_the_active_thin
     asyncio.run(inference_route.openai_chat_completions(payload, _Request(), "test-user"))
 
     assert (captured["temperature"], captured["top_p"]) == expected
-    assert captured["presence_penalty"] == 1.5
+    assert captured["presence_penalty"] == (0.0 if expected[1] == 0.95 else 1.5)
 
 
 @pytest.mark.parametrize(

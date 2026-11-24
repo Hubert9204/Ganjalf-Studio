@@ -9877,6 +9877,12 @@ def _build_safe_env(workdir: str, shell: "str | None" = None) -> dict[str, str]:
         # npm and npx enable Node's compile cache under TMPDIR, the project's scratch dir: hundreds
         # of files per command that bury the real outputs in every result.
         "NODE_DISABLE_COMPILE_CACHE": "1",
+        # Ganjalf: no colour codes, progress bars or fund/audit/update banners in build logs.
+        "NO_COLOR": "1",
+        "npm_config_progress": "false",
+        "npm_config_fund": "false",
+        "npm_config_audit": "false",
+        "npm_config_update_notifier": "false",
         # Remaps ChatGPT code-interpreter paths (/mnt/data) onto the sandbox cwd.
         "PYTHONPATH": _SANDBOX_SITE_DIR,
         # Read by sandbox_site: refuses connects to cloud-metadata addresses at runtime.
@@ -10064,6 +10070,14 @@ def _build_bypass_env(workdir: str) -> dict[str, str]:
             env[var] = workdir
     env.setdefault("MPLBACKEND", "Agg")
     env.setdefault("NODE_DISABLE_COMPILE_CACHE", "1")
+    for _quiet_key, _quiet_value in (
+        ("NO_COLOR", "1"),
+        ("npm_config_progress", "false"),
+        ("npm_config_fund", "false"),
+        ("npm_config_audit", "false"),
+        ("npm_config_update_notifier", "false"),
+    ):
+        env.setdefault(_quiet_key, _quiet_value)
     env["PYTHONUNBUFFERED"] = "1"
     return env
 
@@ -22768,6 +22782,7 @@ def _truncate(
     hint: str = "",
     reserve_tokens: float = 0.0,
     omitted: "tuple[int, int]" = (0, 0),
+    digest: bool = False,
 ) -> str:
     # Resolved per call: an import-time default freezes before any model loads.
     if limit is None:
@@ -22807,6 +22822,10 @@ def _truncate(
         stub = _zero_room_stub(size, spill, complete)
         # A short result costs less than any notice about it; a longer rewording saves nothing.
         return (stub if len(stub) < len(text) else text) + hint
+    # Ganjalf: a build or test log keeps its errors and its last lines, not only its head.
+    tail_part = _output_digest(text, limit, numbered = not omitted[0]) if digest else ""
+    if tail_part:
+        limit -= len(tail_part)
     head, on_boundary = _head_whole_lines(text, limit)
     if spill is None:
         return (
@@ -22816,6 +22835,7 @@ def _truncate(
                 "total. The full output is not retained here; any files the code wrote "
                 "persist in the working directory.)"
             )
+            + tail_part
             + hint
         )
     # Name the exact paging command, or the model re-runs and truncates identically.
@@ -22841,8 +22861,82 @@ def _truncate(
     )
     if not _posix_tools_available():
         # cmd-only Windows lacks sed/tail/head; do not promise paging.
-        return head + common + ".)" + hint
-    return head + common + f" -- continue with:\n  {resume})" + hint
+        return head + common + ".)" + tail_part + hint
+    return head + common + f" -- continue with:\n  {resume})" + tail_part + hint
+
+
+# Lines worth keeping from the cut middle of a long build/test log.
+_DIGEST_ERROR_RE = re.compile(
+    r"(?:\berror\b|\bERR!|\bfailed\b|\bfailure\b|\bFAIL\b|\bexception\b|Traceback|\bfatal\b"
+    r"|\bpanic(?:ked)?\b|cannot find|not found|is not defined|\bTS\d{4}\b|\bE\d{3,4}\b"
+    r"|\bAssertionError\b|\bundefined reference\b|✘|✖|×)",
+    re.IGNORECASE,
+)
+_DIGEST_MIN_LIMIT = 2_000
+_DIGEST_MAX_ERROR_LINES = 30
+_DIGEST_LINE_CHARS = 300
+
+
+def _output_digest(text: str, limit: int, *, numbered: bool = True) -> str:
+    """Error lines from the part a head-only cut would drop, then the last lines; "" when not worth it.
+
+    At most ~40% of the room (errors up to 15%, tail up to 25%), so the head and its paging hint stay
+    the main view. Deterministic, so a streamed and a buffered run still give the same result.
+    """
+    if limit < _DIGEST_MIN_LIMIT or len(text) <= limit:
+        return ""
+    tail_room = min(limit // 4, 4_000)
+    error_room = min(limit * 3 // 20, 2_400)
+    lines = text.splitlines()
+    tail_lines: list[str] = []
+    used = 0
+    for line in reversed(lines):
+        line = line[:_DIGEST_LINE_CHARS]
+        if used + len(line) + 1 > tail_room:
+            break
+        tail_lines.append(line)
+        used += len(line) + 1
+    tail_lines.reverse()
+    # The middle: what the head and the tail do not already show.
+    tail_text = (
+        f"\n\n[last {len(tail_lines)} lines of the output]\n" + "\n".join(tail_lines) if tail_lines else ""
+    )
+    floor = max(0, limit - len(tail_text) - error_room)
+    middle_end = len(lines) - len(tail_lines)
+    seen: set[str] = set()
+    errors: list[tuple[int, str]] = []
+    used = 0
+    offset = 0
+    for index, line in enumerate(lines[:middle_end]):
+        start = offset
+        offset += len(line) + 1
+        if start < floor or not _DIGEST_ERROR_RE.search(line):
+            continue
+        short = line.strip()[:_DIGEST_LINE_CHARS]
+        if not short or short in seen:
+            continue
+        # After a drain gap the index no longer matches the spill file, so no number then.
+        entry = f"{index + 1}: {short}" if numbered else short
+        if used + len(entry) + 1 > error_room or len(errors) >= _DIGEST_MAX_ERROR_LINES:
+            break
+        seen.add(short)
+        errors.append((start, entry))
+        used += len(entry) + 1
+
+    def _render(kept: "list[tuple[int, str]]") -> str:
+        head = (
+            ("\n\n[error lines from the cut part, line: text]\n" if numbered else "\n\n[error lines from the cut part]\n") + "\n".join(e for _, e in kept)
+            if kept
+            else ""
+        )
+        return head + tail_text
+
+    # Drop error lines the (now shorter) head will show anyway; each drop only lengthens the head.
+    digest = _render(errors)
+    while errors and errors[0][0] < limit - len(digest):
+        errors.pop(0)
+        digest = _render(errors)
+    return digest
 
 
 def _fit_result_to_room(text, name = None):
@@ -24677,7 +24771,9 @@ def _python_exec(
         # Before the fit: defusing inserts characters, growing the result after measurement.
         result = _defuse_sentinels(result)
         result = (
-            _truncate(result, workdir = spill_dir, scope = spill_scope, hint = hint, omitted = omitted)
+            _truncate(
+                result, workdir = spill_dir, scope = spill_scope, hint = hint, omitted = omitted, digest = True
+            )
             if result.strip()
             else "(no output)" + hint
         )
@@ -24952,7 +25048,9 @@ def _bash_exec(
         hint = _missing_path_hint(result, workdir)
         result = _defuse_sentinels(result)  # before the fit; see _python_exec
         result = (
-            _truncate(result, workdir = spill_dir, scope = spill_scope, hint = hint, omitted = omitted)
+            _truncate(
+                result, workdir = spill_dir, scope = spill_scope, hint = hint, omitted = omitted, digest = True
+            )
             if result.strip()
             else "(no output)" + hint
         )

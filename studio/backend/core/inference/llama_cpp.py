@@ -8166,6 +8166,27 @@ def _canonicalize_spec_mode(value):
     return "auto"
 
 
+def _earliest_stop(text: str, stops: list) -> "Optional[tuple[int, str]]":
+    """(index, stop) of the first stop sequence in ``text``; the longest wins a tie."""
+    best = None
+    for stop in stops:
+        index = text.find(stop)
+        if index >= 0 and (best is None or index < best[0] or (index == best[0] and len(stop) > len(best[1]))):
+            best = (index, stop)
+    return best
+
+
+def _stop_prefix_suffix(text: str, stops: list) -> int:
+    """Length of the longest end of ``text`` that could still grow into a stop sequence."""
+    longest = 0
+    for stop in stops:
+        for size in range(min(len(stop) - 1, len(text)), longest, -1):
+            if text.endswith(stop[:size]):
+                longest = size
+                break
+    return longest
+
+
 def _backfill_usage_from_timings(usage, timings):
     """Fills usage from timings when absent or zero, so the UI's t/s is not diluted by wall-clock time."""
     if not timings:
@@ -39635,8 +39656,14 @@ class LlamaCppBackend:
         compact_context: bool = False,
         chat_template_kwargs: Optional[dict] = None,
         record_cut_thought: bool = True,
+        stop_report: Optional[dict] = None,
     ) -> Generator[Union[str, dict], None, None]:
-        """Streams a chat completion via /v1/chat/completions (llama-server applies template and vision); yields cumulative text like InferenceBackend."""
+        """Streams a chat completion via /v1/chat/completions (llama-server applies template and vision); yields cumulative text like InferenceBackend.
+
+        ``stop_report`` (Ganjalf, Anthropic ``/v1/messages``): when given with ``stop``, the stop
+        sequences are enforced here on the answer text instead of by llama-server, which never says
+        which one matched. A match cuts the answer before it, ends the request, reports
+        ``finish_reason = "stop_sequence"`` and sets ``stop_report["hit"]`` to the matched sequence."""
         if not self.is_loaded:
             raise RuntimeError("llama-server is not loaded")
         if replay_preserve_thinking:
@@ -39806,7 +39833,12 @@ class LlamaCppBackend:
         )
         if _budget is not None:
             payload["thinking_budget_tokens"] = _budget
-        if stop:
+        _own_stops = (
+            [item for item in stop if isinstance(item, str) and item]
+            if stop_report is not None and stop
+            else []
+        )
+        if stop and not _own_stops:
             payload["stop"] = stop
         _apply_seeded_llama_request(payload, seed)
         payload["stream_options"] = {"include_usage": True}
@@ -39866,6 +39898,7 @@ class LlamaCppBackend:
                 thinking_budget_tokens = thinking_budget_tokens,
                 compact_context = compact_context,
                 chat_template_kwargs = chat_template_kwargs,
+                stop_report = stop_report,
                 _allow_respawn_retry = False,
             )
 
@@ -39880,6 +39913,11 @@ class LlamaCppBackend:
                 answer_text = ""
                 reasoning_text = ""
                 _prov_entry = None
+                # Ganjalf stop sequences (stop_report): chars of the answer held back because they
+                # could start a stop sequence, and the longest cumulative already yielded.
+                _stop_held = 0
+                _yielded_len = 0
+                _stop_matched = False
                 for raw_chunk in self._iter_text_cancellable(
                     response,
                     cancel_event,
@@ -39981,11 +40019,53 @@ class LlamaCppBackend:
                                         in_thinking = False
                                         _prov_entry = None
                                     cumulative += token
-                                    yield cumulative
+                                    if _own_stops:
+                                        _cut = _earliest_stop(answer_text, _own_stops)
+                                        if _cut is not None:
+                                            _index, _hit = _cut
+                                            _drop = len(answer_text) - _index
+                                            # Only an answer-only tail is cut (no </think> inside it).
+                                            if cumulative.endswith(answer_text[_index:]):
+                                                cumulative = cumulative[: len(cumulative) - _drop]
+                                                answer_text = answer_text[:_index]
+                                            stop_report["hit"] = _hit
+                                            _metadata_finish_reason = "stop_sequence"
+                                            _stop_matched = True
+                                            _stream_done = True
+                                            if len(cumulative) > _yielded_len:
+                                                _yielded_len = len(cumulative)
+                                                yield cumulative
+                                            break
+                                        _stop_held = _stop_prefix_suffix(answer_text, _own_stops)
+                                        _shown = cumulative[: len(cumulative) - _stop_held]
+                                        if len(_shown) > _yielded_len:
+                                            _yielded_len = len(_shown)
+                                            yield _shown
+                                    else:
+                                        yield cumulative
                         except json.JSONDecodeError:
                             logger.debug(f"Skipping malformed SSE line: {line[:100]}")
                     if _stream_done:
                         break  # exit outer for
+                if _own_stops and not _stop_matched and len(cumulative) > _yielded_len:
+                    # The reply ended on a partial match: it was text after all.
+                    _yielded_len = len(cumulative)
+                    yield cumulative
+                if _stop_matched and not (_metadata_usage or {}).get("completion_tokens"):
+                    # The request was ended before llama-server's usage chunk: count what was made.
+                    _made = self._llama_post_json(
+                        "/tokenize",
+                        {
+                            "content": reasoning_text + answer_text + (stop_report.get("hit") or ""),
+                            "add_special": False,
+                        },
+                    )
+                    _made_tokens = (_made or {}).get("tokens")
+                    if isinstance(_made_tokens, list):
+                        _metadata_usage = {
+                            **(_metadata_usage or {}),
+                            "completion_tokens": len(_made_tokens),
+                        }
                 _cut = _quote_cut_event(
                     reasoning_text,
                     answer_text,
@@ -42204,6 +42284,44 @@ class LlamaCppBackend:
                             # Blank first (the route resets its cursor only on empty status).
                             yield {"type": "status", "text": ""}
                             yield {"type": "status", "text": _NUDGE_TOOL_CALLS_STATUS}
+                            continue
+
+                        # Ganjalf check_page gate (core/inference/work_guards.py): once per response,
+                        # only when check_page is offered; any check_page call clears it.
+                        _page_gate_reason = None
+                        if (
+                            active_tools
+                            and not tool_controller.awaiting_user
+                            and tool_controller.work_ledger.unchecked_web_files
+                        ):
+                            try:
+                                from core.inference.tools import _get_workdir as _gate_workdir
+
+                                _page_gate_reason = tool_controller.work_ledger.check_page_reminder(
+                                    offered = any(
+                                        isinstance(tool, dict)
+                                        and (tool.get("function") or {}).get("name") == "check_page"
+                                        for tool in active_tools
+                                    ),
+                                    workdir = _gate_workdir(session_id),
+                                )
+                            except Exception as _gate_exc:
+                                logger.debug(f"check_page gate skipped: {_gate_exc}")
+                        if _page_gate_reason:
+                            logger.info("check_page gate: sending the agent back once to check the page")
+                            append_assistant_turn(
+                                conversation,
+                                {"role": "assistant", "content": _stripped},
+                                continue_final_message = continue_final_message,
+                            )
+                            conversation.append({"role": "user", "content": _page_gate_reason})
+                            _fu_g = _backfill_usage_from_timings(_iter_usage, _iter_timings) or {}
+                            _accumulated_completion_tokens += _fu_g.get("completion_tokens", 0)
+                            _it_g = _iter_timings or {}
+                            _accumulated_predicted_ms += _it_g.get("predicted_ms", 0)
+                            _accumulated_predicted_n += _it_g.get("predicted_n", 0)
+                            yield {"type": "status", "text": ""}
+                            yield {"type": "status", "text": "Checking the page before finishing"}
                             continue
 
                         # A plugin's Stop hook may send the agent back to work (core/plugins/hooks.py).

@@ -122,10 +122,10 @@ test("an accepted retry still applies the migration locally", async () => {
   await adoptQwenDefaults();
 
   assert.equal(settingsHttp.puts.length, 1);
-  assert.equal(serverRow().presencePenalty, 1.5);
+  assert.equal(serverRow().minP, 0);
   assert.equal(serverRow().minP, 0);
   const after = useChatRuntimeStore.getState();
-  assert.equal(after.params.presencePenalty, 1.5);
+  assert.equal(after.params.minP, 0);
   assert.equal(after.params.minP, 0);
 });
 
@@ -219,7 +219,7 @@ test("a model id containing slashes stays one absence-fence path segment", async
 
   await adoptQwenDefaults();
 
-  assert.equal(serverRow(QWEN38).presencePenalty, 1.5);
+  assert.equal(serverRow(QWEN38).minP, 0);
 });
 
 test("the loaded model's reasoning mode survives hydration", async () => {
@@ -453,9 +453,9 @@ test("selecting an external Qwen migrates its dormant row", async () => {
   await sleep(60);
 
   const row = serverRow(external);
-  assert.equal(row.presencePenalty, 1.5);
   assert.equal(row.minP, 0);
-  assert.equal(useChatRuntimeStore.getState().params.presencePenalty, 1.5);
+  assert.equal(row.minP, 0);
+  assert.equal(useChatRuntimeStore.getState().params.minP, 0);
 });
 
 test("the send barrier waits for a migration a model pick just scheduled", async () => {
@@ -485,8 +485,8 @@ test("the send barrier waits for a migration a model pick just scheduled", async
   ]);
   assert.equal(settled, "settled", "the barrier never released");
 
-  assert.equal(useChatRuntimeStore.getState().params.presencePenalty, 1.5);
-  assert.equal(serverRow(external).presencePenalty, 1.5);
+  assert.equal(useChatRuntimeStore.getState().params.minP, 0);
+  assert.equal(serverRow(external).minP, 0);
 });
 
 test("an edit racing the conditional write does not strand local on legacy", async () => {
@@ -498,15 +498,15 @@ test("an edit racing the conditional write does not strand local on legacy", asy
 
   const active = useChatRuntimeStore.getState();
   active.setParams(
-    { ...active.params, minP: 0, presencePenalty: 1.5 },
+    { ...active.params, minP: 0, presencePenalty: 0 },
     { fromModelDefaults: true },
   );
   await sleep(60);
 
-  assert.equal(serverRow().presencePenalty, 1.5);
+  assert.equal(serverRow().minP, 0);
   const after = useChatRuntimeStore.getState();
   assert.equal(after.activePresetSource, "modified");
-  assert.equal(after.params.presencePenalty, 1.5);
+  assert.equal(after.params.minP, 0);
   assert.equal(after.params.minP, 0);
 });
 
@@ -601,7 +601,7 @@ test("an earlier retry settling does not clear a later retry's barrier", async (
 
   const first = useChatRuntimeStore.getState();
   first.setParams(
-    { ...first.params, minP: 0, presencePenalty: 1.5 },
+    { ...first.params, minP: 0, presencePenalty: 0 },
     { fromModelDefaults: true },
   );
   await sleep(0);
@@ -610,7 +610,7 @@ test("an earlier retry settling does not clear a later retry's barrier", async (
   }));
   const second = useChatRuntimeStore.getState();
   second.setParams(
-    { ...second.params, minP: 0, presencePenalty: 1.5 },
+    { ...second.params, minP: 0, presencePenalty: 0 },
     { fromModelDefaults: true },
   );
   await sleep(10);
@@ -623,7 +623,7 @@ test("an earlier retry settling does not clear a later retry's barrier", async (
     awaitPendingQwenDefaultsMigration(),
     new Promise((resolve) => setTimeout(resolve, 5000)),
   ]);
-  assert.equal(serverRow(QWEN36).presencePenalty, 1.5);
+  assert.equal(serverRow(QWEN36).minP, 0);
 });
 
 test("the send barrier follows a retry that replaces the one it captured", async () => {
@@ -655,7 +655,7 @@ test("the send barrier follows a retry that replaces the one it captured", async
 
   const first = useChatRuntimeStore.getState();
   first.setParams(
-    { ...first.params, minP: 0, presencePenalty: 1.5 },
+    { ...first.params, minP: 0, presencePenalty: 0 },
     { fromModelDefaults: true },
   );
   await sleep(0);
@@ -665,7 +665,7 @@ test("the send barrier follows a retry that replaces the one it captured", async
   }));
   const second = useChatRuntimeStore.getState();
   second.setParams(
-    { ...second.params, minP: 0, presencePenalty: 1.5 },
+    { ...second.params, minP: 0, presencePenalty: 0 },
     { fromModelDefaults: true },
   );
   await sleep(10);
@@ -676,7 +676,7 @@ test("the send barrier follows a retry that replaces the one it captured", async
     barrier,
     new Promise((resolve) => setTimeout(resolve, 5000)),
   ]);
-  assert.equal(serverRow(QWEN36).presencePenalty, 1.5);
+  assert.equal(serverRow(QWEN36).minP, 0);
 });
 
 test("a write outlasting the flush timeout rearms the migration", async () => {
@@ -692,7 +692,7 @@ test("a write outlasting the flush timeout rearms the migration", async () => {
 
   const active = useChatRuntimeStore.getState();
   active.setParams(
-    { ...active.params, minP: 0, presencePenalty: 1.5 },
+    { ...active.params, minP: 0, presencePenalty: 0 },
     { fromModelDefaults: true },
   );
   // Past the 2000 ms flush timeout with the ordinary write still outstanding.
@@ -706,7 +706,7 @@ test("a write outlasting the flush timeout rearms the migration", async () => {
     awaitPendingQwenDefaultsMigration(),
     new Promise((resolve) => setTimeout(resolve, 5000)),
   ]);
-  assert.equal(serverRow().presencePenalty, 1.5);
+  assert.equal(serverRow().minP, 0);
 });
 
 test("a status-only reasoning marker does not pick the migration table", async () => {
@@ -848,7 +848,7 @@ test("adopting the startup model clears the unowned pre-hydration mark", async (
     string,
     number
   >;
-  assert.equal(global.presencePenalty, 1.5);
+  assert.equal(global.minP, 0);
 });
 
 test("a thread pin survives the race recovery path", async () => {
@@ -938,7 +938,7 @@ test("a model switch during hydration still gets its own row migrated", async ()
       Record<string, number>
     >
   )[QWEN36];
-  assert.equal(row.presencePenalty, 1.5);
+  assert.equal(row.minP, 0);
   assert.equal(row.minP, 0);
 });
 

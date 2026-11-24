@@ -21,6 +21,12 @@ Chromium.
   solo colore lo dice esplicitamente (lo script si è fermato).
 - WebGL funziona senza GPU (SwiftShader).
 - Allo **Stop** della chat ritorna subito; il browser headless si chiude da solo.
+- Promemoria a fine turno: se il modello ha modificato file web (HTML/CSS/Vue/Svelte/JSX/TSX, o
+  JS/TS in una cartella con un file HTML) e sta per dare la risposta finale senza aver lanciato
+  `check_page` dopo l'ultima modifica, viene rimandato **una sola volta** a controllare la pagina.
+  Scatta solo se `check_page` è offerto; qualsiasi `check_page` (anche fallito o non disponibile) lo
+  toglie, e se la pagina non si può controllare il modello lo dice e chiude.
+  `GANJALF_CHECK_PAGE_GATE=0` lo spegne.
 - Raggiunge Internet pubblico e il loopback; blocca le porte di Studio, le reti private e i siti
   esclusi dalla policy di accesso web. Il testo della pagina arriva al modello dentro il recinto dei
   contenuti non fidati.

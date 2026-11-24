@@ -50,8 +50,14 @@ export function resolveQwenThinkingParams(
   }
 
   const needsPresencePenalty = PRESENCE_BUMP_QWEN.test(normalized);
-  const base = thinkingOn
-    ? { temperature: 0.6, topP: 0.95, topK: 20, minP: 0.0 }
-    : { temperature: 0.7, topP: 0.8, topK: 20, minP: 0.0 };
+  if (thinkingOn) {
+    const base = { temperature: 0.6, topP: 0.95, topK: 20, minP: 0.0 };
+    // Ganjalf: 0 with thinking, which is how these models run as agents. llama-server applies the
+    // penalty over the last 64 tokens, which during a tool call are its tags, argument names and
+    // paths; 1.5 there breaks calls. Set explicitly so it replaces the family's 1.5. The user can
+    // still raise it (1.0 if a model loops); an edited value is kept (recommendedValuesForPick).
+    return needsPresencePenalty ? { ...base, presencePenalty: 0 } : base;
+  }
+  const base = { temperature: 0.7, topP: 0.8, topK: 20, minP: 0.0 };
   return needsPresencePenalty ? { ...base, presencePenalty: 1.5 } : base;
 }
