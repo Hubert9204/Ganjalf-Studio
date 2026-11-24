@@ -137,3 +137,18 @@ def test_live_module_game(tmp_path):
     assert "Uncaught ReferenceError: player is not defined" in head
     assert "Visible text: Score 1" in head
     assert "one flat color" not in head
+
+
+
+def test_a_stop_does_not_wait_for_the_browser(monkeypatch, tmp_path):
+    import threading
+    import time
+
+    (tmp_path / "index.html").write_text("<title>x</title>")
+    monkeypatch.setattr(page_check, "check_page_available", lambda refresh = False: True)
+    monkeypatch.setattr(page_check, "_run", lambda *args: time.sleep(20) or {})
+    cancel = threading.Event()
+    threading.Timer(0.3, cancel.set).start()
+    started = time.monotonic()
+    assert page_check.check_page({"path": "index.html"}, str(tmp_path), cancel) == "Error: check_page was cancelled."
+    assert time.monotonic() - started < 3

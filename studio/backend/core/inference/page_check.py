@@ -541,7 +541,12 @@ def check_page(arguments: Any, workdir: str, cancel_event = None, website_policy
     # Playwright's sync API refuses a thread with a running event loop: run in a fresh one.
     worker = threading.Thread(target = work, name = "check-page", daemon = True)
     worker.start()
-    worker.join(wait_s + len(keys) * 0.5 + 90)
+    deadline = time.monotonic() + wait_s + len(keys) * 0.5 + 90
+    while worker.is_alive() and time.monotonic() < deadline:
+        # A stop does not wait for the browser: the worker notices the same event and closes it.
+        if cancel_event is not None and cancel_event.is_set():
+            return "Error: check_page was cancelled."
+        worker.join(0.25)
     if worker.is_alive():
         return "Error: the headless browser did not finish in time; the page may be stuck in a loop."
     if failure:

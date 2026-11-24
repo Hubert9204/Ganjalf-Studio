@@ -119,14 +119,54 @@ def _system_prompt(agent: dict, body: str, workdir: str, tools: list[dict]) -> s
     )
 
 
-def _post(base_url: str, headers: Optional[dict], payload: dict, timeout: float) -> dict:
+class _Stopped(Exception):
+    pass
+
+
+def _post(base_url: str, headers: Optional[dict], payload: dict, timeout: float, cancel_event = None) -> dict:
+    """One model turn, streamed so a stop closes the connection (llama-server then ends the
+    generation) instead of waiting for the whole reply. Returns {"content", "tool_calls"}."""
     import httpx
 
-    with httpx.Client(timeout = httpx.Timeout(timeout), headers = headers, trust_env = False) as client:
-        response = client.post(f"{base_url}/v1/chat/completions", json = payload)
-    if response.status_code >= 400:
-        raise RuntimeError(f"the model server answered {response.status_code}: {response.text[:300]}")
-    return response.json()
+    content: list[str] = []
+    calls: dict[int, dict] = {}
+    started = time.monotonic()
+    with httpx.Client(timeout = httpx.Timeout(timeout, read = 60.0), headers = headers, trust_env = False) as client:
+        with client.stream("POST", f"{base_url}/v1/chat/completions", json = {**payload, "stream": True}) as response:
+            if response.status_code >= 400:
+                response.read()
+                raise RuntimeError(f"the model server answered {response.status_code}: {response.text[:300]}")
+            for line in response.iter_lines():
+                if cancel_event is not None and cancel_event.is_set():
+                    raise _Stopped()
+                if time.monotonic() - started > timeout:
+                    raise RuntimeError(f"no reply within {timeout:g} s")
+                if not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if data == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(data)
+                except json.JSONDecodeError:
+                    continue
+                for choice in chunk.get("choices") or []:
+                    delta = choice.get("delta") or {}
+                    if isinstance(delta.get("content"), str):
+                        content.append(delta["content"])
+                    for call in delta.get("tool_calls") or []:
+                        slot = calls.setdefault(int(call.get("index") or 0), {"id": "", "name": "", "arguments": ""})
+                        slot["id"] = call.get("id") or slot["id"]
+                        function = call.get("function") or {}
+                        slot["name"] += function.get("name") or ""
+                        slot["arguments"] += function.get("arguments") or ""
+    return {
+        "content": "".join(content),
+        "tool_calls": [
+            {"id": slot["id"], "type": "function", "function": {"name": slot["name"], "arguments": slot["arguments"]}}
+            for _, slot in sorted(calls.items())
+        ],
+    }
 
 
 def _strip_images(result: str) -> str:
@@ -207,18 +247,18 @@ def run_agent(
             "temperature": 0.6,
             "top_p": 0.95,
             "top_k": 20,
-            "stream": False,
         }
         if tools:
             payload["tools"] = llama_grammar_tools(tools)
             payload["tool_choice"] = "auto"
         try:
-            reply = _post(base_url, headers, payload, timeout = 600)
+            reply = _post(base_url, headers, payload, timeout = 600, cancel_event = cancel_event)
+        except _Stopped:
+            return "Error: run_agent was cancelled."
         except Exception as exc:
             return _report(agent, steps, "", f"the model call failed: {exc}")
-        message = ((reply.get("choices") or [{}])[0]).get("message") or {}
-        calls = [call for call in message.get("tool_calls") or [] if isinstance(call, dict)]
-        content = message.get("content") or ""
+        calls = [call for call in reply["tool_calls"] if call["function"]["name"]]
+        content = reply["content"]
         if not calls:
             return _report(agent, steps, content, None)
         messages.append({"role": "assistant", "content": content, "tool_calls": calls})
@@ -245,6 +285,8 @@ def run_agent(
                     website_policy = website_policy,
                 )
             steps.append(name)
+            if cancel_event is not None and cancel_event.is_set():
+                return "Error: run_agent was cancelled."
             text = _strip_images(result)
             if len(text) > MAX_TOOL_RESULT_CHARS:
                 text = text[:MAX_TOOL_RESULT_CHARS] + "\n... (cut)"

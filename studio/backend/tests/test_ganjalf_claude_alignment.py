@@ -162,3 +162,76 @@ def test_a_reply_without_thinking_has_no_thinking_block():
     events = _events(lines)
     assert [e["content_block"]["type"] for e in events if e["type"] == "content_block_start"] == ["text"]
     assert events[-2]["delta"]["stop_reason"] == "max_tokens"
+
+
+def _messages_route(monkeypatch, generate):
+    from types import SimpleNamespace
+
+    import routes.inference as inf
+    from core.inference.llama_admission import reset_llama_admission_queues
+    from models.inference import AnthropicMessagesRequest
+
+    reset_llama_admission_queues()
+    monkeypatch.setattr(inf, "current_date_prompt_line", lambda **_kwargs: "")
+    backend = SimpleNamespace(
+        is_loaded = True,
+        is_vision = False,
+        supports_tools = True,
+        model_identifier = "test-model",
+        context_length = 4096,
+        count_chat_tokens = lambda *args, **kwargs: 7,
+        generate_chat_completion = generate,
+        generate_chat_completion_with_tools = generate,
+    )
+    monkeypatch.setattr(inf, "get_llama_cpp_backend", lambda: backend)
+
+    class _Request:
+        state = SimpleNamespace()
+        url = SimpleNamespace(path = "/v1/messages")
+        method = "POST"
+        headers = {}
+
+        async def is_disconnected(self):
+            return False
+
+    async def run(**fields):
+        payload = AnthropicMessagesRequest(max_tokens = 64, messages = [{"role": "user", "content": "hi"}], **fields)
+        response = await inf.anthropic_messages(payload, request = _Request(), current_subject = "t")
+        chunks = []
+        async for chunk in response.body_iterator:
+            chunks.append(chunk.decode() if isinstance(chunk, bytes) else chunk)
+        return "".join(chunks)
+
+    return run
+
+
+_OVERFLOW = "llama-server error 400: the request (9000 tokens) exceeds the available context size (4096 tokens), try increasing it"
+
+
+def test_a_prompt_over_the_context_window_is_a_clear_400(monkeypatch):
+    import pytest
+    from fastapi import HTTPException
+
+    def overflow(**kwargs):
+        raise RuntimeError(_OVERFLOW)
+        yield ""
+
+    run = _messages_route(monkeypatch, overflow)
+    with pytest.raises(HTTPException) as caught:
+        asyncio.run(run())
+    assert caught.value.status_code == 400
+    error = caught.value.detail["error"]
+    assert error["type"] == "invalid_request_error"
+    assert "9000 tokens exceeds the 4096-token context window" in error["message"]
+
+
+def test_a_stream_that_overflows_ends_with_an_error_event_not_message_stop(monkeypatch):
+    def overflow(**kwargs):
+        raise RuntimeError(_OVERFLOW)
+        yield ""
+
+    text = asyncio.run(_messages_route(monkeypatch, overflow)(stream = True))
+    names = [line.split("event: ", 1)[1] for line in text.splitlines() if line.startswith("event: ")]
+    assert names == ["message_start", "ping", "error"]
+    error = json.loads(text.rsplit("data: ", 1)[1])
+    assert error["error"]["type"] == "invalid_request_error" and "context window" in error["error"]["message"]

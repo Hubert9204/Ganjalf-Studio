@@ -50,6 +50,7 @@ class Outcome:
     reasons: list[str] = field(default_factory = list)
     context: list[str] = field(default_factory = list)
     messages: list[str] = field(default_factory = list)
+    cancelled: bool = False
 
     @property
     def reason(self) -> str:
@@ -183,7 +184,25 @@ def _clip(text: str) -> str:
     return text if len(text) <= MAX_OUTPUT_CHARS else text[:MAX_OUTPUT_CHARS] + "\n... (cut)"
 
 
-def _run_one(plugin: str, hook: dict, event: str, payload: dict, cwd: str, outcome: Outcome) -> None:
+def _kill(process: subprocess.Popen) -> None:
+    try:
+        if os.name != "nt":
+            import signal
+
+            os.killpg(process.pid, signal.SIGKILL)
+        else:
+            process.kill()
+    except (OSError, ProcessLookupError):
+        pass
+    try:
+        process.communicate(timeout = 5)
+    except Exception:
+        pass
+
+
+def _run_one(
+    plugin: str, hook: dict, event: str, payload: dict, cwd: str, outcome: Outcome, cancel_event = None
+) -> None:
     from .manager import data_dir, expand, plugin_dir
 
     command = expand(hook["command"], plugin)
@@ -197,23 +216,45 @@ def _run_one(plugin: str, hook: dict, event: str, payload: dict, cwd: str, outco
     }
     started = time.monotonic()
     try:
-        result = subprocess.run(
+        process = subprocess.Popen(
             command,
             shell = True,
-            input = json.dumps(payload),
-            capture_output = True,
+            stdin = subprocess.PIPE,
+            stdout = subprocess.PIPE,
+            stderr = subprocess.PIPE,
             text = True,
             cwd = cwd if os.path.isdir(cwd) else None,
             env = env,
-            timeout = timeout,
+            # Its own process group, so a stop or a timeout takes the whole hook down.
+            start_new_session = os.name != "nt",
         )
-    except subprocess.TimeoutExpired:
-        logger.warning("Plugin %s %s hook timed out after %ss", plugin, event, timeout)
-        outcome.messages.append(f"{plugin}: {event} hook timed out after {timeout:g} s")
-        return
     except OSError as exc:
         outcome.messages.append(f"{plugin}: {event} hook could not start: {exc}")
         return
+    stdin: Optional[str] = json.dumps(payload)
+    stdout = stderr = ""
+    while True:
+        try:
+            out, err = process.communicate(input = stdin, timeout = 0.25)
+            stdout, stderr = out or "", err or ""
+            break
+        except subprocess.TimeoutExpired:
+            stdin = None
+        except ValueError:
+            # The input was already sent on an earlier round.
+            stdin = None
+            continue
+        if cancel_event is not None and cancel_event.is_set():
+            _kill(process)
+            outcome.messages.append(f"{plugin}: {event} hook stopped with the run")
+            outcome.cancelled = True
+            return
+        if time.monotonic() - started > timeout:
+            _kill(process)
+            logger.warning("Plugin %s %s hook timed out after %ss", plugin, event, timeout)
+            outcome.messages.append(f"{plugin}: {event} hook timed out after {timeout:g} s")
+            return
+    result = subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
     logger.info("Plugin %s %s hook exit %s in %.1fs", plugin, event, result.returncode, time.monotonic() - started)
     stdout, stderr = _clip(result.stdout), _clip(result.stderr)
     if result.returncode == 2:
@@ -253,6 +294,7 @@ def run_event(
     cwd: str,
     tool_names: tuple[str, ...] = (),
     tool_input: Optional[dict] = None,
+    cancel_event = None,
 ) -> Outcome:
     outcome = Outcome()
     entries = _all_hooks().get(event) or []
@@ -264,7 +306,10 @@ def run_event(
             continue
         if hook.get("if") and not (tool_names and _if_matches(hook["if"], tool_names[0], tool_input or {})):
             continue
-        _run_one(plugin, hook, event, payload, cwd, outcome)
+        if cancel_event is not None and cancel_event.is_set():
+            outcome.cancelled = True
+            break
+        _run_one(plugin, hook, event, payload, cwd, outcome, cancel_event)
     for message in outcome.messages:
         logger.info("Plugin hook: %s", message)
     return outcome
@@ -273,7 +318,9 @@ def run_event(
 # ---------------------------------------------------------------- the three places Studio calls
 
 
-def before_tool(name: str, arguments: Any, *, session_id: Optional[str], workdir: str) -> Optional[str]:
+def before_tool(
+    name: str, arguments: Any, *, session_id: Optional[str], workdir: str, cancel_event = None
+) -> Optional[str]:
     """None to run the call, or the text that replaces its result."""
     if not has_hooks("PreToolUse"):
         return None
@@ -284,13 +331,18 @@ def before_tool(name: str, arguments: Any, *, session_id: Optional[str], workdir
         cwd = workdir,
         tool_names = (tool, name),
         tool_input = tool_input,
+        cancel_event = cancel_event,
     )
+    if outcome.cancelled:
+        return "Error: the run was stopped before this call."
     if outcome.blocked:
         return f"Error: a plugin hook blocked this call.\n{outcome.reason}"
     return None
 
 
-def after_tool(name: str, arguments: Any, result: str, *, session_id: Optional[str], workdir: str) -> str:
+def after_tool(
+    name: str, arguments: Any, result: str, *, session_id: Optional[str], workdir: str, cancel_event = None
+) -> str:
     if not has_hooks("PostToolUse") or not isinstance(result, str):
         return result
     tool, tool_input = claude_tool(name, arguments, workdir)
@@ -303,6 +355,7 @@ def after_tool(name: str, arguments: Any, result: str, *, session_id: Optional[s
         cwd = workdir,
         tool_names = (tool, name),
         tool_input = tool_input,
+        cancel_event = cancel_event,
     )
     notes = [*(outcome.reasons if outcome.blocked else []), *outcome.context]
     if not notes:

@@ -31,6 +31,43 @@ Interventi di Ganjalf in questo audit:
   `thinking.budget_tokens`) arriva a llama-server anche sul percorso chat, e l'interfaccia ha il
   cursore **Thinking Budget** (0 = quello del modello).
 
+## Stop, timeout e connessione interrotta
+
+- **Stop dall'interfaccia o disconnessione del client**: chiudere la connessione (pulsante Stop,
+  `AbortController`, client che cade) imposta l'evento di annullamento della richiesta; anche
+  `cancel_id` o l'id del messaggio lo fanno da un'altra connessione. Il ciclo agente lo controlla
+  prima di ogni passaggio e lo passa a ogni tool: un comando di `terminal`/`python` in corso viene
+  terminato con tutto il suo gruppo di processi, una chiamata MCP viene chiusa, e non parte nessun
+  passaggio successivo. Uno stream interrotto non manda `message_stop`.
+- **Estensioni di Ganjalf** (stesso evento): gli hook dei plugin girano in un proprio gruppo di
+  processi e vengono uccisi allo Stop (gli hook successivi non partono); `run_agent` riceve le
+  risposte del modello in streaming e chiude la connessione allo Stop, così llama-server smette di
+  generare; `check_page` ritorna subito e il browser headless si chiude da solo.
+- **Timeout**: nessun primo token entro il limite (Impostazioni > Chat, o la variabile per le API),
+  modello che smette di produrre token, server del modello irraggiungibile: errore con messaggio
+  esplicito invece di un'attesa infinita; durante un prefill lungo lo stream riceve commenti
+  keep-alive ogni 15 s.
+- **Codici**: prima dello stream un errore è una risposta HTTP con il corpo Anthropic (400 per
+  richieste non valide e contesto superato, 429 `rate_limit_error`, 500 `api_error`, 529
+  `overloaded_error`); dopo `message_start` diventa un evento `error` e lo stream si chiude.
+
+## Context window
+
+- **Predefinito**: un prompt più lungo del contesto del modello è rifiutato con 400
+  `invalid_request_error` e un messaggio come *Message too long: 9000 tokens exceeds the
+  4096-token context window…* (nello stream: evento `error`). Nessun crash e nessun troncamento
+  silenzioso.
+- **Troncamento a richiesta**: con il campo `context_overflow` (`truncate_oldest` o
+  `truncate_middle`, estensione `x-unsloth`) o la variabile `UNSLOTH_CONTEXT_OVERFLOW` lato server,
+  Ganjalf toglie i messaggi più vecchi (o centrali) finché il prompt entra, ritentando sul conteggio
+  misurato da llama-server; il system prompt e l'ultima istruzione restano.
+- **Chat di Studio**: usa la finestra scorrevole o la compattazione automatica (impostazioni della
+  chat); lo script di avvio tiene fisse nel prompt le ultime due istruzioni dell'utente
+  (`ROLLING_INSTRUCTION_PIN_GROUPS`).
+- Se il ragionamento esaurisce lo spazio, Ganjalf riprende la risposta senza ragionamento; se
+  non c'è più spazio, chiude con un messaggio che spiega se alzare Max Tokens o il contesto, invece
+  di restituire un messaggio vuoto.
+
 ## Limiti noti
 
 - Con un modello GGUF locale una `stop_sequence` taglia il testo correttamente, ma `stop_reason` è
@@ -42,3 +79,4 @@ Interventi di Ganjalf in questo audit:
 - `cache_control` è accettato e ignorato: llama-server riusa il prompt da solo (riportato in
   `cache_read_input_tokens`).
 - Files API, Batches API e blocchi `container_upload` non sono implementati.
+- Il corpo degli errori ha `request_id: null`; l'id della richiesta è nell'intestazione `request-id`.

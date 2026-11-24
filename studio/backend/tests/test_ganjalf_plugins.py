@@ -284,6 +284,23 @@ def test_execute_tool_runs_between_hooks(studio, tmp_path, monkeypatch):
     assert calls == ["terminal"]
 
 
+def _sse_chunks(message):
+    """The reply as llama-server streams it: content and tool-call arguments in pieces."""
+    deltas = []
+    if message.get("content"):
+        text = message["content"]
+        deltas += [{"content": text[: len(text) // 2]}, {"content": text[len(text) // 2 :]}]
+    for index, call in enumerate(message.get("tool_calls") or []):
+        arguments = call["function"]["arguments"]
+        deltas.append({"tool_calls": [{"index": index, "id": call["id"], "type": "function", "function": {"name": call["function"]["name"], "arguments": ""}}]})
+        deltas += [
+            {"tool_calls": [{"index": index, "function": {"arguments": arguments[:5]}}]},
+            {"tool_calls": [{"index": index, "function": {"arguments": arguments[5:]}}]},
+        ]
+    lines = [f"data: {json.dumps({'choices': [{'index': 0, 'delta': delta}]})}\n\n".encode() for delta in deltas]
+    return lines + [b"data: [DONE]\n\n"]
+
+
 def test_run_agent_works_in_its_own_conversation(studio, tmp_path, monkeypatch):
     from core.inference import tools
 
@@ -307,12 +324,13 @@ def test_run_agent_works_in_its_own_conversation(studio, tmp_path, monkeypatch):
                 }
             else:
                 message = {"role": "assistant", "content": "2 passed; " + body["messages"][-1]["content"]}
-            data = json.dumps({"choices": [{"message": message}]}).encode()
+            assert body["stream"] is True
             self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Content-Type", "text/event-stream")
             self.end_headers()
-            self.wfile.write(data)
+            for chunk in _sse_chunks(message):
+                self.wfile.write(chunk)
+                self.wfile.flush()
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target = server.serve_forever, daemon = True).start()
@@ -375,3 +393,69 @@ def test_a_run_of_failed_calls_is_counted_from_the_end(monkeypatch):
     monkeypatch.setenv("GANJALF_TOOL_FAILURE_STREAK", "0")
     assert tool_call_parser.failure_streak_limit() == 0
     assert "8 tool calls all failed" in tool_call_parser.FAILURE_STREAK_NUDGE.format(count = 8)
+
+
+
+def test_a_stop_ends_a_hook_and_skips_the_rest(studio, tmp_path):
+    import time
+
+    root = _write(
+        tmp_path / "slow",
+        {
+            ".claude-plugin/plugin.json": json.dumps({"name": "slow"}),
+            "hooks/hooks.json": json.dumps(
+                {"hooks": {"PreToolUse": [{"hooks": [{"type": "command", "command": f'"{PY}" -c "import time; time.sleep(30)"'}]}]}}
+            ),
+        },
+    )
+    manager.install(manager.preview(str(root))["token"])
+    manager.set_hooks_enabled("slow", True)
+    cancel = threading.Event()
+    threading.Timer(0.5, cancel.set).start()
+    started = time.monotonic()
+    result = plugin_hooks.before_tool("terminal", {"command": "ls"}, session_id = "s", workdir = str(tmp_path), cancel_event = cancel)
+    assert time.monotonic() - started < 5
+    assert result == "Error: the run was stopped before this call."
+
+
+def test_a_stop_ends_a_sub_agent_mid_reply(studio, tmp_path, monkeypatch):
+    import time
+
+    from core.inference import tools
+
+    manager.install(manager.preview(str(_demo(tmp_path)))["token"])
+
+    class Slow(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_POST(self):
+            self.rfile.read(int(self.headers["Content-Length"]))
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.end_headers()
+            try:
+                for _ in range(200):
+                    self.wfile.write(b'data: {"choices": [{"index": 0, "delta": {"content": "."}}]}\n\n')
+                    self.wfile.flush()
+                    time.sleep(0.1)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Slow)
+    threading.Thread(target = server.serve_forever, daemon = True).start()
+    monkeypatch.setattr(tools, "_get_workdir", lambda session_id = None: str(tmp_path))
+    cancel = threading.Event()
+    threading.Timer(0.5, cancel.set).start()
+    started = time.monotonic()
+    try:
+        result = plugin_agents.run_agent(
+            {"agent": "demo:tester", "task": "x"},
+            session_id = "s",
+            cancel_event = cancel,
+            server = (f"http://127.0.0.1:{server.server_port}", None),
+        )
+    finally:
+        server.shutdown()
+    assert result == "Error: run_agent was cancelled."
+    assert time.monotonic() - started < 5

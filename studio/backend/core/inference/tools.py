@@ -15572,12 +15572,19 @@ def execute_tool(name: str, arguments: dict, *args, **kwargs) -> str:
 
     bound = _inspect.signature(_execute_tool_unhooked).bind_partial(name, arguments, *args, **kwargs)
     session_id = bound.arguments.get("session_id")
+    cancel_event = bound.arguments.get("cancel_event")
     workdir = plugin_hooks.workdir_for(session_id)
-    refused = plugin_hooks.before_tool(name, arguments, session_id = session_id, workdir = workdir)
+    refused = plugin_hooks.before_tool(
+        name, arguments, session_id = session_id, workdir = workdir, cancel_event = cancel_event
+    )
     if refused is not None:
         return refused
     result = _execute_tool_unhooked(name, arguments, *args, **kwargs)
-    return plugin_hooks.after_tool(name, arguments, result, session_id = session_id, workdir = workdir)
+    if cancel_event is not None and cancel_event.is_set():
+        return result
+    return plugin_hooks.after_tool(
+        name, arguments, result, session_id = session_id, workdir = workdir, cancel_event = cancel_event
+    )
 
 
 def _opt_int(v) -> int | None:
