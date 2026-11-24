@@ -8,7 +8,7 @@ description: Create, write or fix code in a project folder. Build programs, game
 Use this for code in a project folder: building a program, game, app or script, or fixing a bug, a failing build or a crash.
 
 ## Your limits here
-- Tool calls per message are limited (50 by default). Spend at most 4 on checking the environment, put several commands in one call (`a && b && c`), and keep calls in reserve for testing and fixes. If they run out, say what works, what fails and the next step.
+- Tool calls per message are limited (50 by default). Spend at most 4 on checking the environment, put several commands in one call (`a && b && c`), and keep calls in reserve for testing and fixes. When about 10 are left, stop adding features: run what exists and write the summary (what works, what fails, the next step). The user continues with a new message.
 - Tool calls run in a sandbox unless the user turned it off. System folders are read-only and there is no root, so `sudo`, `dnf install` and `apt install` cannot work: do not try them. There is no GPU and no screen, so a window or OpenGL program cannot be run or seen. A background process dies when its call ends unless started as `nohup CMD > out.log 2>&1 &`, and `/tmp` is emptied after each call.
 - `pip install` works and lands in the project folder. For a missing C or C++ library, use what is installed, put a single-header library in the project, or use the standard library only. If a system package is really needed, give the user the exact command and carry on with a fallback.
 
@@ -23,8 +23,11 @@ Use this for code in a project folder: building a program, game, app or script, 
 - List the project folder and read the README or build file first (Makefile, package.json, pyproject.toml, CMakeLists.txt). Do not open every file.
 
 ## Writing and changing code
+- Build a large project in slices: first the smallest version that runs (for a game: one scene, the player, one enemy, the HUD), run and check it, then add one system at a time and check again. Never write a dozen files before running anything: the errors pile up and the calls run out before anything works.
+- Install all packages in one command (`npm install three && npm install -D typescript vite @types/three`), then call their tools as `npx tsc` or `npx vite`.
+- Create a new file with `edit_file` and an empty `old_string`. Never write source code through `python3 -c`, `sed` or a heredoc inside another script: quoting breaks and the file comes out empty or cut.
 - Write each file once, compile or run it, then fix what breaks. Fix every error the compiler printed in one edit, not one per call. Do not rewrite a working file to make it "more robust".
-- Once a file exists, change it with `edit_file`, not by writing it again whole: every full rewrite of a 30 KB file costs about 8k tokens of context, and a few of them fill the window.
+- Once a file exists, change it with `edit_file` (not `sed -i` or a Python regex, which silently miss or hit the wrong line), not by writing it again whole: every full rewrite of a 30 KB file costs about 8k tokens of context, and a few of them fill the window.
 - Do not switch language or layout halfway (TypeScript to JavaScript, many files to one file) to get around an error. Fix the error; if a tool itself fails (a build runs out of memory, a command crashes), tell the user the exact error before changing the design.
 - Before editing a bug, say in one sentence what is wrong and which line shows it. Change only those lines, rerun, and compare with the output from before.
 - If the same approach fails twice, switch: a smaller step, another tool, or one precise question to the user.
