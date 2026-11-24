@@ -6483,6 +6483,11 @@ async def _select_request_tools(
         _agent_tool = _plugin_agent_tool()
         if _agent_tool is not None:
             tools = tools + [_agent_tool]
+        # Ganjalf: Claude Code-style task list, file reading/search and background job tools.
+        from core.inference.agent_tools import code_agent_tools
+
+        _have = {tool["function"]["name"] for tool in tools}
+        tools = tools + [tool for tool in code_agent_tools() if tool["function"]["name"] not in _have]
     # Inline on purpose: an await here escapes the api_monitor cancel handling; the cache bounds it.
     enabled_skills = _enabled_agent_skills() if tools_on else []
     if enabled_skills:

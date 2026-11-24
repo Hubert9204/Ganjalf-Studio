@@ -180,6 +180,19 @@ const TYPEOF_GUARDED: ReadonlyArray<readonly [string, string]> = [
   ["tool-ui-render-html.tsx", "RenderHtmlToolUIImpl"],
 ];
 
+// Ganjalf: cards that read their arguments only through a tested parser (todo-items.ts).
+const PARSED: ReadonlyArray<readonly [file: string, component: string, prop: string, parser: RegExp]> = [
+  ["tool-ui-todo.tsx", "TodoToolUI", "items", /^todoItems\(/],
+];
+
+test("the parsed cards read their arguments through their parser", () => {
+  for (const [file, component, prop, parser] of PARSED) {
+    const [initializer] = readConsts(CARDS_DIR + file, component, prop);
+    assert.ok(initializer, `${file} does not declare ${prop}`);
+    assert.match(initializer, parser, `${file} reads ${prop} without its parser`);
+  }
+});
+
 // Adding a new card must fail here until its argument handling is decided.
 test("no tool card escapes the coercion policy", () => {
   const present = readdirSync(
@@ -190,6 +203,7 @@ test("no tool card escapes the coercion policy", () => {
   const accounted = [
     ...COERCED.map(([file]) => file),
     ...TYPEOF_GUARDED.map(([file]) => file),
+    ...PARSED.map(([file]) => file),
   ]
     // COERCED also covers tool-fallback.tsx, the card for every unknown tool.
     .filter((file) => file.startsWith("tool-ui-"))

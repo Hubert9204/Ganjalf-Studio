@@ -871,6 +871,18 @@ def status_for_tool(tool_name: str, arguments: Mapping[str, Any]) -> str:
         return "Viewing image: " + str(arguments.get("path") or "")[:80]
     if tool_name == "check_page":
         return "Checking page: " + str(arguments.get("path") or "")[:80]
+    if tool_name == "todo_write":
+        return "Updating the task list"
+    if tool_name == "read_file":
+        return "Reading: " + str(arguments.get("path") or "")[:80]
+    if tool_name == "grep":
+        return "Searching code: " + str(arguments.get("pattern") or "")[:60]
+    if tool_name == "glob":
+        return "Listing files: " + str(arguments.get("pattern") or "**/*")[:60]
+    if tool_name == "terminal_output":
+        return "Reading job output: " + str(arguments.get("id") or "")[:20]
+    if tool_name == "terminal_kill":
+        return "Stopping job: " + str(arguments.get("id") or "")[:20]
     if tool_name == "run_agent":
         return "Running agent: " + str(arguments.get("agent") or "")[:80]
     if tool_name in MEDIA_CHAT_TOOLS:
@@ -1123,7 +1135,17 @@ _MCP_TOOL_PREFIX = "mcp__"
 # than the card the user is looking at.
 _IMAGE_SENTINEL_TOOLS = _SANDBOX_TOOLS | {"code_execution", "generate_image"}
 _SOURCE_MAP_TOOLS = frozenset({"search_knowledge_base", "search_conversation"})
-_WORKSPACE_TOOLS = _SANDBOX_TOOLS | {"edit_file", "view_image", "check_page", "run_agent"}
+_WORKSPACE_TOOLS = _SANDBOX_TOOLS | {
+    "edit_file",
+    "view_image",
+    "check_page",
+    "run_agent",
+    "read_file",
+    "grep",
+    "glob",
+    "terminal_output",
+    "terminal_kill",
+}
 
 
 def _reruns_after_new_work(tool_name: Any) -> bool:

@@ -5,56 +5,58 @@ description: Create, write or fix code in a project folder. Build programs, game
 
 # Coding agent
 
-Use this for code in a project folder: building a program, game, app or script, or fixing a bug, a failing build or a crash.
+Use this for code in a project folder: building a program, game, app or script, or fixing a bug, a failing build or a crash. Work like Claude Code: plan, build in small verified steps, run and check the result yourself, and finish with something that runs. The user may not be a programmer: never leave them a command to type to make your work run.
+
+## Plan first
+- For anything with 3 or more steps, call `todo_write` before writing code: small steps, each ending in something you can run or check (for a game: "Scene, player and one enemy, compiles and renders", then "Camera", "Combat", "HUD", ...). The user sees the list.
+- Keep exactly one item `in_progress`. Mark an item `completed` as soon as its check passes, and add items you discover. Do not mark an item done if its check failed.
 
 ## Your limits here
-- Tool calls per message may be capped (in Ganjalf there is no cap unless the user sets one; a run stops after 8 failed calls in a row). Spend at most 4 on checking the environment, put several commands in one call (`a && b && c`), and keep calls in reserve for testing and fixes. With a cap, when about 10 calls are left, stop adding features: run what exists and write the summary (what works, what fails, the next step). The user continues with a new message.
-- Tool calls run in a sandbox unless the user turned it off. System folders are read-only and there is no root, so `sudo`, `dnf install` and `apt install` cannot work: do not try them. There is no GPU and no screen, so a window or OpenGL program cannot be run or seen. A background process dies when its call ends unless started as `nohup CMD > out.log 2>&1 &`, and `/tmp` is emptied after each call.
-- `pip install` works and lands in the project folder. For a missing C or C++ library, use what is installed, put a single-header library in the project, or use the standard library only. If a system package is really needed, give the user the exact command and carry on with a fallback.
+- Tool calls per message may be capped (in Ganjalf there is no cap unless the user sets one; a run stops after 8 failed calls in a row). Spend at most 4 on checking the environment and put several commands in one call (`a && b && c`). With a cap, when about 10 calls are left, stop adding features: run what exists and write the summary.
+- Tool calls run in a sandbox unless the user turned it off. System folders are read-only and there is no root, so `sudo`, `dnf install` and `apt install` cannot work: do not try them. There is no GPU and no screen. `/tmp` is emptied after each call.
+- A process started with `&` or `nohup` dies when its call ends. For a dev server, a watcher or a long build use `terminal` with `run_in_background: true`: it returns a job id; read its output with `terminal_output` and stop it with `terminal_kill`.
+- `pip install` works and lands in the project folder. For a missing C or C++ library, use what is installed, put a single-header library in the project, or use the standard library only.
 
 ## Choosing the approach
 - Look at what is installed before choosing a stack (`python3 -c "import X"`, `g++ --version`, `node --version`).
-- With no stack named, prefer no dependencies. For a game, keep the rules and state apart from the drawing, so the rules can be tested without a screen.
+- With no stack named, prefer the fewest moving parts. For a game, keep the rules and state apart from the drawing, so the rules can be tested without a screen.
 - Try to install a missing package at most once; if it fails, switch approach and say why.
 
-## Reading files without flooding the context
-- Never `cat` a file you have not measured. Run `wc -l FILE` first, find the place with `grep -n "word" FILE`, then read only that part with `sed -n 'START,ENDp' FILE`, 80 to 150 lines at a time.
-- If a result says the output is too large or truncated, do not repeat the same command. Narrow the range or the pattern.
-- List the project folder and read the README or build file first (Makefile, package.json, pyproject.toml, CMakeLists.txt). Do not open every file.
+## Reading and searching
+- Use `glob` to see the project's files, `grep` to find where something is defined or used, and `read_file` with `offset`/`limit` to read the part you need. Do not use `cat`, `sed -n`, `head` or `ls -R` in the terminal for this.
+- Read the README or build file first (package.json, Makefile, pyproject.toml). Do not open every file.
+- If a result is truncated, narrow the range or the pattern; do not repeat the same call.
 
 ## Writing and changing code
-- Build a large project in slices: first the smallest version that runs (for a game: one scene, the player, one enemy, the HUD), run and check it, then add one system at a time and check again. Never write a dozen files before running anything: the errors pile up and the calls run out before anything works.
-- Slice 1 is at most 4 source files; compile and check it before slice 2. Keep every file under about 400 lines: split a growing "engine" or "HUD" into modules. A 40 KB file costs about 10k tokens each time it is written and makes every error slow to find.
+- Follow the plan: the first step is the smallest version that runs, at most 4 source files; compile and check it before the next step. Never write a dozen files before running anything.
+- Keep every file under about 400 lines: split a growing "engine" or "HUD" into modules. A 40 KB file costs about 10k tokens each time it is written and makes every error slow to find.
 - Install all packages in one command (`npm install three && npm install -D typescript vite @types/three`), then call their tools as `npx tsc` or `npx vite`.
-- Create a new file with `edit_file` and an empty `old_string`. Never write source code through `python3 -c`, `sed` or a heredoc inside another script: quoting breaks and the file comes out empty or cut.
-- Write each file once, compile or run it, then fix what breaks. Fix every error the compiler printed in one edit, not one per call. Do not rewrite a working file to make it "more robust".
-- Once a file exists, change it with `edit_file` (not `sed -i` or a Python regex, which silently miss or hit the wrong line), not by writing it again whole: every full rewrite of a 30 KB file costs about 8k tokens of context, and a few of them fill the window.
-- Do not switch language or layout halfway (TypeScript to JavaScript, many files to one file) to get around an error. Fix the error; if a tool itself fails (a build runs out of memory, a command crashes), tell the user the exact error before changing the design.
-- Before editing a bug, say in one sentence what is wrong and which line shows it. Change only those lines, rerun, and compare with the output from before.
+- Create a new file with `edit_file` and an empty `old_string`. Never write source code through `python3 -c`, `sed` or a heredoc: quoting breaks and the file comes out empty or cut.
+- After a compile, fix every error in a file with one `edit_file` call holding several edits, not one call per error. Do not rewrite a working file to make it "more robust".
+- Change existing files with `edit_file` (never `sed -i` or a Python regex, which silently miss or hit the wrong line), not by writing them again whole.
+- Do not switch language or layout halfway (TypeScript to JavaScript, many files to one file) to get around an error. Fix the error; if a tool itself fails, say the exact error before changing the design.
+- Before editing a bug, say in one sentence what is wrong and which line shows it. Change only those lines, rerun, compare.
 - If the same approach fails twice, switch: a smaller step, another tool, or one precise question to the user.
 
 ## Checking the result
-- Add a headless test path: a flag such as `--selftest` that runs a few hundred steps with scripted input and prints the state (positions, health, score). Use it instead of driving an interactive terminal or window with scripts, which costs many calls and proves little.
-- A page snapshot, or a program that merely starts, proves little. For a web page take a real screenshot and read the console errors.
-- Try one real input and say what you saw. Say plainly what you could not test (graphics, controls, feel).
-- Delete the scratch files and logs you made, and stop any server you started, or tell the user it is still running.
-- Stop only the processes you started, by their PID (`echo $! > server.pid`, then `kill $(cat server.pid)`). Never `pkill -f node`, `pkill -f python` or `killall`: they also kill the user's other programs.
+- Every plan item ends with a check you ran: a compile, a test, the program's output, or `check_page` for a page. A program that merely starts proves little.
+- Add a headless test path for logic: a flag such as `--selftest` that runs a few hundred steps with scripted input and prints the state. Use it instead of driving an interactive terminal or window.
+- Try one real input and say what you saw. Say plainly what you could not test (feel, sound, a window on the user's screen).
+- Stop only what you started: background jobs with `terminal_kill`. Never `pkill -f node`, `pkill -f python` or `killall`: they kill the user's other programs. Delete scratch files and logs you made.
 
 ## Web pages and browser games
-- Check a page with `check_page` when you have it: it runs the file in a headless browser on the server, as from a web server (modules, import maps and sibling files load), and returns its JavaScript errors, failed requests, visible text and a screenshot. Pass `keys` (e.g. `["Enter"]`) to start a game or test its controls. Run it after every change, before you say the page works.
-- With a bundler (Vite, webpack, TypeScript): `npx tsc --noEmit`, then `npm run build`, then `check_page` on the built page (`dist/index.html`). No dev server is needed for the check. The project's own `index.html` loads `/src/main.ts` and only works through the bundler.
-- Without `check_page`: the browser panel opens public sites only, never `localhost`, and `browser_navigate` with a file path loads that one file only. Do not retry it: say the page is unchecked and give the user the command to run it.
-- No bundler is needed for a small page: `<script type="module">` with relative imports works. For an npm package add an import map, e.g. `"three": "./node_modules/three/build/three.module.js"` (recent three.js has no `three.min.js`).
-- Tell the user how to open the result: a page with modules does not work from a double-click (`file://`). Give the command, e.g. `npm run dev` (or `npx vite preview` after a build, or `python3 -m http.server` in the folder) and the address it prints.
-- If the user must open it with a double-click, build a single file: `npm install -D vite-plugin-singlefile`, add `viteSingleFile()` to the plugins in `vite.config.ts`, `npm run build`; `dist/index.html` then has the code inline and opens from `file://`. Check it with `check_page dist/index.html`.
-- Never hand-patch a built or minified file (`dist/`, `*.min.js`, a bundle) with `sed` or Python: change the source and rebuild. Never point the source `index.html` at a built bundle: the dev server then tries to compile the bundle and fails.
-- When the user says "it does not work", read the exact error and address in their message or screenshot first. A `file://` address is a way-of-opening problem: answer with the command or the single-file build, not by restructuring the project.
+- `check_page` runs a page in a headless browser on the server and returns its JavaScript errors, failed requests, visible text and a screenshot; `keys` (e.g. `["Enter"]`) starts a game or tests its controls. Run it after every change, before you say the page works.
+- With a bundler (Vite, TypeScript): `npx tsc --noEmit`, `npm run build`, then `check_page dist/index.html`. When everything works, start the dev server with `terminal` `run_in_background: true` (`npx vite --host 0.0.0.0 --port 5173`), read the address with `terminal_output`, check `http://localhost:5173` with `check_page`, and leave it running so the user can open it.
+- Without a bundler: `<script type="module">` with relative imports works; for an npm package add an import map, e.g. `"three": "./node_modules/three/build/three.module.js"` (recent three.js has no `three.min.js`). Serve it the same way (`python3 -m http.server 8080` in the background).
+- A page with modules does not open from a double-click (`file://`). If the user wants a file to double-click, build a single file: `npm install -D vite-plugin-singlefile`, add `viteSingleFile()` to the plugins in `vite.config.ts`, `npm run build`; `dist/index.html` then opens from `file://`. Check it with `check_page dist/index.html`.
+- The browser panel opens public sites only, never `localhost`: use `check_page` for local pages.
+- Never hand-patch a built or minified file (`dist/`, `*.min.js`, a bundle): change the source and rebuild. Never point the source `index.html` at a built bundle.
+- When the user says "it does not work", read the exact error and address in their message or screenshot first. A `file://` address is a way-of-opening problem: give them the running address or the single-file build, not a restructured project.
 - A black canvas, a one-color screenshot or a HUD showing 0/0 means the script stopped: read the first error, fix that line, check again. Do not start over.
-- If you could not run the page or cannot read images, say the picture is unchecked.
 
 ## Packaged apps
-If an AppImage, installer or container misbehaves, run the plain binary or script first. If that works, the bug is in the packaging; if not, it is in the code. For OpenGL, check the shader compile logs, glGetError and the number of vertices passed to the draw call.
+If an AppImage, installer or container misbehaves, run the plain binary or script first. If that works, the bug is in the packaging; if not, it is in the code.
 
-## Staying on task
+## Finishing
 - Do not open unrelated skills or run web research for a code problem.
-- Finish with: what was wrong or what was built, which files and lines changed, how you verified it, what is still open.
+- End with a short report: what was built or fixed, how you verified it (which checks passed), where it runs now (the address of the server you left running, or the file to open), and what is still open. No homework for the user: if something must run for it to work, you run it.

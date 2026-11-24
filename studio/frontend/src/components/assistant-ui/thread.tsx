@@ -89,6 +89,7 @@ import {
 import { ComposerModelPicker } from "@/components/assistant-ui/composer-model-picker/composer-model-picker";
 import { ModelPickerAnnouncement } from "@/components/assistant-ui/model-picker-announcement";
 import { withToolConfirmation } from "@/components/assistant-ui/tool-confirmation-controls";
+import { TodoToolUI } from "@/components/assistant-ui/tool-ui-todo";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import { ToolGroup } from "@/components/assistant-ui/tool-group";
 import { CodeExecutionToolUI } from "@/components/assistant-ui/tool-ui-code-execution";
@@ -8514,6 +8515,7 @@ const ASSISTANT_PART_COMPONENTS = {
       generate_image: ImageGenerationToolUIConfirmable,
       generate_video: VideoGenerationToolUIConfirmable,
       render_html: RenderHtmlToolUIConfirmable,
+      todo_write: TodoToolUI,
     },
     Fallback: ToolFallbackConfirmable,
   },

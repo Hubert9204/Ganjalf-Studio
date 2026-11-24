@@ -14,8 +14,9 @@ from core.inference.media_chat_tools import MEDIA_CHAT_TOOLS
 # Tools that work a task step by step, where announcing the next step and stopping ends it.
 STEPWISE = BROWSER_TOOL_NAMES | COMPUTER_TOOL_NAMES
 # Never deduplicated: an identical call is new work (the page as it is now, another image).
-REPEATABLE = STEPWISE | MEDIA_CHAT_TOOLS
-_BUILT_IN_READS = frozenset({"view_image"})
+# Ganjalf: a job's output moves while it runs, and the task list is resent as it changes.
+REPEATABLE = STEPWISE | MEDIA_CHAT_TOOLS | frozenset({"terminal_output", "todo_write"})
+_BUILT_IN_READS = frozenset({"view_image", "read_file", "grep", "glob", "terminal_output"})
 # Unsloth's own tools where an identical call is new work: get_job's answer moves while a job runs,
 # and a generator with no seed draws a fresh one.
 _STUDIO_REPEATS = frozenset({"get_job", "generate_image", "generate_audio", "generate_video"})

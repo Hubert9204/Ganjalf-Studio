@@ -6918,6 +6918,14 @@ _ALWAYS_SAFE_TOOLS = frozenset(
         "deep_research",
         "mcp_tool_search",
         "view_image",
+        # Ganjalf code-agent tools (core/inference/agent_tools.py, background_jobs.py): they read the
+        # working directory, keep the task list, or read/stop a job the user already approved.
+        "todo_write",
+        "read_file",
+        "grep",
+        "glob",
+        "terminal_output",
+        "terminal_kill",
         # Gated in the chat tab instead, which knows what each ref on the live page is: submits,
         # purchases, sign-ins and new sites ask there, in every permission mode.
         *BROWSER_TOOL_NAMES,
@@ -13650,7 +13658,15 @@ TERMINAL_TOOL = {
                 "command": {
                     "type": "string",
                     "description": "The command to run",
-                }
+                },
+                "run_in_background": {
+                    "type": "boolean",
+                    "description": (
+                        "Run a long-lived command (dev server, watcher, long build) in the "
+                        "background and return at once with a job id; read it with "
+                        "terminal_output and stop it with terminal_kill. Do not use `&` or nohup."
+                    ),
+                },
             },
             "required": ["command"],
         },
@@ -15571,6 +15587,43 @@ def execute_tool(
                 tool_execution_mode = tool_execution_mode,
                 host_access_approved = host_access_approved,
             )
+    if name == "terminal" and arguments.get("run_in_background") is True:
+        from . import background_jobs
+
+        command = arguments.get("command", "")
+        if not str(command or "").strip():
+            return "No command provided."
+
+        def _run_background(job_cancel, append_line, job_timeout):
+            with _session_in_flight(session_id):
+                return _bash_exec(
+                    command,
+                    job_cancel,
+                    job_timeout,
+                    session_id,
+                    disable_sandbox = disable_sandbox,
+                    output_callback = append_line,
+                    thread_id = thread_id,
+                    tool_execution_mode = tool_execution_mode,
+                    host_access_approved = host_access_approved,
+                )
+
+        return background_jobs.start(command, session_id, _run_background)
+    if name in ("todo_write", "read_file", "grep", "glob"):
+        from . import agent_tools
+
+        if name == "todo_write":
+            return agent_tools.todo_write(arguments, session_id)
+        handler = getattr(agent_tools, name)
+        with _session_in_flight(session_id):
+            return _fit_result_to_room(
+                handler(arguments, session_id, disable_sandbox = disable_sandbox), name
+            )
+    if name in ("terminal_output", "terminal_kill"):
+        from . import background_jobs
+
+        handler = background_jobs.output if name == "terminal_output" else background_jobs.kill
+        return handler(arguments, session_id)
     if name == "terminal":
         with _session_in_flight(session_id):
             return _bash_exec(
@@ -23995,7 +24048,8 @@ _DRAIN_EOF_GRACE_S = 1.5
 _DRAIN_BUSY_CAP_S = 10.0
 _BACKGROUND_STOPPED_NOTE = (
     "[Background processes still writing to this output were stopped when the command exited. "
-    "To keep one running, redirect its output to a file, e.g. `nohup cmd > out.log 2>&1 &`.]\n"
+    "To keep one running (a dev server, a watcher), start it with terminal run_in_background: true "
+    "and read it with terminal_output.]\n"
 )
 
 

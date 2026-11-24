@@ -190,7 +190,11 @@ def test_documented_bash_alias_selects_the_canonical_terminal_tool():
     )
     assert chat.enabled_tools == ["terminal", "python"]
     selected = asyncio.run(_select_request_tools(chat, tools_on = True, mcp_allowed = False))
-    assert [t["function"]["name"] for t in selected] == ["python", "terminal"]
+    names = [t["function"]["name"] for t in selected]
+    # Ganjalf: the code-agent tools (todo_write, read_file, ...) ride with terminal.
+    from core.inference.agent_tools import CODE_AGENT_TOOL_NAMES
+
+    assert names[:2] == ["python", "terminal"] and set(names[2:]) == set(CODE_AGENT_TOOL_NAMES)
 
     anthropic = AnthropicMessagesRequest(
         model = "m", max_tokens = 8, messages = messages, enabled_tools = ["bash"]
