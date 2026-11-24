@@ -4,8 +4,11 @@
 # pre-built frontend, which ships inside the unsloth wheel) and restarts the
 # Studio service. The torch/CUDA stack is left untouched.
 #
-#   docker exec <container> unsloth-studio-update              # latest PyPI release
-#   docker exec <container> unsloth-studio-update --ref main   # latest git main (builds its frontend)
+#   docker exec <container> unsloth-studio-update              # Ganjalf: latest commit of the followed branch
+#   docker exec <container> unsloth-studio-update --ref main   # a given git ref of the Studio repo (builds its frontend)
+#   docker exec <container> unsloth-studio-update --pypi       # Unsloth's PyPI release instead: replaces Ganjalf
+#   UNSLOTH_STUDIO_REPO=<git url>  repository the source updates come from (default: Ganjalf-Studio)
+#   GANJALF_UPDATE_BRANCH=<branch> branch a plain update follows (default: main)
 #   docker exec <container> unsloth-studio-update --with-deps  # also update deps (torch/CUDA stay pinned)
 #   docker exec <container> unsloth-studio-update --no-restart # update, restart later
 #   --zoo-ref <ref>      unsloth-zoo ref to pair with --ref (default: the same ref, else main)
@@ -38,6 +41,9 @@ NO_DEPS="--no-deps"
 RESTART=1
 RECOVER_ONLY=0
 PACKAGES="unsloth unsloth_zoo"
+PYPI=0
+# Ganjalf: source updates come from the fork, never from Unsloth's repository or PyPI.
+STUDIO_REPO_URL="${UNSLOTH_STUDIO_REPO:-https://github.com/Hubert9204/Ganjalf-Studio}"
 
 # the header comment, up to the first line that is not one
 usage() { awk 'NR > 1 && !/^#/ { exit } NR > 1 { print }' "$0"; }
@@ -50,6 +56,7 @@ while [ $# -gt 0 ]; do
         --no-restart)  RESTART=0; shift;;
         --recover)     RECOVER_ONLY=1; shift;;
         --packages)    PACKAGES="$2"; shift 2;;
+        --pypi)        PYPI=1; shift;;
         -h|--help)     usage; exit 0;;
         *) echo "unsloth-studio-update: unknown argument: $1" >&2; usage; exit 2;;
     esac
@@ -403,6 +410,16 @@ build_source_tree() {
     [ -f "$tree/studio/frontend/dist/index.html" ] || { log "ERROR: the frontend build produced no dist/index.html"; return 1; }
 }
 
+# A plain update of a Ganjalf image follows the fork's branch: Unsloth's PyPI release would put
+# upstream Studio over it. --pypi asks for that on purpose.
+if [ -z "$REF" ] && [ "$PYPI" = 0 ]; then
+    case "$STUDIO_REPO_URL" in
+        *github.com/unslothai/unsloth|*github.com/unslothai/unsloth.git) ;;
+        *) REF="${GANJALF_UPDATE_BRANCH:-main}"
+           log "updating from ${STUDIO_REPO_URL} @${REF} (Ganjalf); use --pypi for Unsloth's release";;
+    esac
+fi
+
 if [ -n "$REF" ]; then
     # unsloth-zoo does NOT track unsloth's tags
     _zoo_ref="$ZOO_REF"
@@ -425,19 +442,21 @@ if [ -n "$REF" ]; then
         fi
     fi
     if [ ! -d "$SRC" ]; then
-        echo "unsloth-studio-update: no source tree at $SRC (a wheel install has none, and a broken src link points at nothing); --ref needs the image's Unsloth Studio checkout. Use a plain update instead; nothing was changed." >&2
+        echo "unsloth-studio-update: no source tree at $SRC (a wheel install has none, and a broken src link points at nothing); a source update needs the image's Studio checkout. Use --pypi for a release update instead; nothing was changed." >&2
         exit 1
     fi
     log "installing from git: unsloth @${REF}, unsloth-zoo @${_zoo_ref}"
     # a sibling of the real src, so the swap below is a same-filesystem rename
     STAGE="$(mktemp -d "$SRC_DIR/.src-update.XXXXXX")"
     if ! { git -C "$STAGE" init -q \
-            && git -C "$STAGE" remote add origin https://github.com/unslothai/unsloth \
+            && git -C "$STAGE" remote add origin "$STUDIO_REPO_URL" \
             && git -C "$STAGE" fetch -q --depth 1 origin "$REF" \
             && git -C "$STAGE" checkout -q FETCH_HEAD; }; then
         echo "unsloth-studio-update: could not fetch unsloth ref '${REF}'; nothing was changed." >&2
         exit 1
     fi
+    # The update banner compares this commit with the followed branch (utils/ganjalf_update.py).
+    git -C "$STAGE" rev-parse HEAD > "$STAGE/.ganjalf-revision" 2>/dev/null || true
     rm -rf "$STAGE/.git"
     if ! build_source_tree "$STAGE"; then
         echo "unsloth-studio-update: the frontend for '${REF}' did not build; nothing was changed." >&2

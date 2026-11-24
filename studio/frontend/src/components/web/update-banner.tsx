@@ -39,7 +39,12 @@ export function WebUpdateBanner({
   const { status, dismiss, snooze } = useWebUpdateCheck({ enabled });
   const open = useNotificationGate("unsloth", status != null && !isTauri);
   const deviceType = usePlatformStore((s) => s.deviceType);
-  const installCmd = installCommandForDevice(deviceType);
+  // A Ganjalf install updates from its own repository with the command the backend names.
+  const isGanjalf = status?.installSource === "ganjalf";
+  const installCmd =
+    isGanjalf && status?.updateCommand
+      ? status.updateCommand
+      : installCommandForDevice(deviceType);
   const [copiedVersion, setCopiedVersion] = useState<string | null>(null);
   const [notesVersion, setNotesVersion] = useState<string | null>(null);
   const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -140,29 +145,66 @@ export function WebUpdateBanner({
                   <span className="font-medium text-foreground">
                     {status.latestVersion}
                   </span>
+                  {isGanjalf && status.commitsBehind ? (
+                    <>
+                      {" "}
+                      · {status.commitsBehind} new commit
+                      {status.commitsBehind === 1 ? "" : "s"} on{" "}
+                      {status.branch ?? "main"}
+                    </>
+                  ) : null}
                 </p>
+                {isGanjalf ? (
+                  <code className="mt-2 block break-all rounded-md bg-muted px-2 py-1 font-mono text-xs text-foreground">
+                    {installCmd}
+                  </code>
+                ) : null}
               </div>
             </div>
 
-            <ReleaseNotesPanel
-              version={status.latestVersion}
-              open={notesOpen}
-              releaseNotesUrl={RELEASE_NOTES_URL}
-            />
+            {isGanjalf ? null : (
+              <ReleaseNotesPanel
+                version={status.latestVersion}
+                open={notesOpen}
+                releaseNotesUrl={RELEASE_NOTES_URL}
+              />
+            )}
 
             <div className="mt-4 flex shrink-0 flex-wrap items-center justify-between gap-y-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="-ml-2 h-auto whitespace-nowrap rounded-full px-2.5 py-2 text-ui-13 font-medium text-foreground"
-                onClick={() =>
-                  setNotesVersion(notesOpen ? null : status.latestVersion)
-                }
-                aria-expanded={notesOpen}
-                data-testid="web-update-release-notes-toggle"
-              >
-                {notesOpen ? "Hide release notes" : "Show release notes"}
-              </Button>
+              {isGanjalf ? (
+                status.changesUrl ? (
+                  <Button
+                    asChild
+                    size="sm"
+                    variant="ghost"
+                    className="-ml-2 h-auto whitespace-nowrap rounded-full px-2.5 py-2 text-ui-13 font-medium text-foreground"
+                  >
+                    <a
+                      href={status.changesUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid="web-update-changes-link"
+                    >
+                      Show changes
+                    </a>
+                  </Button>
+                ) : (
+                  <span />
+                )
+              ) : (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="-ml-2 h-auto whitespace-nowrap rounded-full px-2.5 py-2 text-ui-13 font-medium text-foreground"
+                  onClick={() =>
+                    setNotesVersion(notesOpen ? null : status.latestVersion)
+                  }
+                  aria-expanded={notesOpen}
+                  data-testid="web-update-release-notes-toggle"
+                >
+                  {notesOpen ? "Hide release notes" : "Show release notes"}
+                </Button>
+              )}
               {/* wrap + right-align so buttons stack instead of clipping on very narrow banners */}
               <div className="flex flex-wrap items-center justify-end gap-x-1 gap-y-2">
                 <Button

@@ -4455,6 +4455,9 @@ def update(
         _refuse_staged_update()
         return
     staging = _studio_stage.is_staging()
+    # Ganjalf: a plain update installs Unsloth's PyPI release, which would replace the fork.
+    if not local and _ganjalf_checkout() is not None:
+        local = _pull_ganjalf_checkout()
     # Do not inherit SKIP_STUDIO_BASE from a parent install.ps1 session.
     os.environ.pop("SKIP_STUDIO_BASE", None)
     os.environ["STUDIO_PACKAGE_NAME"] = package
@@ -4515,6 +4518,56 @@ def update(
             typer.echo("  refresh-launcher  skipped (Tauri update)")
         return
     _refresh_desktop_shortcuts(verbose = verbose)
+
+
+_GANJALF_DEFAULT_REPO = "https://github.com/Hubert9204/Ganjalf-Studio"
+
+
+def _ganjalf_checkout() -> Optional[Path]:
+    """The Ganjalf source tree this CLI runs from, or None (an upstream tree, a wheel, or
+    GANJALF_UPDATE_SOURCE=unsloth, which keeps Unsloth's own update path)."""
+    if (os.environ.get("GANJALF_UPDATE_SOURCE") or "").strip().lower() == "unsloth":
+        return None
+    explicit = (os.environ.get("STUDIO_LOCAL_REPO") or "").strip()
+    root = Path(explicit).expanduser() if explicit else Path(__file__).resolve().parents[2]
+    markers = ("studio/ganjalf_prompts", "studio/ganjalf_skills")
+    if (root / "pyproject.toml").is_file() and any((root / m).is_dir() for m in markers):
+        return root
+    return None
+
+
+def _pull_ganjalf_checkout() -> bool:
+    """Fast-forward the Ganjalf checkout from its repository, then update from it (--local).
+    Returns True; exits when the tree cannot be updated safely."""
+    root = _ganjalf_checkout()
+    repo = (
+        os.environ.get("GANJALF_UPDATE_REPO")
+        or os.environ.get("UNSLOTH_STUDIO_REPO")
+        or _GANJALF_DEFAULT_REPO
+    ).strip()
+    branch = (os.environ.get("GANJALF_UPDATE_BRANCH") or "main").strip()
+    if not repo.startswith(("https://", "git@")):
+        repo = f"https://github.com/{repo.strip('/')}"
+    if not (root / ".git").exists():
+        typer.echo("Ganjalf Studio updates from its own repository, not from PyPI.", err = True)
+        typer.echo("  This tree has no .git (a Docker image): run `unsloth-studio-update` there.", err = True)
+        typer.echo("  To install Unsloth's release instead: GANJALF_UPDATE_SOURCE=unsloth unsloth studio update", err = True)
+        raise typer.Exit(2)
+    typer.echo(f"Updating Ganjalf Studio from {repo} ({branch})...")
+    # --ff-only: a checkout with local commits or edits is left for the owner to merge.
+    result = subprocess.run(
+        ["git", "-C", str(root), "pull", "--ff-only", repo, branch],
+        check = False,
+    )
+    if result.returncode != 0:
+        typer.echo(
+            "  git pull --ff-only failed (local changes or commits?). Nothing was installed; "
+            "merge by hand, then run `unsloth studio update --local`.",
+            err = True,
+        )
+        raise typer.Exit(1)
+    os.environ["STUDIO_LOCAL_REPO"] = str(root)
+    return True
 
 
 def _discard_orphaned_stage() -> None:

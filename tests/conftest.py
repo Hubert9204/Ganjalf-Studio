@@ -68,6 +68,15 @@ os.environ.setdefault("RAG_VEC_ANN_AUTO_INSTALL", "0")
 
 
 @pytest.fixture(autouse = True)
+def _ganjalf_update_source_is_unsloth_in_upstream_tests(request, monkeypatch):
+    """This checkout is a Ganjalf tree, so `unsloth studio update` would git-pull it from the
+    Ganjalf repository. The upstream suite tests Unsloth's update path; Ganjalf's own tests
+    (named test_ganjalf_*) set the source themselves."""
+    if not request.node.fspath.basename.startswith("test_ganjalf_"):
+        monkeypatch.setenv("GANJALF_UPDATE_SOURCE", "unsloth")
+
+
+@pytest.fixture(autouse = True)
 def _contain_installer_venv_root(tmp_path_factory, monkeypatch):
     """Imported in the body because tests/_shared is added to sys.path further down this file."""
     from installer_venv_root import contain_installer_venv_root

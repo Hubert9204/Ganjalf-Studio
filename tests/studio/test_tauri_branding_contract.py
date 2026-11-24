@@ -58,7 +58,8 @@ def test_desktop_display_name_and_compatibility_ids() -> None:
     assert config["identifier"] == "ai.unsloth.studio"
     assert config["plugins"]["deep-link"]["desktop"]["schemes"] == ["unsloth"]
     assert config["plugins"]["updater"]["endpoints"] == [
-        "https://github.com/unslothai/unsloth/releases/latest/download/latest.json"
+        # Ganjalf: a desktop build updates from the fork's releases, never Unsloth's.
+        "https://github.com/Hubert9204/Ganjalf-Studio/releases/latest/download/latest.json"
     ]
     assert 'name = "unsloth-studio"' in read(TAURI / "Cargo.toml")
 
@@ -94,14 +95,15 @@ def test_desktop_artwork_uses_plain_unsloth_lockups() -> None:
 
     for component in ("startup-screen.tsx", "update-screen.tsx"):
         source = read(FRONTEND / "src/components/tauri" / component)
-        assert "/sticker.png" in source
+        # Ganjalf lockup: the hat-and-pipe badge and the "ganjalf" word.
+        assert "/favicon.svg" in source
         assert "fontFamily: '\"Hellix\", sans-serif'" in source
-        assert "unsloth" in source
+        assert "ganjalf" in source
         assert "/studio.png" not in source
 
     sidebar = read(FRONTEND / "src/components/app-sidebar.tsx")
-    assert "/circle-logo-small.png" in sidebar
-    assert "unsloth" in sidebar
+    assert "/favicon.svg" in sidebar
+    assert "ganjalf" in sidebar
 
     assert 'chatDisabled && "pointer-events-none opacity-50"' not in sidebar
     assert not (FRONTEND / "public/studio.png").exists()

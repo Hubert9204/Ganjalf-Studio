@@ -60,7 +60,9 @@ docker buildx build -f docker/Dockerfile.studio -t ganjalf-studio docker/
 docker run --rm --gpus all -p 8000:8000 -v ganjalf-data:/opt/unsloth-studio ganjalf-studio
 ```
 
-In Docker lo script di avvio non gira: le skill di serie e le variabili sopra vanno impostate a mano.
+In Docker lo script di avvio non gira: le skill di serie vengono copiate nel volume a ogni avvio del container, le variabili sopra vanno impostate a mano.
+
+**Aggiornamenti**: Ganjalf si aggiorna solo da questo repository, mai dal pacchetto PyPI di Unsloth. Fuori da Docker: `git pull && bash scripts/ganjalf-launch.sh`. In Docker: `docker exec <container> unsloth-studio-update` (segue il branch `main` di questo fork; `--pypi` installa invece la release di Unsloth, sostituendo Ganjalf). Quando il branch ha commit nuovi l'interfaccia mostra un avviso con il comando. Dettagli, variabili e procedura di allineamento con Unsloth in [studio/GANJALF_UPDATES.md](studio/GANJALF_UPDATES.md).
 
 Per le altre opzioni di installazione (HTTPS, accesso da rete locale, solo GGUF) valgono le [istruzioni di Unsloth](https://unsloth.ai/docs/new/studio/).
 

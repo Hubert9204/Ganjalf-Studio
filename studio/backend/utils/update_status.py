@@ -19,6 +19,8 @@ from typing import Any
 
 from packaging.version import InvalidVersion, Version
 
+from utils import ganjalf_update
+
 PACKAGE_NAME = "unsloth"
 PYPI_JSON_URL = "https://pypi.org/pypi/unsloth/json"
 PYPI_TIMEOUT_SECONDS = 3
@@ -128,13 +130,17 @@ def get_studio_update_status(current_version: str) -> dict[str, Any]:
             can_show_web_notification = True,
         )
 
-    if disabled:
+    if disabled or ganjalf_update.update_source() == "off":
         return _status_response(
             current_version = current_version,
             latest_version = None,
             install_source = install_source,
             reason = "disabled",
         )
+
+    # Ganjalf follows its own repository; Unsloth's PyPI release would replace the fork.
+    if ganjalf_update.update_source() == "ganjalf" and ganjalf_update.is_ganjalf_install():
+        return _ganjalf_status(current_version)
 
     if install_source in LOCAL_INSTALL_SOURCES:
         return _status_response(
@@ -280,6 +286,41 @@ def _fetch_latest_pypi_version() -> LatestVersionResult:
         )
 
     return LatestVersionResult(latest_version = latest.strip(), checked_at = checked_at)
+
+
+def _ganjalf_status(current_version: str) -> dict[str, Any]:
+    """Update status against the followed Ganjalf branch: available when it has commits this tree lacks."""
+    extra = {
+        "update_repo": ganjalf_update.repo_url(),
+        "update_branch": ganjalf_update.update_branch(),
+        "update_command": ganjalf_update.update_command(),
+        "commits_behind": None,
+    }
+    local = ganjalf_update.local_revision()
+    if local is None:
+        return {
+            **_status_response(
+                current_version = current_version,
+                latest_version = None,
+                install_source = "ganjalf",
+                reason = "unknown_revision",
+            ),
+            **extra,
+        }
+    comparison = ganjalf_update.compare_with_branch(local)
+    behind = comparison.ahead_by
+    head = comparison.head or ""
+    response = _status_response(
+        current_version = local[:7],
+        latest_version = head[:7] if behind and head else (local[:7] if behind == 0 else None),
+        install_source = "ganjalf",
+        reason = comparison.reason,
+        error = comparison.error,
+        update_available = bool(behind),
+        can_show_web_notification = bool(behind),
+    )
+    response["release_notes_url"] = ganjalf_update.compare_url(local)
+    return {**response, **extra, "commits_behind": behind}
 
 
 def _status_response(

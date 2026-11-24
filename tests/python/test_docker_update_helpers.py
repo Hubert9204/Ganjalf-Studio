@@ -132,6 +132,8 @@ def _studio_env(
         'dir=""; if [ "$1" = "-C" ]; then dir="$2"; shift 2; fi\n'
         'case "$1" in\n'
         f"  ls-remote) exit {git_ls_exit} ;;\n"
+        '  remote) echo "STUB-GIT $*" >> "$STUB_LOG" ;;\n'
+        "  rev-parse) echo 0123456789abcdef0123456789abcdef01234567 ;;\n"
         '  checkout) mkdir -p "$dir/studio/frontend/src" "$dir/.git"'
         ' "$dir/studio/backend/core/data_recipe/oxc-validator";'
         ' echo "{}" > "$dir/studio/frontend/package.json";'
@@ -161,14 +163,14 @@ def _calls(env) -> str:
 
 def test_studio_update_restarts_when_the_backend_imports(tmp_path: Path):
     env = _studio_env(tmp_path)
-    res = _run(STUDIO_UPDATE, [], env)
+    res = _run(STUDIO_UPDATE, ["--pypi"], env)
     assert res.returncode == 0, res.stderr + res.stdout
     assert "STUB-SUPERVISORCTL restart studio" in _calls(env), _calls(env)
 
 
 def test_studio_update_does_not_restart_into_a_backend_that_cannot_import(tmp_path: Path):
     env = _studio_env(tmp_path, import_ok = False)
-    res = _run(STUDIO_UPDATE, [], env)
+    res = _run(STUDIO_UPDATE, ["--pypi"], env)
     calls = _calls(env)
     assert "STUB-SUPERVISORCTL restart studio" not in calls, (
         "restarting into code that cannot import kills a process that is serving "
@@ -186,7 +188,7 @@ def test_studio_update_does_not_restart_into_a_tree_without_a_built_frontend(tmp
     """The --ref failure: a git build has no studio/frontend/dist, `unsloth studio`
     exits 1 on start, and three quick exits leave supervisord's program FATAL."""
     env = _studio_env(tmp_path, dist_ok = False)
-    res = _run(STUDIO_UPDATE, [], env)
+    res = _run(STUDIO_UPDATE, ["--pypi"], env)
     calls = _calls(env)
     assert res.returncode != 0
     assert "no built frontend" in res.stdout
@@ -200,7 +202,7 @@ def test_studio_update_restarts_a_studio_that_is_not_running(tmp_path: Path, sta
     supervisord manages, and FATAL is what a failed earlier update left behind. It gets
     `start`: `restart` stops it first, which supervisorctl reports as an error."""
     env = _studio_env(tmp_path, status_exit = status_exit)
-    res = _run(STUDIO_UPDATE, [], env)
+    res = _run(STUDIO_UPDATE, ["--pypi"], env)
     assert res.returncode == 0, res.stderr + res.stdout
     assert f"STUB-SUPERVISORCTL {verb} studio" in _calls(env), _calls(env)
     assert "not managing" not in res.stdout
@@ -226,7 +228,7 @@ def test_studio_update_fails_when_supervisor_cannot_restart_studio(tmp_path: Pat
         "the previous install must be started again:\n" + calls
     )
     env = _studio_env(tmp_path / "release", restart_exit = 1)
-    res = _run(STUDIO_UPDATE, [], env)
+    res = _run(STUDIO_UPDATE, ["--pypi"], env)
     assert res.returncode != 0, res.stdout
     assert "install --no-deps --force-reinstall -r" in _calls(env), _calls(env)
 
@@ -259,7 +261,7 @@ def test_studio_update_refuses_to_run_beside_another_updater(tmp_path: Path):
 
 def test_studio_update_reports_an_unmanaged_studio(tmp_path: Path):
     env = _studio_env(tmp_path, status_exit = 4)
-    res = _run(STUDIO_UPDATE, [], env)
+    res = _run(STUDIO_UPDATE, ["--pypi"], env)
     assert res.returncode == 0, res.stderr + res.stdout
     assert "STUB-SUPERVISORCTL restart studio" not in _calls(env)
     assert "not managing 'studio'" in res.stdout
@@ -352,7 +354,7 @@ def test_studio_update_rollback_keeps_the_editable_uri_pip_recorded(tmp_path: Pa
     (info / "direct_url.json").write_text(
         '{"url": "file:///opt/my%20studio/src", "dir_info": {"editable": true}}'
     )
-    res = _run(STUDIO_UPDATE, ["--no-restart"], env)
+    res = _run(STUDIO_UPDATE, ["--pypi", "--no-restart"], env)
     assert res.returncode != 0
     assert "STUB-PIP-REQ -e file:///opt/my%20studio/src" in _calls(env), _calls(env)
 
@@ -377,7 +379,7 @@ def test_studio_update_release_restores_the_pins_when_interrupted_during_pip(tmp
     the packages already; the recorded previous install goes back the same way."""
     env = _studio_env(tmp_path)
     env["STUB_PIP_INTERRUPT_RELEASE"] = "1"
-    res = _run(STUDIO_UPDATE, ["--no-restart"], env)
+    res = _run(STUDIO_UPDATE, ["--pypi", "--no-restart"], env)
     calls = _calls(env)
     assert res.returncode == 130, res.stderr + res.stdout
     assert "install --no-deps --force-reinstall -r" in calls, (
@@ -396,7 +398,7 @@ def test_studio_update_restores_once_and_leaves_no_temp_files_when_signalled_mid
     tmpd = tmp_path / "tmpd"
     tmpd.mkdir()
     env["TMPDIR"] = str(tmpd)
-    res = _run(STUDIO_UPDATE, ["--no-restart"], env)
+    res = _run(STUDIO_UPDATE, ["--pypi", "--no-restart"], env)
     calls = _calls(env)
     assert res.returncode != 0
     assert calls.count("--force-reinstall -r") == 1, "restore ran more than once:\n" + calls
@@ -420,7 +422,7 @@ def test_studio_update_with_deps_puts_the_dependency_set_back(tmp_path: Path):
     """--with-deps lets pip move every dependency; restoring unsloth alone would leave
     the new dependency set under the old code."""
     env = _studio_env(tmp_path, import_ok = False)
-    res = _run(STUDIO_UPDATE, ["--with-deps"], env)
+    res = _run(STUDIO_UPDATE, ["--pypi", "--with-deps"], env)
     calls = _calls(env)
     assert res.returncode != 0
     assert "STUB-PIP -m pip freeze --exclude-editable" in calls, calls
@@ -433,7 +435,7 @@ def test_studio_update_with_deps_puts_the_dependency_set_back(tmp_path: Path):
         l for l in calls.splitlines() if l.startswith("STUB-PIP-CONSTRAINTS")
     ], "only the torch/CUDA stack is a constraint"
     env = _studio_env(tmp_path / "nodeps", import_ok = False)
-    res = _run(STUDIO_UPDATE, [], env)
+    res = _run(STUDIO_UPDATE, ["--pypi"], env)
     assert "freeze" not in _calls(env), "a --no-deps update has nothing to snapshot"
     assert " -c " not in _calls(env)
 
@@ -584,7 +586,7 @@ def test_studio_update_fails_when_studio_does_not_answer_after_the_restart(tmp_p
     env = _studio_env(tmp_path / "junk")
     env["UNSLOTH_STUDIO_UPDATE_HEALTH_WAIT"] = "soon"
     _stub(tmp_path / "junk" / "bin", "curl", "exit 0\n")
-    res = _run(STUDIO_UPDATE, [], env)
+    res = _run(STUDIO_UPDATE, ["--pypi"], env)
     assert res.returncode == 0, res.stdout
     assert "not a number" in res.stdout
 
@@ -630,7 +632,7 @@ def test_studio_update_recovers_a_source_tree_a_killed_run_moved_aside(tmp_path:
     env = _studio_env(tmp_path)
     home = Path(env["UNSLOTH_STUDIO_HOME"])
     (home / "src").rename(home / ".src-prev.abc123")
-    res = _run(STUDIO_UPDATE, [], env)
+    res = _run(STUDIO_UPDATE, ["--pypi"], env)
     assert res.returncode == 0, res.stderr + res.stdout
     assert "recovering the source tree" in res.stdout, res.stdout
     assert (home / "src" / "OLD_TREE").exists()
@@ -645,7 +647,7 @@ def test_studio_update_puts_back_a_previous_tree_a_killed_run_never_committed(tm
     (home / "src" / "studio").mkdir(parents = True)
     (home / "src" / "UNVERIFIED").write_text("never passed the health check\n")
     (home / ".src-update.rollback").write_text("-e file:///opt/prev-src\n")
-    res = _run(STUDIO_UPDATE, [], env)
+    res = _run(STUDIO_UPDATE, ["--pypi"], env)
     assert res.returncode == 0, res.stderr + res.stdout
     assert "putting it back over the unverified one" in res.stdout, res.stdout
     assert (home / "src" / "OLD_TREE").exists()
@@ -669,7 +671,7 @@ def test_studio_update_reads_the_install_record_from_the_venv_not_the_cwd(tmp_pa
     (decoy / "direct_url.json").write_text(
         '{"url": "file:///checkout", "dir_info": {"editable": true}}'
     )
-    res = _run(STUDIO_UPDATE, ["--no-restart"], env, cwd = checkout)
+    res = _run(STUDIO_UPDATE, ["--pypi", "--no-restart"], env, cwd = checkout)
     assert res.returncode != 0
     assert "STUB-PIP-REQ -e file:///opt/venv-src" in _calls(env), _calls(env)
     assert "checkout" not in _calls(env), _calls(env)
@@ -685,7 +687,7 @@ def test_studio_update_records_every_packages_target_for_the_rollback(tmp_path: 
     info.mkdir()
     (info / "METADATA").write_text("Metadata-Version: 2.1\nName: bar\nVersion: 1.0\n")
     res = _run(
-        STUDIO_UPDATE, ["--no-restart", "--packages", "unsloth unsloth_zoo bar>=2 foo==2"], env
+        STUDIO_UPDATE, ["--pypi", "--no-restart", "--packages", "unsloth unsloth_zoo bar>=2 foo==2"], env
     )
     calls = _calls(env)
     assert res.returncode != 0
@@ -700,7 +702,7 @@ def test_studio_update_with_deps_stops_when_the_dependency_snapshot_fails(tmp_pa
     """An empty snapshot would let the install run with nothing to pin back."""
     env = _studio_env(tmp_path, import_ok = False)
     env["STUB_FREEZE_EXIT"] = "1"
-    res = _run(STUDIO_UPDATE, ["--with-deps"], env)
+    res = _run(STUDIO_UPDATE, ["--pypi", "--with-deps"], env)
     assert res.returncode != 0
     assert "pip freeze failed" in res.stderr and "nothing was changed" in res.stderr, res.stderr
     assert "install" not in _calls(env), _calls(env)
@@ -713,7 +715,7 @@ def test_studio_update_finishes_the_package_restore_a_killed_run_left(tmp_path: 
     home = Path(env["UNSLOTH_STUDIO_HOME"])
     (home / ".src-update.rollback").write_text("-e file:///opt/prev-src\n# absent: foo\n")
     (home / ".src-update.freeze").write_text("transformers==3.9.0\n")
-    res = _run(STUDIO_UPDATE, [], env)
+    res = _run(STUDIO_UPDATE, ["--pypi"], env)
     calls = _calls(env)
     assert res.returncode == 0, res.stderr + res.stdout
     assert "putting the previous packages back first" in res.stdout, res.stdout
@@ -753,7 +755,7 @@ def test_studio_update_with_deps_rollback_fails_when_pip_cannot_list_packages(tm
     removed, so the restore is reported unfinished and the record stays."""
     env = _studio_env(tmp_path, import_ok = False)
     env["STUB_FREEZE_EXIT_AFTER"] = "1"
-    res = _run(STUDIO_UPDATE, ["--with-deps", "--no-restart"], env)
+    res = _run(STUDIO_UPDATE, ["--pypi", "--with-deps", "--no-restart"], env)
     home = Path(env["UNSLOTH_STUDIO_HOME"])
     assert res.returncode != 0
     assert "could not list the installed packages" in res.stdout, res.stdout
@@ -794,7 +796,7 @@ def test_studio_update_says_when_the_restore_did_not_finish(tmp_path: Path):
     install being back; the record stays so the next run finishes it."""
     env = _studio_env(tmp_path, import_ok = False)
     env["STUB_PIP_EXIT"] = "1"
-    res = _run(STUDIO_UPDATE, ["--no-restart"], env)
+    res = _run(STUDIO_UPDATE, ["--pypi", "--no-restart"], env)
     home = Path(env["UNSLOTH_STUDIO_HOME"])
     assert res.returncode != 0
     assert "back in place" not in res.stderr, res.stderr
@@ -803,7 +805,7 @@ def test_studio_update_says_when_the_restore_did_not_finish(tmp_path: Path):
         home / ".src-update.rollback"
     ).is_file(), "the record was dropped after a failed restore"
     del env["STUB_PIP_EXIT"]
-    res = _run(STUDIO_UPDATE, ["--no-restart"], env)
+    res = _run(STUDIO_UPDATE, ["--pypi", "--no-restart"], env)
     assert "putting the previous packages back first" in res.stdout, res.stdout
     assert not (home / ".src-update.rollback").exists()
 
@@ -812,7 +814,7 @@ def test_studio_update_keeps_the_lock_file(tmp_path: Path):
     """Unlinking the lock would let a run that opened the old inode take the lock after
     this one exits while a later run locks a fresh file at the same path."""
     env = _studio_env(tmp_path)
-    res = _run(STUDIO_UPDATE, ["--no-restart"], env)
+    res = _run(STUDIO_UPDATE, ["--pypi", "--no-restart"], env)
     assert res.returncode == 0, res.stderr + res.stdout
     assert (Path(env["UNSLOTH_STUDIO_HOME"]) / ".src-update.lock").is_file()
 
@@ -824,7 +826,7 @@ def test_studio_update_treats_a_previous_tree_without_a_record_as_scratch(tmp_pa
     home = Path(env["UNSLOTH_STUDIO_HOME"])
     (home / ".src-prev.abc123" / "studio").mkdir(parents = True)
     (home / ".src-prev.abc123" / "COMMITTED_AWAY").write_text("")
-    res = _run(STUDIO_UPDATE, [], env)
+    res = _run(STUDIO_UPDATE, ["--pypi"], env)
     assert res.returncode == 0, res.stderr + res.stdout
     assert (home / "src" / "OLD_TREE").exists()
     assert "putting it back" not in res.stdout, res.stdout
@@ -837,7 +839,7 @@ def test_studio_update_with_deps_adds_the_studio_extra_to_a_qualified_unsloth_sp
     env = _studio_env(tmp_path)
     res = _run(
         STUDIO_UPDATE,
-        ["--with-deps", "--no-restart", "--packages", "unsloth==2026.9.1 unsloth_zoo"],
+        ["--pypi", "--with-deps", "--no-restart", "--packages", "unsloth==2026.9.1 unsloth_zoo"],
         env,
     )
     assert res.returncode == 0, res.stderr + res.stdout
@@ -846,7 +848,7 @@ def test_studio_update_with_deps_adds_the_studio_extra_to_a_qualified_unsloth_sp
     assert "unsloth[studio]_zoo" not in calls and " unsloth_zoo" in calls, calls
     env = _studio_env(tmp_path / "extras")
     res = _run(
-        STUDIO_UPDATE, ["--with-deps", "--no-restart", "--packages", "unsloth[cu128]>=2026.9"], env
+        STUDIO_UPDATE, ["--pypi", "--with-deps", "--no-restart", "--packages", "unsloth[cu128]>=2026.9"], env
     )
     assert "unsloth[studio,cu128]>=2026.9" in _calls(env), _calls(env)
 
@@ -855,7 +857,7 @@ def test_studio_update_with_deps_rollback_removes_what_the_update_pulled_in(tmp_
     """Reinstalling the snapshot puts back what was there; a dependency the update
     introduced would otherwise stay and become part of the next snapshot."""
     env = _studio_env(tmp_path, import_ok = False)
-    res = _run(STUDIO_UPDATE, ["--with-deps", "--no-restart"], env)
+    res = _run(STUDIO_UPDATE, ["--pypi", "--with-deps", "--no-restart"], env)
     assert res.returncode != 0
     calls = _calls(env)
     assert "STUB-PIP -m pip uninstall -y newdep" in calls, calls
@@ -900,7 +902,7 @@ def test_studio_update_ref_threads_the_npm_registry_override(tmp_path: Path):
 
 def test_studio_update_help_prints_only_the_header(tmp_path: Path):
     env = _studio_env(tmp_path)
-    res = _run(STUDIO_UPDATE, ["--help"], env)
+    res = _run(STUDIO_UPDATE, ["--pypi", "--help"], env)
     assert res.returncode == 0
     assert "set -euo pipefail" not in res.stdout
     assert "UNSLOTH_STUDIO_UPDATE_HEALTH_WAIT" in res.stdout
@@ -1104,7 +1106,7 @@ def test_a_failed_studio_update_puts_the_previous_install_back(tmp_path: Path):
     """Not restarting protected only already-imported code while the venv stayed replaced, so lazy
     imports and later restarts failed; a failed update now reinstalls its starting set."""
     env = _studio_env(tmp_path, import_ok = False)
-    res = _run(STUDIO_UPDATE, [], env)
+    res = _run(STUDIO_UPDATE, ["--pypi"], env)
     assert res.returncode != 0, "a broken update must not report success"
     assert "previous install was restored" in res.stdout, res.stdout
     assert "not restarted" in res.stdout, res.stdout
@@ -1130,7 +1132,7 @@ def _managed_node(
 def test_studio_update_moves_the_managed_node_to_the_new_pin(tmp_path: Path):
     env = _studio_env(tmp_path)
     _managed_node(tmp_path, env)
-    res = _run(STUDIO_UPDATE, [], env)
+    res = _run(STUDIO_UPDATE, ["--pypi"], env)
     assert res.returncode == 0, res.stderr + res.stdout
     node_dir = Path(env["UNSLOTH_STUDIO_HOME"]) / "node"
     assert f"STUB-NODE --install-dir {node_dir}" in _calls(env), _calls(env)
@@ -1143,7 +1145,7 @@ def test_studio_update_keeps_the_current_node_when_the_new_pin_cannot_install(
 ):
     env = _studio_env(tmp_path)
     _managed_node(tmp_path, env, installer_exit = installer_exit, kept = kept)
-    res = _run(STUDIO_UPDATE, [], env)
+    res = _run(STUDIO_UPDATE, ["--pypi"], env)
     assert res.returncode == 0, res.stderr + res.stdout
     assert "keeping the current one" in res.stdout, res.stdout
     assert "matches the new pin" not in res.stdout, res.stdout
@@ -1157,6 +1159,35 @@ def test_studio_update_leaves_a_node_it_does_not_manage(tmp_path: Path, skip: st
     env["UNSLOTH_SKIP_NODE_INSTALL"] = skip
     if skip == "0":
         (Path(env["UNSLOTH_STUDIO_HOME"]) / "node" / "UNSLOTH_NODE_PREBUILT_INFO.json").unlink()
-    res = _run(STUDIO_UPDATE, [], env)
+    res = _run(STUDIO_UPDATE, ["--pypi"], env)
     assert res.returncode == 0, res.stderr + res.stdout
     assert "STUB-NODE" not in _calls(env), _calls(env)
+
+
+def test_a_plain_update_follows_the_ganjalf_branch_not_pypi(tmp_path: Path):
+    env = _studio_env(tmp_path)
+    res = _run(STUDIO_UPDATE, ["--no-restart"], env)
+    calls = _calls(env)
+    home = Path(env["UNSLOTH_STUDIO_HOME"])
+    assert res.returncode == 0, res.stderr + res.stdout
+    assert "STUB-GIT remote add origin https://github.com/Hubert9204/Ganjalf-Studio" in calls, calls
+    assert "install -U" not in calls, "a plain Ganjalf update must not pull Unsloth's PyPI release"
+    assert "@main (Ganjalf)" in res.stdout
+    assert (home / "src" / ".ganjalf-revision").read_text().strip() == "0123456789abcdef0123456789abcdef01234567"
+
+
+def test_the_update_repo_and_branch_can_be_chosen(tmp_path: Path):
+    env = _studio_env(tmp_path)
+    env["UNSLOTH_STUDIO_REPO"] = "https://github.com/me/my-fork"
+    env["GANJALF_UPDATE_BRANCH"] = "dev"
+    res = _run(STUDIO_UPDATE, ["--no-restart"], env)
+    assert res.returncode == 0, res.stderr + res.stdout
+    assert "STUB-GIT remote add origin https://github.com/me/my-fork" in _calls(env)
+    assert "@dev (Ganjalf)" in res.stdout
+
+
+def test_pypi_is_an_explicit_choice(tmp_path: Path):
+    env = _studio_env(tmp_path)
+    res = _run(STUDIO_UPDATE, ["--pypi", "--no-restart"], env)
+    assert res.returncode == 0, res.stderr + res.stdout
+    assert "install -U" in _calls(env) and "STUB-GIT remote" not in _calls(env)

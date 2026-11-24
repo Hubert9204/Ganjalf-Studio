@@ -30,6 +30,7 @@ type ApiObject = Record<string, unknown>;
 
 export type WebUpdateInstallSource =
   | "pypi"
+  | "ganjalf"
   | "editable"
   | "local_path"
   | "vcs"
@@ -39,8 +40,14 @@ export type WebUpdateInstallSource =
 export interface WebUpdateStatus {
   currentVersion: string;
   latestVersion: string;
-  installSource: "pypi";
+  /** "ganjalf": a source install following the Ganjalf-Studio repository, never Unsloth's PyPI. */
+  installSource: "pypi" | "ganjalf";
   checkedAt: string;
+  /** Ganjalf only: what to run, the GitHub page listing the new commits, how many there are. */
+  updateCommand?: string;
+  changesUrl?: string;
+  commitsBehind?: number;
+  branch?: string;
 }
 
 interface UseWebUpdateCheckOptions {
@@ -53,7 +60,9 @@ function stringField(value: ApiObject, key: string): string | null {
   return typeof field === "string" ? field : null;
 }
 
-function toDisplayableUpdateStatus(value: unknown): WebUpdateStatus | null {
+export function toDisplayableUpdateStatus(
+  value: unknown,
+): WebUpdateStatus | null {
   if (!value || typeof value !== "object") {
     return null;
   }
@@ -65,12 +74,30 @@ function toDisplayableUpdateStatus(value: unknown): WebUpdateStatus | null {
   if (
     status[CAN_SHOW_KEY] !== true ||
     status[UPDATE_AVAILABLE_KEY] !== true ||
-    status[INSTALL_SOURCE_KEY] !== "pypi" ||
+    (status[INSTALL_SOURCE_KEY] !== "pypi" &&
+      status[INSTALL_SOURCE_KEY] !== "ganjalf") ||
     !latestVersion ||
     !currentVersion ||
     !checkedAt
   ) {
     return null;
+  }
+
+  if (status[INSTALL_SOURCE_KEY] === "ganjalf") {
+    const updateCommand = stringField(status, "update_command");
+    const changesUrl = stringField(status, "release_notes_url");
+    const behind = status.commits_behind;
+    return {
+      currentVersion,
+      latestVersion,
+      installSource: "ganjalf",
+      checkedAt,
+      updateCommand: updateCommand ?? undefined,
+      // Only a github.com page: the link opens in a new tab from the banner.
+      changesUrl: changesUrl?.startsWith("https://github.com/") ? changesUrl : undefined,
+      commitsBehind: typeof behind === "number" && behind > 0 ? behind : undefined,
+      branch: stringField(status, "update_branch") ?? undefined,
+    };
   }
 
   return {

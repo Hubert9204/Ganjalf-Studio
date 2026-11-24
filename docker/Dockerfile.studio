@@ -64,8 +64,10 @@ USER root
 # UNSLOTH_ALLOW_CPU=1 only when no GPU is visible, since that one disables the TRL patches. :core never opts in.
 # UV_CACHE_DIR in the app dir: install.sh, setup.sh and Studio default it to $UNSLOTH_STUDIO_HOME/cache/uv,
 # which would fill a volume on the home with wheels; cache/ there stays runtime data.
+# UNSLOTH_STUDIO_REPO stays set at run time: unsloth-studio-update and the update banner follow it.
 ENV UNSLOTH_STUDIO_HOME=/opt/unsloth-studio \
     UNSLOTH_STUDIO_APP=/opt/unsloth-studio-app \
+    UNSLOTH_STUDIO_REPO=${UNSLOTH_STUDIO_REPO} \
     UNSLOTH_STUDIO_DOCUMENTS_HOME=/opt/unsloth-studio/documents \
     UNSLOTH_STUDIO_SKILLS_HOME=/opt/unsloth-studio/skills \
     UV_CACHE_DIR=/opt/unsloth-studio-app/uv-cache \
@@ -128,6 +130,7 @@ RUN set -eux \
  && git remote add origin "${UNSLOTH_STUDIO_REPO}" \
  && git fetch -q --depth 1 origin "${UNSLOTH_STUDIO_REF}" \
  && git checkout -q FETCH_HEAD \
+ && git rev-parse HEAD > .ganjalf-revision \
  && UNSLOTH_STUDIO_HOME="${UNSLOTH_STUDIO_HOME}" \
     UNSLOTH_TORCH_INDEX_FAMILY="${TORCH_FAMILY}" \
     UNSLOTH_ZOO_REF="${UNSLOTH_STUDIO_ZOO_REF}" \
