@@ -679,6 +679,8 @@ export interface OpenAIChatCompletionsRequest {
     | "xhigh"
     | null;
   preserve_thinking?: boolean | null;
+  /** [x-unsloth] Most tokens a local model may think before answering (Anthropic budget_tokens). */
+  thinking_budget_tokens?: number;
   /** Local models only: the external-provider proxy forwards an explicit field list. */
   continue_final_message?: boolean;
   thinking?: { type: "disabled" | "enabled" } | null;

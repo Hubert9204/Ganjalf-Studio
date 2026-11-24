@@ -651,6 +651,9 @@ def build_anthropic_sse_event(event_type: str, data: dict) -> str:
     return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
 
 
+ANTHROPIC_PING_EVENT = build_anthropic_sse_event("ping", {"type": "ping"})
+
+
 def cached_prompt_tokens(usage: Optional[dict]) -> Optional[int]:
     """Prompt tokens the server reused from its cache (llama-server ``prompt_tokens_details``), or None."""
     details = (usage or {}).get("prompt_tokens_details")
@@ -673,12 +676,17 @@ def _message_delta_usage(usage: Optional[dict]) -> dict:
     """Usage block for a message_delta event (cumulative token counts). ``usage`` may be None when a
     metadata event carried usage=None (e.g. only finish_reason set)."""
     usage = usage or {}
+    output = {"output_tokens": usage.get("completion_tokens", 0)}
+    # Unknown prompt counts stay out: the SDKs copy every non-null field over message_start's,
+    # so a 0 here would wipe the input count the client already has.
+    if usage.get("prompt_tokens") is None:
+        return output
     input_tokens, cache_read = anthropic_input_split(usage)
     return {
         "input_tokens": input_tokens,
         "cache_creation_input_tokens": 0,
         "cache_read_input_tokens": cache_read,
-        "output_tokens": usage.get("completion_tokens", 0),
+        **output,
     }
 
 
@@ -762,6 +770,8 @@ class AnthropicStreamEmitter:
                 },
             )
         )
+        # Anthropic sends one right after message_start; clients read it as the stream being alive.
+        events.append(ANTHROPIC_PING_EVENT)
         return events
 
     def feed(self, event: dict) -> list[str]:
@@ -1205,7 +1215,8 @@ class AnthropicPassthroughEmitter:
                         },
                     },
                 },
-            )
+            ),
+            ANTHROPIC_PING_EVENT,
         ]
 
     def feed_chunk(self, chunk: dict) -> list[str]:

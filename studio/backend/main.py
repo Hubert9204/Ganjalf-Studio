@@ -1540,6 +1540,38 @@ class SecurityHeadersMiddleware:
 app.add_middleware(SecurityHeadersMiddleware)
 
 
+class AnthropicRequestIdMiddleware:
+    """A ``request-id`` header on Anthropic Messages answers, as Anthropic's API sends: SDKs expose it
+    as ``_request_id`` for logs and bug reports. Pure ASGI, so streams pass through unwrapped."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        path = scope.get("path", "") if scope["type"] == "http" else ""
+        if not path.rstrip("/").endswith(("/v1/messages", "/v1/messages/count_tokens")):
+            await self.app(scope, receive, send)
+            return
+
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                raw = message.setdefault("headers", [])
+                if not isinstance(raw, list):
+                    raw = list(raw)
+                    message["headers"] = raw
+                headers = MutableHeaders(raw = raw)
+                if "request-id" not in headers:
+                    headers["request-id"] = "req_" + _uuid_for_request_id.uuid4().hex
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
+
+
+import uuid as _uuid_for_request_id  # noqa: E402
+
+app.add_middleware(AnthropicRequestIdMiddleware)
+
+
 # Docs served from this origin: CDN scripts could read tokens in localStorage.
 import secrets as _secrets_for_docs  # noqa: E402
 from fastapi.openapi.docs import (  # noqa: E402

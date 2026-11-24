@@ -138,6 +138,7 @@ def test_message_start_leads_and_the_stream_is_unchanged(monkeypatch):
     names = [name for name, _ in _events(text)]
     assert names == [
         "message_start",
+        "ping",
         "content_block_start",
         "content_block_delta",
         "content_block_stop",
@@ -190,7 +191,7 @@ def test_pre_dispatch_failure_still_follows_message_start(monkeypatch):
 
     assert bodies == []
     events = _events(text)
-    assert [name for name, _ in events] == ["message_start", "error"]
+    assert [name for name, _ in events] == ["message_start", "ping", "error"]
     assert events[0][1]["message"]["usage"]["input_tokens"] == 9
 
 

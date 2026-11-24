@@ -1890,11 +1890,12 @@ class TestBuildAnthropicSSEEvent:
 
 
 class TestAnthropicStreamEmitter:
-    def test_start_emits_message_start_only(self):
+    def test_start_emits_message_start_then_ping(self):
         e = AnthropicStreamEmitter()
         events = e.start("msg_123", "test-model")
-        assert len(events) == 1
+        assert len(events) == 2
         assert "message_start" in events[0]
+        assert events[1] == 'event: ping\ndata: {"type": "ping"}\n\n'
 
     def test_content_delta_opens_text_block_and_emits_delta(self):
         e = AnthropicStreamEmitter()
@@ -2041,7 +2042,7 @@ class TestAnthropicStreamEmitter:
         )
         end_events = e.finish("end_turn")
 
-        assert len(start_events) == 1
+        assert len(start_events) == 2
         assert len(content_events) == 2
         assert meta_events == []
         assert len(end_events) == 3
@@ -2404,11 +2405,11 @@ class TestAnthropicPassthroughEmitter:
     def _parse(self, event_str):
         return json.loads(event_str.split("data: ")[1])
 
-    def test_start_emits_message_start_only(self):
+    def test_start_emits_message_start_then_ping(self):
         e = AnthropicPassthroughEmitter()
         events = e.start("msg_1", "test-model")
-        assert len(events) == 1
-        assert "message_start" in events[0]
+        assert len(events) == 2
+        assert "message_start" in events[0] and "event: ping" in events[1]
         parsed = self._parse(events[0])
         assert parsed["message"]["id"] == "msg_1"
         assert parsed["message"]["model"] == "test-model"
@@ -7140,7 +7141,8 @@ class TestInProcessMessages:
         [
             (1, 1, -1, ["GeneratorExit"]),
             (1, None, None, []),
-            (1, None, 2, ["CancelledError"]),
+            # message_start, ping, then the first upstream frame.
+            (1, None, 3, ["CancelledError"]),
             (0, 0, -1, []),
         ],
         ids = ["stop_by_message_id", "never_started", "outer_cancel", "stopped_json"],

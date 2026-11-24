@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright 2026-present the Unsloth AI Inc. team. All rights reserved. See /studio/LICENSE.AGPL-3.0
 
+import { THINKING_BUDGET_MAX, useThinkingBudgetStore } from "./stores/thinking-budget-store";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -496,6 +497,7 @@ export function ChatSettingsPanel({
   const t = useT();
   const params = useChatRuntimeStore((s) => s.params);
   const setParams = useChatRuntimeStore((s) => s.setParams);
+  const supportsReasoning = useChatRuntimeStore((s) => s.supportsReasoning);
   const {
     width: settingsWidth,
     max: settingsMax,
@@ -1669,6 +1671,7 @@ export function ChatSettingsPanel({
               }
               info="Maximum number of tokens to generate per response. Generation stops at this limit or when the model emits an end-of-sequence token."
             />
+            {!isExternalModel && supportsReasoning ? <ThinkingBudgetSlider /> : null}
             {showSeed ? (
               <div className="flex min-h-8 items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-1.5">
@@ -1982,6 +1985,23 @@ export function ChatSettingsPanel({
         {settingsContent}
       </div>
     </aside>
+  );
+}
+
+function ThinkingBudgetSlider() {
+  const tokens = useThinkingBudgetStore((s) => s.thinkingBudgetTokens);
+  const setTokens = useThinkingBudgetStore((s) => s.setThinkingBudgetTokens);
+  return (
+    <ParamSlider
+      label="Thinking Budget"
+      value={tokens}
+      min={0}
+      max={THINKING_BUDGET_MAX}
+      step={256}
+      onChange={setTokens}
+      format={(v) => (v === 0 ? "Auto" : undefined)}
+      info="Most tokens a local model may spend thinking before it has to answer (Anthropic's thinking budget_tokens). Auto keeps the model's own setting. A long agent run with a thinking model stays faster and on task with a budget of a few thousand tokens."
+    />
   );
 }
 

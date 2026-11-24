@@ -37,7 +37,8 @@ def test_a_server_that_says_nothing_about_its_cache_reports_as_before():
         "cache_read_input_tokens": 0,
         "output_tokens": 5,
     }
-    assert anthropic_compat._message_delta_usage(None)["input_tokens"] == 0
+    # Unknown: left out, so the SDKs keep message_start's count instead of copying a 0 over it.
+    assert anthropic_compat._message_delta_usage(None) == {"output_tokens": 0}
 
 
 def test_a_cached_count_above_the_prompt_is_clamped():

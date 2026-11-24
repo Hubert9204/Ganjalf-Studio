@@ -3535,6 +3535,7 @@ async def _aiter_llama_stream_items(
                 raise asyncio.CancelledError()
 
 
+from models.inference import requested_thinking_budget
 from models.inference import (
     _InferenceRuntimeFields,
     LoadRequest,
@@ -34964,6 +34965,7 @@ async def produce_openai_chat_completions(
                     enable_thinking = payload.enable_thinking,
                     reasoning_effort = payload.reasoning_effort,
                     preserve_thinking = payload.preserve_thinking,
+                    thinking_budget_tokens = requested_thinking_budget(payload),
                     continue_final_message = _continue_final_message(payload, thought = True),
                     auto_heal_tool_calls = _gguf_auto_heal_tool_calls,
                     deduplicate_tool_calls = payload.deduplicate_tool_calls is not False,
@@ -35852,6 +35854,7 @@ async def produce_openai_chat_completions(
                 enable_thinking = payload.enable_thinking,
                 reasoning_effort = payload.reasoning_effort,
                 preserve_thinking = payload.preserve_thinking,
+                thinking_budget_tokens = requested_thinking_budget(payload),
                 continue_final_message = _continue_final_message(payload, thought = True),
                 seed = _seed,
                 perf_callback = _gguf_perf_callback,
@@ -39682,7 +39685,9 @@ async def _openai_catalog_with_aliases(quant_pins: bool = False) -> list[dict]:
 @router.get("/models")
 @in_scan_memo
 async def openai_list_models(
-    output_modalities: Optional[str] = None, current_subject: str = Depends(get_current_subject)
+    output_modalities: Optional[str] = None,
+    current_subject: str = Depends(get_current_subject),
+    request: Request = None,
 ):
     """
     OpenAI-compatible model listing endpoint (``GET /v1/models``).
@@ -39693,12 +39698,51 @@ async def openai_list_models(
     """
     wanted = {m.strip() for m in (output_modalities or "").split(",")}
     if not wanted & {"all", "decisions"}:
-        return {"object": "list", "data": await _openai_catalog_with_aliases(quant_pins = True)}
-    from routes.systemone import decision_model_objects
+        data = await _openai_catalog_with_aliases(quant_pins = True)
+    else:
+        from routes.systemone import decision_model_objects
 
-    data = [] if wanted == {"decisions"} else await _openai_catalog_with_aliases(quant_pins = True)
-    data += await asyncio.to_thread(decision_model_objects)
-    return {"object": "list", "data": data}
+        data = [] if wanted == {"decisions"} else await _openai_catalog_with_aliases(quant_pins = True)
+        data += await asyncio.to_thread(decision_model_objects)
+    return _with_anthropic_model_list({"object": "list", "data": data}, request)
+
+
+def _wants_anthropic_shape(request) -> bool:
+    """Anthropic SDKs always send anthropic-version; OpenAI clients never do."""
+    headers = getattr(request, "headers", None)
+    return bool(headers is not None and headers.get("anthropic-version"))
+
+
+def _anthropic_model_fields(entry: dict) -> dict:
+    """The fields an Anthropic Models API object adds: type, display_name, created_at (RFC 3339)."""
+    from datetime import datetime, timezone
+
+    created = entry.get("created")
+    stamp = (
+        datetime.fromtimestamp(created, tz = timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        if isinstance(created, (int, float)) and not isinstance(created, bool)
+        else "1970-01-01T00:00:00Z"
+    )
+    return {
+        **entry,
+        "type": "model",
+        "display_name": entry.get("display_name") or entry.get("id"),
+        "created_at": stamp,
+    }
+
+
+def _with_anthropic_model_list(body: dict, request) -> dict:
+    """OpenAI's list, plus Anthropic's fields when an Anthropic client asks (both sets in one body)."""
+    if not _wants_anthropic_shape(request):
+        return body
+    data = [_anthropic_model_fields(entry) for entry in body["data"]]
+    return {
+        **body,
+        "data": data,
+        "has_more": False,
+        "first_id": data[0]["id"] if data else None,
+        "last_id": data[-1]["id"] if data else None,
+    }
 
 
 def _resident_gguf_quants() -> dict[str, str]:
@@ -39760,78 +39804,86 @@ def _quant_pin_object(listed: dict, variant: str, resident_quants) -> dict:
 
 
 @router.get("/models/{model_id:path}")
-async def openai_retrieve_model(model_id: str, current_subject: str = Depends(get_current_subject)):
+async def openai_retrieve_model(
+    model_id: str, current_subject: str = Depends(get_current_subject), request: Request = None
+):
     """
     OpenAI-compatible single-model retrieval endpoint (``GET /v1/models/{id}``).
 
     Returns the bare model object when ``model_id`` matches a known model
     (loaded or locally available), or 404 model_not_found otherwise. Defined
     after the LIST route so it does not shadow it; ``{model_id:path}`` keeps ids
-    with slashes intact.
+    with slashes intact. An Anthropic client (anthropic-version header) also gets
+    the Models API fields (type, display_name, created_at).
     """
-    from core.inference.model_ids import model_id_matches
 
-    # Loaded models resolve without a catalog scan (the common case); only build
-    # the full catalog -- which may hit the filesystem -- for unloaded ids. Match
-    # case-insensitively, like the catalog loop below and the resolver's index.
-    # Off-loop like the catalog helper, and for the same sync resolver-index work.
-    from utils.model_aliases import resolve_model_alias
+    async def _find():
+        from core.inference.model_ids import model_id_matches
 
-    _loaded = await asyncio.to_thread(_openai_model_objects)
-    # An alias wins over a same-named loaded model, as the request rewrite does.
-    aliased = await asyncio.to_thread(resolve_model_alias, model_id)
-    for entry in [] if aliased else _loaded:
-        eid = entry["id"]
-        resident = _resident_npu_model() if entry.get("device") == "npu" else None
-        if isinstance(eid, str) and (
-            eid.lower() == model_id.lower()
-            or (
-                resident is not None
-                and resident.model_path == eid
-                and resident.answers_to(model_id)
+        # Loaded models resolve without a catalog scan (the common case); only build
+        # the full catalog -- which may hit the filesystem -- for unloaded ids. Match
+        # case-insensitively, like the catalog loop below and the resolver's index.
+        # Off-loop like the catalog helper, and for the same sync resolver-index work.
+        from utils.model_aliases import resolve_model_alias
+
+        _loaded = await asyncio.to_thread(_openai_model_objects)
+        # An alias wins over a same-named loaded model, as the request rewrite does.
+        aliased = await asyncio.to_thread(resolve_model_alias, model_id)
+        for entry in [] if aliased else _loaded:
+            eid = entry["id"]
+            resident = _resident_npu_model() if entry.get("device") == "npu" else None
+            if isinstance(eid, str) and (
+                eid.lower() == model_id.lower()
+                or (
+                    resident is not None
+                    and resident.model_path == eid
+                    and resident.answers_to(model_id)
+                )
+            ):
+                return _with_openai_residency({**entry, "loaded": True})
+
+        objects = await _openai_catalog_with_aliases()
+        for model in objects:
+            # Case-insensitive to match the resolver, which lowercases its index.
+            mid = model.get("id")
+            if isinstance(mid, str) and mid.lower() == model_id.lower():
+                return model
+        # Map legacy raw ids to the SAME public id /v1/models uses, without echoing the path; an auto-switch load lists a repo id, so the raw path would 404
+        llama_backend = get_llama_cpp_backend()
+        backend = await asyncio.to_thread(get_inference_backend)
+        raw_to_public: list[tuple[str, Optional[str]]] = []
+        if llama_backend.is_loaded and llama_backend.model_identifier:
+            raw_to_public.append(
+                (llama_backend.model_identifier, _llama_public_model_id(llama_backend))
             )
-        ):
-            return _with_openai_residency({**entry, "loaded": True})
-
-    objects = await _openai_catalog_with_aliases()
-    for model in objects:
-        # Case-insensitive to match the resolver, which lowercases its index.
-        mid = model.get("id")
-        if isinstance(mid, str) and mid.lower() == model_id.lower():
-            return model
-    # Map legacy raw ids to the SAME public id /v1/models uses, without echoing the path; an auto-switch load lists a repo id, so the raw path would 404
-    llama_backend = get_llama_cpp_backend()
-    backend = await asyncio.to_thread(get_inference_backend)
-    raw_to_public: list[tuple[str, Optional[str]]] = []
-    if llama_backend.is_loaded and llama_backend.model_identifier:
-        raw_to_public.append(
-            (llama_backend.model_identifier, _llama_public_model_id(llama_backend))
+        if backend.active_model_name:
+            raw_to_public.append((backend.active_model_name, _orchestrator_public_model_id(backend)))
+        for raw, clean in raw_to_public:
+            if model_id_matches(model_id, raw):
+                for entry in _loaded:
+                    if entry["id"] == clean:
+                        return _with_openai_residency({**entry, "loaded": True})
+        pinned = await asyncio.to_thread(_pinned_quant_object, model_id, objects)
+        if pinned is not None:
+            return _with_openai_residency(pinned)
+        raise HTTPException(
+            status_code = 404,
+            detail = openai_error_body(
+                f"The model '{model_id}' does not exist",
+                status = 404,
+                code = "model_not_found",
+                param = "id",
+            ),
         )
-    if backend.active_model_name:
-        raw_to_public.append((backend.active_model_name, _orchestrator_public_model_id(backend)))
-    for raw, clean in raw_to_public:
-        if model_id_matches(model_id, raw):
-            for entry in _loaded:
-                if entry["id"] == clean:
-                    return _with_openai_residency({**entry, "loaded": True})
-    pinned = await asyncio.to_thread(_pinned_quant_object, model_id, objects)
-    if pinned is not None:
-        return _with_openai_residency(pinned)
-    raise HTTPException(
-        status_code = 404,
-        detail = openai_error_body(
-            f"The model '{model_id}' does not exist",
-            status = 404,
-            code = "model_not_found",
-            param = "id",
-        ),
-    )
 
 
-# =====================================================================
+    # =====================================================================
 
-# OpenAI-Compatible Completions Proxy  (/completions → /v1/completions)
-# =====================================================================
+    # OpenAI-Compatible Completions Proxy  (/completions → /v1/completions)
+    # =====================================================================
+
+    found = await _find()
+    return _anthropic_model_fields(found) if _wants_anthropic_shape(request) and isinstance(found, dict) else found
 
 
 def _flatten_monitor_prompt(value) -> str:

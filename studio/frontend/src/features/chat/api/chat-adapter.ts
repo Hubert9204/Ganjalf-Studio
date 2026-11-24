@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright 2026-present the Unsloth AI Inc. team. All rights reserved. See /studio/LICENSE.AGPL-3.0
 
+import { thinkingBudgetField, useThinkingBudgetStore } from "../stores/thinking-budget-store";
 import { hasChatFullAccess, withChatFullAccess } from "../utils/chat-full-access";
 
 import { attachedMediaUnavailableReason } from "../lib/attached-media-gate";
@@ -7194,6 +7195,10 @@ export function createOpenAIStreamAdapter(
             ...userMessageIdField,
             ...(useAdapter === undefined ? {} : { use_adapter: useAdapter }),
             ...localReasoningFields,
+            ...thinkingBudgetField(
+              supportsReasoning && (reasoningEnabled || reasoningAlwaysOn),
+              useThinkingBudgetStore.getState().thinkingBudgetTokens,
+            ),
             ...(supportsPreserveThinking
               ? { preserve_thinking: preserveThinking }
               : {}),

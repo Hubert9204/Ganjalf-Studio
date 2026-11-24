@@ -2882,6 +2882,19 @@ class ThinkingConfig(BaseModel):
     """
 
     type: Literal["disabled", "enabled"] = "disabled"
+    # Read for local GGUF models as their thinking budget (``thinking_budget_tokens`` wins).
+    budget_tokens: Optional[int] = Field(None, ge = 0)
+
+
+def requested_thinking_budget(request) -> Optional[int]:
+    """The chat request's thinking budget: thinking_budget_tokens, else an enabled thinking.budget_tokens."""
+    explicit = getattr(request, "thinking_budget_tokens", None)
+    if explicit is not None:
+        return explicit
+    thinking = getattr(request, "thinking", None)
+    if thinking is not None and getattr(thinking, "type", None) == "enabled":
+        return getattr(thinking, "budget_tokens", None)
+    return None
 
 
 def resolve_thinking_onto_enable_thinking(request):
@@ -3173,6 +3186,12 @@ class ChatCompletionRequest(BaseModel):
     preserve_thinking: Optional[bool] = Field(
         None,
         description = "[x-unsloth] When true, keep historical <think> blocks from past assistant turns in the prompt (Qwen3.6 templates). Independent of enable_thinking / reasoning_effort.",
+    )
+    thinking_budget_tokens: Optional[int] = Field(
+        None,
+        ge = 0,
+        le = 1_000_000,
+        description = "[x-unsloth] Most tokens a local GGUF model may spend thinking before it must answer (llama-server reasoning budget); 0 ends thinking at once. Unset keeps the load-time budget. Anthropic-style thinking.budget_tokens maps here.",
     )
     thinking: Optional[ThinkingConfig] = Field(
         None,
