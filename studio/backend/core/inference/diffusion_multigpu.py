@@ -2496,7 +2496,11 @@ def _copy_module(module: Any, device: Any) -> Any:
         keep.append(buffer)
     from .diffusion_flux_convrot_fused import is_replica_record as f3_qkv_record
     from .diffusion_flux_convrot_fused import rebuild_replica as f3_qkv_rebuild
+    from .diffusion_moss_fused import is_replica_record as moss_qkv_record
+    from .diffusion_moss_fused import rebuild_replica as moss_qkv_rebuild
     from .diffusion_qwenimage21_dense_fused import is_replica_record, rebuild_replica
+    from .diffusion_zimage_fused import is_replica_record as zimage_qkv_record
+    from .diffusion_zimage_fused import rebuild_replica as zimage_qkv_rebuild
 
     for sub in module.modules():
         offload_keys = set(_offload_attr_keys(sub))
@@ -2507,6 +2511,8 @@ def _copy_module(module: Any, device: Any) -> Any:
                 or key in _SOURCE_ONLY_ATTRS
                 or is_replica_record(key, value)
                 or f3_qkv_record(key, value)
+                or moss_qkv_record(key, value)
+                or zimage_qkv_record(key, value)
             ):
                 # never traversed: offload state holds pinned host copies a deepcopy would duplicate, and a
                 # source-only cache holds source-card tensors
@@ -2560,6 +2566,11 @@ def _copy_module(module: Any, device: Any) -> Any:
         f3_qkv_rebuild(module, replica)
     except Exception:  # noqa: BLE001 - the replica runs three GEMMs
         pass
+    for rebuild in (moss_qkv_rebuild, zimage_qkv_rebuild):
+        try:
+            rebuild(module, replica)
+        except Exception:  # noqa: BLE001 - the replica runs three GEMMs
+            pass
     if isinstance(router, CfgParallelRouter) and router.had_override:
         _rebind_root_forward(router.orig_forward, module, replica)
     # The source's own __call__ runs its root hooks around every branch; the copy must not run them a second time.
@@ -3303,7 +3314,11 @@ class CfgParallelRouter:
             "replica_failures": 0,
             "batch_splits": 0,
             "batch_split_skip": None,
+            "sequence_splits": 0,
+            "sequence_split_skip": None,
         }
+        # why this load's calls are never split by tokens (set once a split failed), else None
+        self.sequence_split_off: Optional[str] = None
         # the last render ran one call per step (no guidance branches): a batch can split from its first step
         self.last_render_single = False
         # source prefix-KV cache id -> (source cache, the tensors it held when copied, the replica's copy)
@@ -3481,6 +3496,8 @@ class CfgParallelRouter:
             and self.disabled_reason is None
         ):
             out = self._batch_split(latent, args, kwargs)
+            if out is None:
+                out = self._sequence_split(latent, args, kwargs)
             if out is not None:
                 return out
         prefill = self.branch % 2 == 1 and _is_prefill(kwargs)
@@ -3604,6 +3621,88 @@ class CfgParallelRouter:
     def _skip_split(self, reason: str) -> None:
         self.stats["batch_split_skip"] = reason
         return None
+
+    def _sequence_split(self, latent: Any, args: tuple, kwargs: dict) -> Any:
+        """A step without guidance branches that the batch split could not take (a batch of one): the source runs the
+        first half of the tokens and the replica the second, swapping heads at each self-attention
+        (``diffusion_sequence_parallel``). Only for denoiser classes with a checked plan; None = not split (the caller
+        runs it whole on the source, which is also what a failed split falls back to for the rest of the load)."""
+        from . import diffusion_sequence_parallel as sp
+
+        module = self.module_ref()
+        if module is None:
+            return None
+        if self.sequence_split_off is not None:
+            self.stats["sequence_split_skip"] = self.sequence_split_off
+            return None
+        why = sp.refusal(module, sp.call_tokens(module, latent))
+        if why is None and (args or _holds_opaque_tensors((args, kwargs))):
+            why = "positional or opaque inputs"
+        if why is None and self.secondary.type != self.primary.type:
+            why = "the replica is on another device type"
+        if why is None:
+            if self._split_scaled is None:
+                from .diffusion_cfg_batch import per_call_scaled
+                self._split_scaled = (per_call_scaled(module),)
+            if self._split_scaled[0] is not None:
+                # each token half would take its own activation amax (dynamic NVFP4): not the one-card computation
+                why = f"per-call activation scaling ({self._split_scaled[0]})"
+        if why is not None:
+            self.stats["sequence_split_skip"] = why
+            return None
+        self._drop_pending()
+        self.template = None
+        if self.replica is None and self.disabled_reason is None:
+            self._build_replica()
+        if self.replica is None or self.worker is None or self.disabled_reason is not None:
+            self.stats["sequence_split_skip"] = f"replica unavailable ({self.disabled_reason})"
+            self.prev_latent = latent
+            self.branch = 0
+            return None
+        self.prefetched.clear()
+        _mirror_hook_state(self.pairs)
+        try:
+            r_kwargs = self._to_replica(kwargs)
+        except Exception as exc:  # noqa: BLE001 - e.g. no room on the replica card: this step runs whole
+            self.disable(f"replica input copy failed: {type(exc).__name__}: {exc}")
+            return None
+        finally:
+            self.next_carry = []
+            self.prefetched.clear()
+        worker = self.worker
+        try:
+            out = sp.run(
+                module,
+                self.replica,
+                worker.submit,
+                _ReplicaWorker.wait,
+                primary_forward = self.orig_forward,
+                args = (),
+                kwargs = kwargs,
+                replica_args = (),
+                replica_kwargs = r_kwargs,
+                devices = (self.primary, self.secondary),
+            )
+        except Exception as exc:  # noqa: BLE001 - the step reruns whole on the source; no later step splits
+            self.sequence_split_off = f"a split call failed ({type(exc).__name__}: {exc})"[:300]
+            self.stats["sequence_split_skip"] = self.sequence_split_off
+            if self.logger is not None:
+                self.logger.warning(
+                    "diffusion.multigpu: sequence-parallel step failed (%s); this load runs its single calls on %s",
+                    exc,
+                    self.primary,
+                )
+            self.prev_latent = latent
+            self.branch = 0
+            return None
+        # a new step's latent is told apart by identity: keep this one so the next call reads as a new step
+        self.prev_latent = latent
+        self.branch = 0
+        self.stats["primary_calls"] += 1
+        self.stats["replica_calls"] += 1
+        self.stats["steps_parallel"] += 1
+        self.stats["sequence_splits"] += 1
+        return out
 
     def run_pair(
         self,
@@ -4641,6 +4740,9 @@ def end_cfg_render(pipe: Any) -> None:
             fallback, router.fallback, router.fallback_pending = router.fallback, None, False
             reason = router.disabled_reason
             uninstall_cfg_parallel(pipe)
+            # else status()["multi_gpu"] still reads "cfg_replica" with nothing saying why one card runs
+            with contextlib.suppress(TypeError):
+                _CFG_DECLINES[pipe] = f"disabled at run time: {reason}"
             try:
                 result = fallback(pipe)
             except Exception as exc:  # noqa: BLE001 - an optional lever: one card stands
