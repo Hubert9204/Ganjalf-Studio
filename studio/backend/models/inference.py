@@ -3215,6 +3215,10 @@ class ChatCompletionRequest(BaseModel):
         None,
         description = "[x-unsloth] When true, keep historical <think> blocks from past assistant turns in the prompt (Qwen3.6 templates). Independent of enable_thinking / reasoning_effort.",
     )
+    plan_mode: Optional[bool] = Field(
+        None,
+        description = "[x-ganjalf] Plan mode: only read-only tools plus exit_plan_mode, so the model explores and presents a plan for approval before changing anything.",
+    )
     thinking_budget_tokens: Optional[int] = Field(
         None,
         ge = 0,

@@ -873,6 +873,8 @@ def status_for_tool(tool_name: str, arguments: Mapping[str, Any]) -> str:
         return "Checking page: " + str(arguments.get("path") or "")[:80]
     if tool_name == "todo_write":
         return "Updating the task list"
+    if tool_name == "exit_plan_mode":
+        return "Presenting the plan"
     if tool_name == "read_file":
         return "Reading: " + str(arguments.get("path") or "")[:80]
     if tool_name == "grep":
@@ -1530,6 +1532,9 @@ class ToolLoopController:
         failed = is_tool_error(result_text)
         # Sticky for the batch: a parallel call that succeeds does not unblock the user.
         self._awaiting_user = self._awaiting_user or awaits_user(result_text)
+        if decision.tool_name == "exit_plan_mode" and not failed:
+            # Ganjalf plan mode: the plan is the answer; the next pass has no tools.
+            self._force_final_answer = True
         result_text = self._cap_result(result_text, decision.tool_name)
         self._history.append(
             _ToolCallRecord(

@@ -4022,6 +4022,23 @@ export const it = {
     compactEmpty: "Ancora niente da compattare",
     compactUnsupported: "La compattazione richiede un modello GGUF o MLX con supporto per gli strumenti",
   },
+  agentTools: {
+    tasks: "Attività",
+  },
+  planMode: {
+    cardTitle: "Piano",
+    approve: "Approva e procedi",
+    approveHint: "Spegne la modalità piano e scrive l'ok nella casella: premi Invio per partire.",
+    approvedHint: "Modalità piano spenta: manda l'ok, oppure chiedi modifiche.",
+  },
+  backgroundJobs: {
+    title: "In esecuzione in background ({count})",
+    hint: "Server e processi che l'agente ha lasciato accesi. Si fermano da soli dopo qualche ora.",
+    stop: "Ferma",
+    stopped: "Fermato: {command}",
+    stopFailed: "Impossibile fermare il processo",
+    runningFor: "attivo da {time}",
+  },
   chatFiles: {
     title: "File in questa chat",
     code: "Frammenti di codice",

@@ -8,6 +8,7 @@ import {
   TaskDone01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useT } from "@/i18n";
 import {
   ToolFallbackContent,
   ToolFallbackRoot,
@@ -20,20 +21,21 @@ function TaskListIcon(props: { className?: string }) {
 }
 
 export const TodoToolUI: ToolCallMessagePartComponent<{ todos?: unknown }> = ({ args, status }) => {
+  const t = useT();
   const items = todoItems(args?.todos);
   if (items.length === 0) return null;
   // Open by default: the plan is the point of the card.
   return (
     <ToolFallbackRoot defaultOpen>
       <ToolFallbackTrigger
-        toolName="Tasks"
+        toolName={t("agentTools.tasks")}
         status={status}
         icon={TaskListIcon}
         detail={todoSummary(items)}
         singleLine
       />
       <ToolFallbackContent>
-        <ul className="space-y-1.5 text-sm" aria-label="Task list">
+        <ul className="space-y-1.5 text-sm" aria-label={t("agentTools.tasks")}>
           {items.map((item, index) => {
             const done = item.status === "completed";
             const active = item.status === "in_progress";

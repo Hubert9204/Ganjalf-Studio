@@ -2,6 +2,7 @@
 // Copyright 2026-present the Unsloth AI Inc. team. All rights reserved. See /studio/LICENSE.AGPL-3.0
 
 import { thinkingBudgetField, useThinkingBudgetStore } from "../stores/thinking-budget-store";
+import { planModeField, usePlanModeStore } from "../stores/plan-mode-store";
 import { hasChatFullAccess, withChatFullAccess } from "../utils/chat-full-access";
 
 import { attachedMediaUnavailableReason } from "../lib/attached-media-gate";
@@ -7215,6 +7216,7 @@ export function createOpenAIStreamAdapter(
               supportsReasoning && (reasoningEnabled || reasoningAlwaysOn),
               useThinkingBudgetStore.getState().thinkingBudgetTokens,
             ),
+            ...planModeField(usePlanModeStore.getState().planMode, codeToolsEnabled),
             ...(supportsPreserveThinking
               ? { preserve_thinking: preserveThinking }
               : {}),

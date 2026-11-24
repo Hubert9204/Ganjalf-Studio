@@ -38,10 +38,10 @@ MAX_LISTED_AGENTS = 30
 
 _TOOL_MAP = {
     "bash": ("terminal", "python"),
-    "read": ("terminal",),
-    "grep": ("terminal",),
-    "glob": ("terminal",),
-    "ls": ("terminal",),
+    "read": ("read_file",),
+    "grep": ("grep",),
+    "glob": ("glob",),
+    "ls": ("glob",),
     "edit": ("edit_file",),
     "write": ("edit_file",),
     "multiedit": ("edit_file",),
@@ -49,15 +49,52 @@ _TOOL_MAP = {
     "websearch": ("web_search",),
     "webfetch": ("web_search",),
 }
-_DEFAULT_TOOLS = ("terminal", "python", "edit_file", "web_search")
+_DEFAULT_TOOLS = ("terminal", "python", "edit_file", "read_file", "grep", "glob", "web_search")
+
+# Ganjalf: agents every chat with code tools has, like Claude Code's Explore and general-purpose.
+BUILT_IN_AGENTS = (
+    {
+        "id": "explore",
+        "name": "explore",
+        "builtin": True,
+        "read_only": True,
+        "description": (
+            "Read-only. Finds files, definitions and facts in the project and reports them with paths "
+            "and line numbers. Use it to survey a large codebase or answer 'where is X / how does Y "
+            "work' without filling your own context."
+        ),
+        "tools": ["Read", "Grep", "Glob"],
+        "body": (
+            "You explore a codebase to answer a question. Use glob to see the layout, grep to find "
+            "where things are defined and used, and read_file to read only the parts that matter. "
+            "Never guess: every claim in your report points to a file and line you read. You cannot "
+            "change files."
+        ),
+    },
+    {
+        "id": "general-purpose",
+        "name": "general-purpose",
+        "builtin": True,
+        "description": (
+            "Does a self-contained multi-step job with the full code tools (read, search, run "
+            "commands, edit files, web search) and reports back. Use it for a separate piece of "
+            "work, such as researching an error, writing a module with its test, or checking a fix."
+        ),
+        "tools": None,
+        "body": (
+            "You complete one self-contained task. Plan briefly, work step by step with your tools, "
+            "check what you change by running it, and keep the changes to what the task asks."
+        ),
+    },
+)
 
 
 def available_agents() -> list[dict]:
-    """Agents of enabled plugins, as ``plugin:agent``."""
+    """The built-in agents, then the agents of enabled plugins as ``plugin:agent``."""
     from .inspect import PluginError, inspect_plugin
     from .manager import enabled_records, plugin_dir
 
-    agents = []
+    agents = [dict(agent) for agent in BUILT_IN_AGENTS]
     for record in enabled_records():
         if not record.get("agents"):
             continue
@@ -82,11 +119,11 @@ def tool_definition(agents: Optional[list[dict]] = None) -> Optional[dict]:
         "function": {
             "name": RUN_AGENT,
             "description": (
-                "Hand a self-contained task to a specialised agent from an installed plugin. It works "
-                "on its own with its own tools in this chat's working folder and returns only its "
-                "final report, so use it for searches, reviews or analyses that would otherwise fill "
-                "your context. Give it everything it needs in `task`: it cannot see this "
-                "conversation. Agents:\n" + listing
+                "Hand a self-contained task to a sub-agent. It works on its own with its own tools "
+                "in this chat's working folder and returns only its final report, so use it for "
+                "searches, reviews or separate pieces of work that would otherwise fill your "
+                "context. Give it everything it needs in `task`: it cannot see this conversation. "
+                "Agents:\n" + listing
             ),
             "parameters": {
                 "type": "object",
@@ -265,13 +302,16 @@ def run_agent(
     if agent is None:
         known = ", ".join(item["id"] for item in agents[:MAX_LISTED_AGENTS]) or "none"
         return f"Error: no agent {wanted!r}. Agents: {known}."
-    try:
-        _frontmatter, body = read_markdown(plugin_dir(agent["plugin"]) / agent["path"])
-    except (PluginError, OSError) as exc:
-        return f"Error: the agent's file could not be read: {exc}"
-    from .manager import expand
+    if agent.get("builtin"):
+        body = agent["body"]
+    else:
+        try:
+            _frontmatter, body = read_markdown(plugin_dir(agent["plugin"]) / agent["path"])
+        except (PluginError, OSError) as exc:
+            return f"Error: the agent's file could not be read: {exc}"
+        from .manager import expand
 
-    body = expand(body, agent["plugin"]) if "${" in body else body
+        body = expand(body, agent["plugin"]) if "${" in body else body
 
     if server is None:
         try:
@@ -289,11 +329,14 @@ def run_agent(
     base_url, headers = server
     budget = context_budget_chars(context_tokens)
 
+    from core.inference.agent_tools import GLOB_TOOL, GREP_TOOL, READ_FILE_TOOL
     from core.inference.llama_tool_schema import llama_grammar_tools
     from core.inference.tools import ALL_TOOLS, _get_workdir, execute_tool
 
     workdir = _get_workdir(session_id)
-    tools = _agent_tools(agent, [tool for tool in ALL_TOOLS if tool["function"]["name"] != RUN_AGENT])
+    pool = [tool for tool in ALL_TOOLS if tool["function"]["name"] != RUN_AGENT]
+    pool += [READ_FILE_TOOL, GREP_TOOL, GLOB_TOOL]
+    tools = _agent_tools(agent, pool)
     messages: list[dict] = [
         {"role": "system", "content": _system_prompt(agent, body, workdir, tools)},
         {"role": "user", "content": task},

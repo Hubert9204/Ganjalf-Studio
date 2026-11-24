@@ -6926,6 +6926,7 @@ _ALWAYS_SAFE_TOOLS = frozenset(
         "glob",
         "terminal_output",
         "terminal_kill",
+        "exit_plan_mode",
         # Gated in the chat tab instead, which knows what each ref on the live page is: submits,
         # purchases, sign-ins and new sites ask there, in every permission mode.
         *BROWSER_TOOL_NAMES,
@@ -6967,6 +6968,16 @@ def _browser_opens_workspace_file(name: str, arguments: dict) -> bool:
     return name == "browser_navigate" and workspace_path_of(arguments.get("url")) is not None
 
 
+def _read_only_sub_agent(name: str, arguments: dict) -> bool:
+    """run_agent with a read-only built-in agent (explore) only reads the working directory."""
+    if name != "run_agent":
+        return False
+    from core.plugins.agents import BUILT_IN_AGENTS
+
+    wanted = str((arguments or {}).get("agent") or "").strip()
+    return any(agent.get("read_only") and agent["id"] == wanted for agent in BUILT_IN_AGENTS)
+
+
 def _read_skill_writes(name: str, arguments: dict) -> bool:
     """read_skill with copy_to writes a file into the working directory, so it asks like edit_file."""
     return name == "read_skill" and bool(str((arguments or {}).get("copy_to") or "").strip())
@@ -6978,6 +6989,8 @@ def is_potentially_unsafe_tool_call(name: str, arguments: dict) -> bool:
         return True
     if _read_skill_writes(name, arguments):
         return True
+    if _read_only_sub_agent(name, arguments):
+        return False
     if name in _ALWAYS_SAFE_TOOLS:
         return False
     # render_html auto-runs static canvases but asks when HTML/JS reaches the network (fetch, WebSocket).
@@ -9654,6 +9667,8 @@ def is_high_risk_tool_call(name: str, arguments: dict) -> bool:
         return True
     if _read_skill_writes(name, arguments):
         return True  # asks in Auto like the edit_file it runs
+    if _read_only_sub_agent(name, arguments):
+        return False
     if name in _ALWAYS_SAFE_TOOLS:
         return False
     if name == "render_html":
@@ -15609,6 +15624,10 @@ def execute_tool(
                 )
 
         return background_jobs.start(command, session_id, _run_background)
+    if name == "exit_plan_mode":
+        from . import agent_tools
+
+        return agent_tools.exit_plan_mode(arguments)
     if name in ("todo_write", "read_file", "grep", "glob"):
         from . import agent_tools
 

@@ -26,6 +26,7 @@ Use this for code in a project folder: building a program, game, app or script, 
 - Use `glob` to see the project's files, `grep` to find where something is defined or used, and `read_file` with `offset`/`limit` to read the part you need. Do not use `cat`, `sed -n`, `head` or `ls -R` in the terminal for this.
 - Read the README or build file first (package.json, Makefile, pyproject.toml). Do not open every file.
 - If a result is truncated, narrow the range or the pattern; do not repeat the same call.
+- In a large project, give a survey ("where is X handled", "how do these modules connect") to `run_agent` with agent `explore`: it reads on its own and returns only the answer with paths and lines, so your context stays small. Use `general-purpose` for a separate piece of work with its own check.
 
 ## Writing and changing code
 - Follow the plan: the first step is the smallest version that runs, at most 4 source files; compile and check it before the next step. Never write a dozen files before running anything.

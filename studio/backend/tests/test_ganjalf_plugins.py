@@ -532,3 +532,57 @@ def test_run_agent_keeps_its_conversation_under_the_budget(studio, tmp_path, mon
     # Each result is clipped to 6k; the budget keeps every request near 16k however many rounds run.
     assert max(sizes) <= 16_000 + plugin_agents.MAX_TOOL_RESULT_CHARS
     assert sizes[-1] < 7 * plugin_agents.MAX_TOOL_RESULT_CHARS
+
+
+def test_built_in_agents_are_always_listed_and_explore_is_read_only(studio, tmp_path, monkeypatch):
+    from core.inference import tools
+
+    agents = {agent["id"]: agent for agent in plugin_agents.available_agents()}
+    assert {"explore", "general-purpose"} <= set(agents)
+    definition = plugin_agents.tool_definition()
+    assert definition is not None and "explore:" in definition["function"]["description"].replace("- explore", "explore")
+    # explore runs without approval in Auto; general-purpose asks like any writer.
+    assert tools.is_high_risk_tool_call("run_agent", {"agent": "explore", "task": "x"}) is False
+    assert tools.is_high_risk_tool_call("run_agent", {"agent": "general-purpose", "task": "x"}) is True
+
+    (tmp_path / "app.py").write_text("def answer():\n    return 42\n")
+    seen_tools = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_POST(self):
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            seen_tools.append(sorted(t["function"]["name"] for t in body.get("tools", [])))
+            if len(seen_tools) == 1:
+                call = {"pattern": "def answer"}
+                message = {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "grep", "arguments": json.dumps(call)}}],
+                }
+            else:
+                tool_text = body["messages"][-1]["content"]
+                message = {"role": "assistant", "content": f"Found it: {tool_text.splitlines()[1]}"}
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.end_headers()
+            for chunk in _sse_chunks(message):
+                self.wfile.write(chunk)
+                self.wfile.flush()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target = server.serve_forever, daemon = True).start()
+    monkeypatch.setattr(tools, "_get_workdir", lambda *a, **k: str(tmp_path))
+    try:
+        report = plugin_agents.run_agent(
+            {"agent": "explore", "task": "Where is answer defined?"},
+            session_id = "s",
+            server = (f"http://127.0.0.1:{server.server_port}", None),
+        )
+    finally:
+        server.shutdown()
+    assert seen_tools[0] == ["glob", "grep", "read_file"]
+    assert report.startswith("Agent explore finished (1 tool call).")
+    assert "app.py:1:def answer():" in report

@@ -153,6 +153,7 @@ const COERCED: ReadonlyArray<
   ],
   ["tool-fallback.tsx", "ToolFallbackTrigger", ["name"]],
   ["tool-ui-memory.tsx", "MemoryToolUI", ["scope", "value"]],
+  ["tool-ui-plan.tsx", "PlanToolUI", ["plan"]],
 ];
 
 const COERCION_CALL = /^toolArgText\(/;
@@ -183,6 +184,7 @@ const TYPEOF_GUARDED: ReadonlyArray<readonly [string, string]> = [
 // Ganjalf: cards that read their arguments only through a tested parser (todo-items.ts).
 const PARSED: ReadonlyArray<readonly [file: string, component: string, prop: string, parser: RegExp]> = [
   ["tool-ui-todo.tsx", "TodoToolUI", "items", /^todoItems\(/],
+  ["tool-ui-code-lookup.tsx", "CodeLookupToolUI", "label", /^codeLookupLabel\(/],
 ];
 
 test("the parsed cards read their arguments through their parser", () => {

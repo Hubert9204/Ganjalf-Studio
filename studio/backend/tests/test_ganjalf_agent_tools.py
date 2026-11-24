@@ -154,3 +154,69 @@ def test_terminal_run_in_background_uses_the_real_terminal(project):
     assert "ready" in reply or "ready" in run("terminal_output", {"id": job_id, "wait_seconds": 5})
     assert "Status: running" in run("terminal_output", {"id": job_id})
     assert run("terminal_kill", {"id": job_id}).startswith("Stopped")
+
+
+def test_job_panel_lists_addresses_and_stops_only_own_jobs(monkeypatch):
+    def server(cancel, append, timeout):
+        append("  ➜  Local:   http://localhost:5173/\n")
+        append("  ➜  Network: http://0.0.0.0:5173/\n")
+        cancel.wait()
+        return "Execution cancelled."
+
+    monkeypatch.setattr(background_jobs, "_account", lambda: "alice")
+    reply = background_jobs.start("npx vite --host 0.0.0.0", "panel", server)
+    job_id = reply.split("Started background job ", 1)[1].split(":", 1)[0]
+    listed = [job for job in background_jobs.account_jobs() if job["id"] == job_id][0]
+    assert listed["running"] and listed["addresses"] == ["http://localhost:5173/"]
+    monkeypatch.setattr(background_jobs, "_account", lambda: "bob")
+    assert all(job["id"] != job_id for job in background_jobs.account_jobs())
+    assert background_jobs.stop_for_account(job_id) is None
+    monkeypatch.setattr(background_jobs, "_account", lambda: "alice")
+    assert background_jobs.stop_for_account(job_id) == f"Stopped background job {job_id}."
+    listed = [job for job in background_jobs.account_jobs() if job["id"] == job_id][0]
+    assert not listed["running"] and listed["status"] == "ended (stopped)"
+
+
+def test_job_routes(monkeypatch):
+    import asyncio
+
+    from routes import inference as routes
+
+    monkeypatch.setattr(background_jobs, "account_jobs", lambda: [{"id": "bg9"}])
+    monkeypatch.setattr(background_jobs, "stop_for_account", lambda job_id: "Stopped background job bg9." if job_id == "bg9" else None)
+    assert asyncio.run(routes.get_background_jobs(current_subject = "u")) == {"jobs": [{"id": "bg9"}]}
+    assert asyncio.run(routes.stop_background_job("bg9", current_subject = "u"))["message"].startswith("Stopped")
+    with pytest.raises(Exception):
+        asyncio.run(routes.stop_background_job("bg1", current_subject = "u"))
+
+
+def test_plan_mode_offers_only_reading_and_the_plan_tool():
+    import asyncio
+
+    from models.inference import ChatCompletionRequest
+    from routes.inference import _select_request_tools
+
+    chat = ChatCompletionRequest(
+        model = "m",
+        messages = [{"role": "user", "content": "build a game"}],
+        enable_tools = True,
+        enabled_tools = ["terminal", "python", "edit_file", "web_search"],
+        plan_mode = True,
+    )
+    names = [t["function"]["name"] for t in asyncio.run(_select_request_tools(chat, tools_on = True, mcp_allowed = False))]
+    assert set(names) == {"web_search", "read_file", "grep", "glob", "todo_write", "exit_plan_mode"}
+    assert names[-1] == "exit_plan_mode"
+    assert tools.is_always_safe_tool("exit_plan_mode")
+
+
+def test_exit_plan_mode_ends_the_tool_rounds():
+    from core.inference.tool_loop_controller import ToolLoopController
+
+    controller = ToolLoopController(tools = [agent_tools.EXIT_PLAN_MODE_TOOL, agent_tools.READ_FILE_TOOL])
+    decision = controller.prepare_call({"id": "p1", "function": {"name": "exit_plan_mode", "arguments": {"plan": "1. Scene"}}})
+    reply = tools.execute_tool("exit_plan_mode", {"plan": "1. Scene"}, session_id = "s")
+    assert reply.startswith(agent_tools.PLAN_APPROVAL_TAG) and "1. Scene" in reply
+    controller.record_result(decision, reply)
+    assert controller.force_final_answer and controller.active_tools() == []
+    assert controller.awaiting_user
+    assert tools.execute_tool("exit_plan_mode", {}, session_id = "s").startswith("Error")

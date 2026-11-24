@@ -90,6 +90,9 @@ import { ComposerModelPicker } from "@/components/assistant-ui/composer-model-pi
 import { ModelPickerAnnouncement } from "@/components/assistant-ui/model-picker-announcement";
 import { withToolConfirmation } from "@/components/assistant-ui/tool-confirmation-controls";
 import { TodoToolUI } from "@/components/assistant-ui/tool-ui-todo";
+import { PlanToolUI } from "@/components/assistant-ui/tool-ui-plan";
+import { usePlanModeStore } from "@/features/chat/stores/plan-mode-store";
+import { CodeLookupToolUI } from "@/components/assistant-ui/tool-ui-code-lookup";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import { ToolGroup } from "@/components/assistant-ui/tool-group";
 import { CodeExecutionToolUI } from "@/components/assistant-ui/tool-ui-code-execution";
@@ -497,6 +500,7 @@ import {
   MoreHorizontalIcon,
   PlusSignIcon,
   Cancel01Icon,
+  Task01Icon,
 } from "@hugeicons/core-free-icons";
 import { FolderAddIcon, FolderAttachmentIcon } from "@/lib/folder-icons";
 import { Copy01Icon } from "@/lib/copy-icon";
@@ -6221,6 +6225,7 @@ const Composer: FC<{
         ) : null}
         <WebSearchToggle />
         <CodeToolsToggle />
+        <PlanModeToggle />
         <BrowserAgentPill glyph={(icon) => <PillGlyph>{icon}</PillGlyph>} />
         <ComputerUsePill glyph={(icon) => <PillGlyph>{icon}</PillGlyph>} />
         <ImagesToggle />
@@ -6879,6 +6884,34 @@ const CodeToolsToggle: FC = () => {
         />
       </PillGlyph>
       <span>Tools</span>
+    </button>
+  );
+};
+
+// Ganjalf: plan mode, shown beside Tools while the local code tools are on.
+const PlanModeToggle: FC = () => {
+  const codeToolsEnabled = useChatRuntimeStore(codeToolsOn);
+  const planMode = usePlanModeStore((s) => s.planMode);
+  const setPlanMode = usePlanModeStore((s) => s.setPlanMode);
+  if (!codeToolsEnabled) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => setPlanMode(!planMode)}
+      className="composer-pill-btn"
+      data-pill-label="Plan"
+      data-active={planMode ? "true" : "false"}
+      aria-label={planMode ? "Disable plan mode" : "Enable plan mode"}
+      title={planMode ? "Plan mode: the model explores read-only and proposes a plan first" : "Plan first, then build"}
+    >
+      <PillGlyph>
+        <HugeiconsIcon
+          icon={Task01Icon}
+          className="size-[calc(17px*var(--ui-space-scale,1))]"
+          strokeWidth={2}
+        />
+      </PillGlyph>
+      <span>Plan</span>
     </button>
   );
 };
@@ -8516,6 +8549,12 @@ const ASSISTANT_PART_COMPONENTS = {
       generate_video: VideoGenerationToolUIConfirmable,
       render_html: RenderHtmlToolUIConfirmable,
       todo_write: TodoToolUI,
+      exit_plan_mode: PlanToolUI,
+      read_file: CodeLookupToolUI,
+      grep: CodeLookupToolUI,
+      glob: CodeLookupToolUI,
+      terminal_output: CodeLookupToolUI,
+      terminal_kill: CodeLookupToolUI,
     },
     Fallback: ToolFallbackConfirmable,
   },

@@ -14,6 +14,7 @@ from __future__ import annotations
 import contextvars
 import itertools
 import os
+import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -39,11 +40,24 @@ def background_timeout() -> int:
         return DEFAULT_TIMEOUT_S
 
 
+def _account() -> str:
+    try:
+        from utils.account_context import current_account_id
+
+        return current_account_id() or ""
+    except Exception:
+        return ""
+
+
+_URL_RE = re.compile(r"https?://(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1?\])(?::\d+)?[^\s'\"]*")
+
+
 @dataclass
 class Job:
     id: str
     session: str
     command: str
+    account: str = ""
     started: float = field(default_factory = time.monotonic)
     cancel: threading.Event = field(default_factory = threading.Event)
     buffer: list = field(default_factory = list)
@@ -76,7 +90,8 @@ class Job:
 
 
 def _key(session_id: Optional[str]) -> str:
-    return session_id or "_"
+    # The account is part of the key: one account never sees or stops another's jobs.
+    return f"{_account()}\x00{session_id or '_'}"
 
 
 def start(
@@ -93,7 +108,7 @@ def start(
                 f"Error: {len(live)} background jobs are already running "
                 f"({', '.join(job.id for job in live)}). Stop one with terminal_kill first."
             )
-        job = Job(id = f"bg{next(_counter)}", session = session, command = command)
+        job = Job(id = f"bg{next(_counter)}", session = session, command = command, account = _account())
         _jobs[job.id] = job
     timeout = background_timeout()
     context = contextvars.copy_context()
@@ -212,6 +227,63 @@ def list_jobs(session_id: Optional[str]) -> list[dict]:
             for job in _jobs.values()
             if job.session == session
         ]
+
+
+def addresses(job: Job) -> list[str]:
+    """Local addresses a dev server printed (0.0.0.0 shown as localhost), first seen first."""
+    with job.changed:
+        text = "".join(job.buffer)[-200_000:]
+    found: list[str] = []
+    for match in _URL_RE.findall(text):
+        url = match.rstrip(".,;)").replace("0.0.0.0", "localhost").replace("127.0.0.1", "localhost")
+        if url not in found:
+            found.append(url)
+    return found[:4]
+
+
+def account_jobs() -> list[dict]:
+    """The current account's jobs, newest first, for the chat's job panel."""
+    account = _account()
+    with _lock:
+        mine = [job for job in _jobs.values() if job.account == account]
+    now = time.monotonic()
+    return [
+        {
+            "id": job.id,
+            "command": job.command,
+            "running": job.running,
+            "seconds": int(now - job.started),
+            "addresses": addresses(job),
+            "status": "running" if job.running else _ended(job).removeprefix("Status: ").rstrip("."),
+        }
+        for job in sorted(mine, key = lambda item: -item.started)
+    ]
+
+
+def stop_for_account(job_id: str) -> Optional[str]:
+    """Stop one of the current account's jobs from the panel; None when it is not theirs."""
+    account = _account()
+    with _lock:
+        job = _jobs.get(job_id)
+    if job is None or job.account != account:
+        return None
+    return _stop(job)
+
+
+def _stop(job: Job) -> str:
+    if not job.running:
+        return f"Background job {job.id} had already ended."
+    job.cancel.set()
+    if job.thread is not None:
+        job.thread.join(timeout = 10)
+    return f"Stopped background job {job.id}."
+
+
+def forget_ended(max_age_s: float = 3600) -> None:
+    """Drop jobs that ended long ago so the registry does not grow forever."""
+    with _lock:
+        for key in [k for k, job in _jobs.items() if not job.running and time.monotonic() - job.started > max_age_s]:
+            _jobs.pop(key, None)
 
 
 def stop_all() -> None:

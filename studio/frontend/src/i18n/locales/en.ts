@@ -891,6 +891,23 @@ export const en = {
     compactEmpty: "Nothing to compact yet",
     compactUnsupported: "Compaction requires a GGUF or MLX model with tool support",
   },
+  agentTools: {
+    tasks: "Tasks",
+  },
+  planMode: {
+    cardTitle: "Plan",
+    approve: "Approve and build",
+    approveHint: "Turns plan mode off and writes the go-ahead in the box: press Enter to start.",
+    approvedHint: "Plan mode is off: send the go-ahead, or ask for changes.",
+  },
+  backgroundJobs: {
+    title: "Running in the background ({count})",
+    hint: "Servers and watchers the agent left running. They stop on their own after a few hours.",
+    stop: "Stop",
+    stopped: "Stopped: {command}",
+    stopFailed: "Could not stop the process",
+    runningFor: "running for {time}",
+  },
   chatFiles: {
     title: "Files in this chat",
     code: "Code snippets",

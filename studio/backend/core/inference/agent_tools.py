@@ -398,6 +398,56 @@ GLOB_TOOL = {
 }
 
 
+EXIT_PLAN_MODE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "exit_plan_mode",
+        "description": (
+            "You are in PLAN MODE: the user wants to approve a plan before anything is changed. "
+            "Explore with the read-only tools (read_file, grep, glob, web search) until you know "
+            "what to do, then call this once with the plan: the goal, the files you will create "
+            "or change, the steps in order with how each will be checked, and the risks or "
+            "questions. Do not try to edit files or run commands in plan mode. After this call, "
+            "end your turn and wait for the user's approval."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "plan": {"type": "string", "description": "The plan in Markdown."},
+            },
+            "required": ["plan"],
+        },
+    },
+}
+
+# What plan mode keeps: reading, searching, the web, pages, images, the task list, skills.
+PLAN_MODE_TOOL_NAMES = frozenset(
+    {"read_file", "grep", "glob", "web_search", "view_image", "check_page", "todo_write", "read_skill"}
+)
+PLAN_APPROVAL_TAG = "[awaiting_plan_approval]"
+
+
+def apply_plan_mode(tools: list[dict]) -> list[dict]:
+    """Read-only tools plus exit_plan_mode; read/grep/glob are added when terminal was offered."""
+    names = {tool["function"]["name"] for tool in tools}
+    kept = [tool for tool in tools if tool["function"]["name"] in PLAN_MODE_TOOL_NAMES]
+    if "terminal" in names or "edit_file" in names:
+        have = {tool["function"]["name"] for tool in kept}
+        kept += [tool for tool in (READ_FILE_TOOL, GREP_TOOL, GLOB_TOOL, TODO_WRITE_TOOL) if tool["function"]["name"] not in have]
+    return kept + [EXIT_PLAN_MODE_TOOL]
+
+
+def exit_plan_mode(arguments: dict) -> str:
+    plan = str((arguments or {}).get("plan") or "").strip()
+    if not plan:
+        return "Error: give the plan in 'plan'."
+    return (
+        f"{PLAN_APPROVAL_TAG} The plan is ready for the user. Now end your turn: write the plan as "
+        "your answer (clear headings, the steps in order, files, checks, open questions) and ask "
+        "the user to approve it or say what to change. Do not start the work.\n\nPlan:\n" + plan
+    )
+
+
 def code_agent_tools() -> list[dict]:
     """The tools offered beside terminal (GANJALF_AGENT_TOOLS=0 leaves them out)."""
     if (os.environ.get("GANJALF_AGENT_TOOLS") or "").strip().lower() in ("0", "off", "no", "false"):

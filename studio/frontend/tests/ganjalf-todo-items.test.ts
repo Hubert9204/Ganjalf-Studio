@@ -19,3 +19,12 @@ test("the task list card reads the model's list and summarises progress", () => 
   assert.deepEqual(todoItems("not json"), []);
   assert.equal(todoSummary(todoItems([{ content: "a", status: "completed" }])), "1/1");
 });
+
+test("plan mode is sent only with the code tools", async () => {
+  const { planModeField, usePlanModeStore } = await import("../src/features/chat/stores/plan-mode-store.ts");
+  assert.deepEqual(planModeField(true, true), { plan_mode: true });
+  assert.deepEqual(planModeField(true, false), {});
+  assert.deepEqual(planModeField(false, true), {});
+  usePlanModeStore.getState().setPlanMode(true);
+  assert.equal(usePlanModeStore.getState().planMode, true);
+});

@@ -6550,6 +6550,11 @@ async def _select_request_tools(
     delegated = _delegated_tool_names.get()
     if delegated is not None:
         tools = [tool for tool in tools if tool["function"]["name"] in delegated]
+    if tools_on and getattr(payload, "plan_mode", None) is True:
+        # Ganjalf plan mode: explore read-only, then present the plan with exit_plan_mode.
+        from core.inference.agent_tools import apply_plan_mode
+
+        tools = apply_plan_mode(tools)
     return tools
 
 
@@ -18490,6 +18495,26 @@ def _unload_may_evict(model_path: str) -> bool:
     ):
         return True
     return _unload_evicts_standard_backend(backend, model_path)
+
+
+@studio_router.get("/background-jobs")
+async def get_background_jobs(current_subject: str = Depends(get_current_subject)):
+    """Ganjalf: this account's background terminal jobs (dev servers the agent left running)."""
+    from core.inference import background_jobs
+
+    await asyncio.to_thread(background_jobs.forget_ended)
+    return {"jobs": await asyncio.to_thread(background_jobs.account_jobs)}
+
+
+@studio_router.post("/background-jobs/{job_id}/stop")
+async def stop_background_job(job_id: str, current_subject: str = Depends(get_current_subject)):
+    """Ganjalf: stop one of this account's background jobs from the chat."""
+    from core.inference import background_jobs
+
+    result = await asyncio.to_thread(background_jobs.stop_for_account, job_id)
+    if result is None:
+        raise HTTPException(status_code = 404, detail = "No such background job.")
+    return {"message": result}
 
 
 @studio_router.get("/active-generations")
@@ -33138,7 +33163,7 @@ def _anthropic_offers_tools(payload) -> bool:
 
 
 def _plugin_agent_tool() -> Optional[dict]:
-    """run_agent when an enabled plugin has agents and a llama.cpp model is loaded."""
+    """run_agent (built-in explore and general-purpose agents, plus plugin agents) when a llama.cpp model is loaded."""
     try:
         from core.plugins.agents import tool_definition
 

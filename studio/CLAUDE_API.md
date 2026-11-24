@@ -31,6 +31,33 @@ Interventi di Ganjalf in questo audit:
   `thinking.budget_tokens`) arriva a llama-server anche sul percorso chat, e l'interfaccia ha il
   cursore **Thinking Budget** (0 = quello del modello).
 
+## Usare Claude Code con il modello locale
+
+Il programma Claude Code può lavorare con il modello caricato in Ganjalf al posto dei modelli di
+Anthropic: Ganjalf fa da gateway con l'API Messages. Il comando `unsloth start claude` (incluso nel
+fork) imposta tutto da solo: `ANTHROPIC_BASE_URL` sull'indirizzo di Studio, la chiave in
+`ANTHROPIC_AUTH_TOKEN`, il modello in `ANTHROPIC_MODEL`, la finestra di contesto e la soglia di
+compattazione presa dal modello caricato, e spegne il traffico verso Anthropic
+(`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`) e i campi sperimentali
+(`CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS`).
+
+```bash
+# una volta: installa Claude Code
+curl -fsSL https://claude.ai/install.sh | bash
+# con Ganjalf avviato e un modello GGUF caricato
+~/.ganjalf-studio/unsloth_studio/bin/unsloth start claude
+```
+
+- Se non trova il server (Ganjalf parte dalla porta 8890), indicalo:
+  `UNSLOTH_STUDIO_URL=http://127.0.0.1:8890 ~/.ganjalf-studio/unsloth_studio/bin/unsloth start claude`.
+- `--no-launch` stampa le variabili e il comando invece di avviarlo (per un'altra shell o WSL);
+  `--model <repo>` carica un altro modello prima di partire.
+- Durante l'elaborazione di un prompt lungo Ganjalf manda righe di keep-alive ogni 15 secondi, così
+  Claude Code non chiude lo stream (lo farebbe dopo 5 minuti di silenzio).
+- Anthropic non supporta ufficialmente Claude Code su modelli non Claude: funziona, ma la qualità è
+  quella del modello locale, e con un modello lento il primo turno (il prompt di Claude Code è lungo)
+  richiede qualche minuto.
+
 ## Stop, timeout e connessione interrotta
 
 - **Stop dall'interfaccia o disconnessione del client**: chiudere la connessione (pulsante Stop,
