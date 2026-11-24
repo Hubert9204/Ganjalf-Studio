@@ -219,7 +219,7 @@ test("half-typed fields are clamped into the backend's bounds", () => {
 });
 
 test("persisted state from before drafter training migrates to the feature off", () => {
-  assert.equal(TRAINING_CONFIG_PERSISTENCE_VERSION, 24);
+  assert.equal(TRAINING_CONFIG_PERSISTENCE_VERSION, 25);
   const migrated = migrateTrainingConfig(
     { selectedModel: MODEL, trainingMethod: "lora" },
     22,

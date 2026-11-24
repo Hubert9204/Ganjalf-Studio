@@ -68,7 +68,7 @@ test("migration preserves tuned values while protecting them from model defaults
     16,
   );
 
-  assert.equal(TRAINING_CONFIG_PERSISTENCE_VERSION, 24);
+  assert.equal(TRAINING_CONFIG_PERSISTENCE_VERSION, 25);
   assert.equal(migrated.learningRate, 0.000031);
   assert.equal(migrated.loraRank, 48);
   assert.equal(migrated.modelDefaultsAppliedFor, "org/model");
@@ -446,4 +446,29 @@ test("automatic disabled values are not promoted into explicit choices", () => {
     packing: false, trainOnCompletions: false, trainingToggleChoices: {},
   }, { trainingMethod: "qlora", packing: true, trainOnCompletions: true } as never);
   assert.deepEqual(merged.trainingToggleChoices, {});
+});
+
+test("a config saved before 25 moves the old offload default to auto, once", () => {
+  const migrated = migrateTrainingConfig(
+    { offloadLayers: 0, advancedSettingsBaseline: { offloadLayers: 0, loraRank: 16 } },
+    24,
+  ) as unknown as Record<string, unknown>;
+  assert.equal(migrated.offloadLayers, "auto");
+  assert.deepEqual(migrated.advancedSettingsBaseline, { offloadLayers: "auto", loraRank: 16 });
+  // A count the user typed is a choice, and so is Off saved after the change.
+  assert.equal(
+    (migrateTrainingConfig({ offloadLayers: 12 }, 24) as unknown as Record<string, unknown>).offloadLayers,
+    12,
+  );
+  assert.equal(
+    (migrateTrainingConfig({ offloadLayers: 0 }, TRAINING_CONFIG_PERSISTENCE_VERSION) as unknown as Record<
+      string,
+      unknown
+    >).offloadLayers,
+    0,
+  );
+});
+
+test("a fresh config starts with offload auto", () => {
+  assert.equal(initialTrainingConfigState.offloadLayers, "auto");
 });
