@@ -10,6 +10,11 @@ import {
 } from "./continuation";
 import { resolveSavedBranchHead } from "./message-order";
 import {
+  LIVE_ELSEWHERE_KEY,
+  carryLiveElsewhere,
+  liveViewOfStored,
+} from "./remote-live-stream";
+import {
   generationNeedsRecovery,
   generationRawContent,
   isLiveGenerationRun,
@@ -123,16 +128,24 @@ export function reconcileOrdinarySavedMessagesInExport(
     }
 
     const custom = runtimeCustom(item.message);
-    const incomplete = readIncompleteInfo({ custom: stored.metadata });
-    const statusChanged = incomplete?.reason !== readIncompleteInfo({ custom })?.reason;
+    // Read the stored stamp the way a fresh load would: another device's live stream is not
+    // an interruption (see remote-live-stream.ts).
+    const storedView = liveViewOfStored(
+      stored.metadata as Record<string, unknown> | undefined,
+    );
+    const incomplete = readIncompleteInfo({ custom: storedView });
+    const statusChanged =
+      incomplete?.reason !== readIncompleteInfo({ custom })?.reason ||
+      (storedView[LIVE_ELSEWHERE_KEY] === true) !== (custom[LIVE_ELSEWHERE_KEY] === true);
     if (!statusChanged && contentProjectionKey(imported) === runtimeKey) {
       return item;
     }
 
     changed = true;
-    const nextCustom = statusChanged
-      ? { ...custom, incomplete: incomplete ?? undefined }
-      : custom;
+    const nextCustom = carryLiveElsewhere(
+      statusChanged ? { ...custom, incomplete: incomplete ?? undefined } : custom,
+      storedView,
+    );
     const status = restoredAssistantStatus({ custom: nextCustom });
     return {
       ...item,

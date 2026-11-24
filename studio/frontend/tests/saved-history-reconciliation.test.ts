@@ -114,6 +114,68 @@ test("a saved interruption becomes visible without a new text delta", () => {
   assert.deepEqual(messages[0].message.metadata.custom?.incomplete, stored.metadata.incomplete);
 });
 
+const liveElsewhereRuntime = (text: string, heartbeat: number) => {
+  const runtime = assistantRuntime("assistant-1", text);
+  return {
+    ...runtime,
+    metadata: {
+      ...runtime.metadata,
+      custom: { liveElsewhere: true, streamHeartbeatAt: heartbeat },
+    },
+  };
+};
+
+test("a newer checkpoint of another device's live stream stays live, not an error", () => {
+  const now = Date.now();
+  const stored = {
+    ...storedAssistant("assistant-1", "Partial reply, more"),
+    metadata: { incomplete: { reason: "interrupted" as const }, streamHeartbeatAt: now },
+  };
+  const { changed, messages } = reconcileOrdinarySavedMessagesInExport(
+    { messages: [{ parentId: "user-1", message: liveElsewhereRuntime("Partial reply", now - 4_000) }] },
+    [stored],
+    { editingMessageId: null },
+  );
+
+  assert.equal(changed, true);
+  assert.deepEqual(messages[0].message.status, { type: "complete", reason: "unknown" });
+  const custom = messages[0].message.metadata.custom ?? {};
+  assert.equal(custom.incomplete, undefined);
+  assert.equal(custom.liveElsewhere, true);
+  assert.equal(custom.streamHeartbeatAt, now);
+});
+
+test("another device's stream that went quiet shows as the interruption it is", () => {
+  const stale = Date.now() - 10 * 60_000;
+  const stored = {
+    ...storedAssistant("assistant-1", "Partial reply"),
+    metadata: { incomplete: { reason: "interrupted" as const }, streamHeartbeatAt: stale },
+  };
+  const { changed, messages } = reconcileOrdinarySavedMessagesInExport(
+    { messages: [{ parentId: "user-1", message: liveElsewhereRuntime("Partial reply", stale) }] },
+    [stored],
+    { editingMessageId: null },
+  );
+
+  assert.equal(changed, true);
+  assert.deepEqual(messages[0].message.status, { type: "incomplete", reason: "error" });
+  assert.equal(messages[0].message.metadata.custom?.liveElsewhere, undefined);
+});
+
+test("the finished reply from another device clears the live marker", () => {
+  const now = Date.now();
+  const { changed, messages } = reconcileOrdinarySavedMessagesInExport(
+    { messages: [{ parentId: "user-1", message: liveElsewhereRuntime("Partial reply", now) }] },
+    [storedAssistant("assistant-1", "Partial reply, done")],
+    { editingMessageId: null },
+  );
+
+  assert.equal(changed, true);
+  assert.deepEqual(messages[0].message.status, { type: "complete", reason: "unknown" });
+  assert.equal(messages[0].message.metadata.custom?.liveElsewhere, undefined);
+  assert.equal(messages[0].message.metadata.custom?.incomplete, undefined);
+});
+
 test("an older checkpoint cannot clear an interruption on a longer reply", () => {
   const runtime = assistantRuntime("assistant-1", "Partial reply");
   const message = {

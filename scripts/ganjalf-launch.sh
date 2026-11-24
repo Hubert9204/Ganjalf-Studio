@@ -15,6 +15,10 @@
 # Optional environment:
 #   GANJALF_HOME=<dir>      data and environment folder (default: ~/.ganjalf-studio)
 #   GANJALF_PORT=<port>     first port to try (default: 8890)
+#   GANJALF_HOST=<address>  address to listen on (default: 127.0.0.1, this computer only).
+#                           0.0.0.0 lets other devices on the network (a phone) open the same
+#                           server at http://<this computer's IP>:<port>. Every device must use
+#                           one server: chats running in another server cannot be followed live.
 #   GANJALF_NO_BROWSER=1    do not open the browser
 #   GANJALF_AUTO_SKILLS=0   do not let the backend load the skill that fits each request
 #   GANJALF_PAGE_CHECK=0    do not install or offer check_page (headless Chromium for web pages)
@@ -26,6 +30,7 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export UNSLOTH_STUDIO_HOME="${GANJALF_HOME:-$HOME/.ganjalf-studio}"
 FIRST_PORT="${GANJALF_PORT:-8890}"
+HOST="${GANJALF_HOST:-127.0.0.1}"
 STUDIO_BIN="$UNSLOTH_STUDIO_HOME/unsloth_studio/bin/unsloth"
 
 # On long agent runs the oldest turns fall out of the window and small local models lose the
@@ -183,7 +188,11 @@ PORT="$(find_free_port)" || { echo "No free port between $FIRST_PORT and $((FIRS
 URL="http://127.0.0.1:$PORT"
 
 echo "Starting Ganjalf Studio on $URL"
-"$STUDIO_BIN" studio -p "$PORT" &
+if [ "$HOST" != "127.0.0.1" ]; then
+  LAN_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  echo "Other devices on the network: http://${LAN_IP:-THIS-PC-IP}:$PORT"
+fi
+"$STUDIO_BIN" studio -H "$HOST" -p "$PORT" &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' INT TERM EXIT
 

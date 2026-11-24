@@ -65,3 +65,23 @@ export function unmarkLiveElsewhere(custom: Custom): Custom {
 export function withStreamHeartbeat(custom: Custom, now: number = Date.now()): Custom {
   return { ...custom, [STREAM_HEARTBEAT_KEY]: now };
 }
+
+/** A stored reply's metadata as the view shows it: the same mapping toThreadMessage applies. */
+export function liveViewOfStored(stored: Custom | undefined, now: number = Date.now()): Custom {
+  const custom = stored ?? {};
+  return isLiveElsewhere(custom, now) ? markLiveElsewhere(custom) : custom;
+}
+
+/** Carries the stored reply's live-elsewhere state and heartbeat onto the view's metadata. */
+export function carryLiveElsewhere(view: Custom, storedView: Custom): Custom {
+  const next: Custom = { ...view };
+  if (storedView[LIVE_ELSEWHERE_KEY] === true) {
+    next[LIVE_ELSEWHERE_KEY] = true;
+    delete next.incomplete;
+  } else {
+    delete next[LIVE_ELSEWHERE_KEY];
+  }
+  const at = streamHeartbeatAt(storedView);
+  if (at !== null) next[STREAM_HEARTBEAT_KEY] = at;
+  return next;
+}
