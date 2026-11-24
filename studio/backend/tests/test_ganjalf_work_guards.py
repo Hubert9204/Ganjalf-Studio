@@ -281,3 +281,14 @@ def test_sandbox_env_quiets_npm():
     source = inspect.getsource(tools)
     for key in ("NO_COLOR", "npm_config_progress", "npm_config_fund", "npm_config_audit", "npm_config_update_notifier"):
         assert source.count(f'"{key}"') >= 2, key
+
+
+def test_build_output_note_once_per_response():
+    ledger = WorkLedger()
+    note = ledger.note_call("python", {"code": "open('dist/bundle.js','w').write(x)"}, failed = False)
+    assert "dist/bundle.js is build output" in note
+    assert ledger.note_call("terminal", {"command": "sed -i 's/a/b/' dist/bundle.js"}, failed = False) == ""
+    assert "build output" in WorkLedger().note_call(*_edit("public/vendor/three.min.js"), failed = False)
+    assert WorkLedger().note_call(*_edit("src/dist_utils.ts"), failed = False) == ""
+    # A build command that writes into dist/ is how dist/ should change: no note.
+    assert WorkLedger().note_call("terminal", {"command": "npx vite build > /dev/null"}, failed = False) == ""

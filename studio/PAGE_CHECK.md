@@ -39,7 +39,7 @@ Installazione:
 
 | Dove | Come |
 |---|---|
-| `scripts/ganjalf-launch.sh` | al primo avvio esegue `scripts/ganjalf-install-page-check.sh` (una volta; il marcatore è `~/.ganjalf-studio/.ganjalf-page-check-tried`) |
+| `scripts/ganjalf-launch.sh` | a ogni avvio controlla che Playwright e un Chromium ci siano; se mancano (primo avvio, o una reinstallazione ha rifatto l'ambiente Python) esegue `scripts/ganjalf-install-page-check.sh`, al massimo una volta per versione, e altrimenti stampa come installarlo |
 | a mano | `bash scripts/ganjalf-install-page-check.sh`, poi riavvia Studio |
 | librerie di sistema mancanti | `GANJALF_PAGE_CHECK_DEPS=1 bash scripts/ganjalf-install-page-check.sh` (serve root o sudo) |
 | Docker | incluso nell'immagine; `--build-arg GANJALF_PAGE_CHECK=0` lo esclude (circa 400 MB) |

@@ -145,13 +145,31 @@ if [ "$(cat "$INSTALLED_MARKER" 2>/dev/null || true)" != "$REPO_REV" ]; then
   echo "$REPO_REV" > "$INSTALLED_MARKER"
 fi
 seed_defaults
-# check_page (headless Chromium for the model's web pages and games): tried once; the script can
-# be rerun by hand, and GANJALF_PAGE_CHECK=0 skips it.
+# check_page (headless Chromium for the model's web pages and games). A reinstall can rebuild
+# Studio's Python environment and drop Playwright, so it is checked on every launch and set up
+# again at most once per revision; GANJALF_PAGE_CHECK=0 skips it.
 PAGE_CHECK_MARKER="$UNSLOTH_STUDIO_HOME/.ganjalf-page-check-tried"
-if [ "${GANJALF_PAGE_CHECK:-1}" != "0" ] && [ ! -e "$PAGE_CHECK_MARKER" ]; then
-  touch "$PAGE_CHECK_MARKER"
-  (cd "$REPO_DIR" && bash scripts/ganjalf-install-page-check.sh) \
-    || echo "check_page could not be set up; Studio works without it. See scripts/ganjalf-install-page-check.sh." >&2
+STUDIO_PY="$UNSLOTH_STUDIO_HOME/unsloth_studio/bin/python"
+page_check_ready() {
+  [ -x "$STUDIO_PY" ] || return 1
+  "$STUDIO_PY" - >/dev/null 2>&1 <<'PYEOF'
+import os, shutil, sys
+from playwright.sync_api import sync_playwright
+with sync_playwright() as playwright:
+    bundled = playwright.chromium.executable_path
+system = any(shutil.which(n) for n in ("chromium", "chromium-browser", "google-chrome", "google-chrome-stable"))
+sys.exit(0 if (bundled and os.path.isfile(bundled)) or system else 1)
+PYEOF
+}
+if [ "${GANJALF_PAGE_CHECK:-1}" != "0" ] && ! page_check_ready; then
+  if [ "$(cat "$PAGE_CHECK_MARKER" 2>/dev/null || true)" != "$REPO_REV" ]; then
+    echo "$REPO_REV" > "$PAGE_CHECK_MARKER"
+    (cd "$REPO_DIR" && bash scripts/ganjalf-install-page-check.sh) \
+      || echo "check_page could not be set up; Studio works without it. See scripts/ganjalf-install-page-check.sh." >&2
+  else
+    echo "Note: check_page is not available, so the model cannot run the web pages and games it writes." >&2
+    echo "      Run: bash scripts/ganjalf-install-page-check.sh  (then restart Studio)" >&2
+  fi
 fi
 if [ ! -x "$STUDIO_BIN" ]; then
   STUDIO_BIN="$(command -v unsloth || true)"

@@ -24,6 +24,7 @@ Use this for code in a project folder: building a program, game, app or script, 
 
 ## Writing and changing code
 - Build a large project in slices: first the smallest version that runs (for a game: one scene, the player, one enemy, the HUD), run and check it, then add one system at a time and check again. Never write a dozen files before running anything: the errors pile up and the calls run out before anything works.
+- Slice 1 is at most 4 source files; compile and check it before slice 2. Keep every file under about 400 lines: split a growing "engine" or "HUD" into modules. A 40 KB file costs about 10k tokens each time it is written and makes every error slow to find.
 - Install all packages in one command (`npm install three && npm install -D typescript vite @types/three`), then call their tools as `npx tsc` or `npx vite`.
 - Create a new file with `edit_file` and an empty `old_string`. Never write source code through `python3 -c`, `sed` or a heredoc inside another script: quoting breaks and the file comes out empty or cut.
 - Write each file once, compile or run it, then fix what breaks. Fix every error the compiler printed in one edit, not one per call. Do not rewrite a working file to make it "more robust".
@@ -37,6 +38,7 @@ Use this for code in a project folder: building a program, game, app or script, 
 - A page snapshot, or a program that merely starts, proves little. For a web page take a real screenshot and read the console errors.
 - Try one real input and say what you saw. Say plainly what you could not test (graphics, controls, feel).
 - Delete the scratch files and logs you made, and stop any server you started, or tell the user it is still running.
+- Stop only the processes you started, by their PID (`echo $! > server.pid`, then `kill $(cat server.pid)`). Never `pkill -f node`, `pkill -f python` or `killall`: they also kill the user's other programs.
 
 ## Web pages and browser games
 - Check a page with `check_page` when you have it: it runs the file in a headless browser on the server, as from a web server (modules, import maps and sibling files load), and returns its JavaScript errors, failed requests, visible text and a screenshot. Pass `keys` (e.g. `["Enter"]`) to start a game or test its controls. Run it after every change, before you say the page works.
@@ -44,6 +46,9 @@ Use this for code in a project folder: building a program, game, app or script, 
 - Without `check_page`: the browser panel opens public sites only, never `localhost`, and `browser_navigate` with a file path loads that one file only. Do not retry it: say the page is unchecked and give the user the command to run it.
 - No bundler is needed for a small page: `<script type="module">` with relative imports works. For an npm package add an import map, e.g. `"three": "./node_modules/three/build/three.module.js"` (recent three.js has no `three.min.js`).
 - Tell the user how to open the result: a page with modules does not work from a double-click (`file://`). Give the command, e.g. `npm run dev` (or `npx vite preview` after a build, or `python3 -m http.server` in the folder) and the address it prints.
+- If the user must open it with a double-click, build a single file: `npm install -D vite-plugin-singlefile`, add `viteSingleFile()` to the plugins in `vite.config.ts`, `npm run build`; `dist/index.html` then has the code inline and opens from `file://`. Check it with `check_page dist/index.html`.
+- Never hand-patch a built or minified file (`dist/`, `*.min.js`, a bundle) with `sed` or Python: change the source and rebuild. Never point the source `index.html` at a built bundle: the dev server then tries to compile the bundle and fails.
+- When the user says "it does not work", read the exact error and address in their message or screenshot first. A `file://` address is a way-of-opening problem: answer with the command or the single-file build, not by restructuring the project.
 - A black canvas, a one-color screenshot or a HUD showing 0/0 means the script stopped: read the first error, fix that line, check again. Do not start over.
 - If you could not run the page or cannot read images, say the picture is unchecked.
 

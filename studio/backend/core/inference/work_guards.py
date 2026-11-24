@@ -140,6 +140,7 @@ class WorkLedger:
         self._writes_since_check = 0
         self._unchecked_web: list[str] = []
         self._page_reminder_used = False
+        self._build_output_noted = False
         self._limit = verify_after_writes_limit()
 
     @property
@@ -164,6 +165,17 @@ class WorkLedger:
         for path in paths:
             if _ext(path) in _WEB_EXTS and path not in self._unchecked_web:
                 self._unchecked_web.append(path)
+        built = next((path for path in paths if _is_build_output(path)), None)
+        if built and not self._build_output_noted:
+            # Once per response: patching a bundle by hand breaks on the next build and rarely works.
+            self._build_output_noted = True
+            note = (
+                f"\n\n[Ganjalf] {built} is build output. Change the source and rebuild instead of "
+                "patching it; a hand-edited bundle is overwritten by the next build."
+            )
+            if ran:
+                self._writes_since_check = 0
+            return note
         if ran:
             self._writes_since_check = 0
             return ""
@@ -208,6 +220,13 @@ class WorkLedger:
             )
         except Exception:  # noqa: BLE001
             return None
+
+
+def _is_build_output(path: str) -> bool:
+    """dist/ files and minified bundles: generated, never the place to fix a bug."""
+    parts = PurePosixPath(path.replace("\\", "/")).parts
+    name = parts[-1].lower() if parts else ""
+    return "dist" in parts[:-1] or name.endswith((".min.js", ".min.css"))
 
 
 def _has_html_nearby(root: Path, rel_path: str) -> bool:
