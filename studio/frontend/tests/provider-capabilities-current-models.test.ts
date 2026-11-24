@@ -330,7 +330,7 @@ test("GPT-6 Sol and Luna subscription models use local Tools", () => {
       codeToolsEnabled: true,
       hostedCodeExecutionForThisTurn: providerSupportsBuiltinCodeExecution("openai_codex", model),
       providerHostsCodeExecution: providerHostsCodeExecution("openai_codex"),
-    }), { local: ["python", "terminal", "edit_file", "view_image"], hosted: [] });
+    }), { local: ["python", "terminal", "edit_file", "view_image", "check_page"], hosted: [] });
   }
 });
 
@@ -360,7 +360,7 @@ test("ChatGPT subscription models expose Unsloth-owned search and local code too
         hostedCodeExecutionForThisTurn,
         providerHostsCodeExecution: sandbox,
       }),
-      { local: ["python", "terminal", "edit_file", "view_image"], hosted: [] },
+      { local: ["python", "terminal", "edit_file", "view_image", "check_page"], hosted: [] },
       model,
     );
     assert.equal(

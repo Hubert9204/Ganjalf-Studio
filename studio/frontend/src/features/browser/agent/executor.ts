@@ -35,6 +35,7 @@ import { type SiteRule, ruleFor, scriptRunsWithoutAsking, scriptSiteRule } from 
 import { type AgentAnswer, type ElementInfo, pageAgentSource } from "./page-agent";
 import { type FileTabKind, MAX_EDIT_BYTES, applyFileEdit, numberedLines } from "./file-tab";
 import { waitForPage } from "./page-wait";
+import { PAGE_REPORTS_SHOWN, pageReports } from "../page-console";
 
 export type BrowserAction = {
   id: string;
@@ -87,7 +88,8 @@ export type ActionContext = {
 
 type Run = ActionContext & { session: Session; inFile?: boolean };
 
-type Result = { ok: boolean; error?: string; url?: string; title?: string; file?: string; text?: string; note?: string; image?: string };
+/** `console`: what the page reported since it loaded (browser_agent.format_result shows it fenced). */
+type Result = { ok: boolean; error?: string; url?: string; title?: string; file?: string; text?: string; note?: string; image?: string; console?: string[] };
 
 const LOAD_TIMEOUT_MS = 30_000;
 const SETTLE_QUIET_MS = 350;
@@ -376,6 +378,8 @@ const AGENT_ERRORS = [
   /^the script's page went away before it finished; take a snapshot\.$/,
   /^the page changed under that point; take a screenshot to see it again\.$/,
   /^the page changed while the user was asked, so the script did not run; take a snapshot\.$/,
+  /^the page could not draw a picture of itself; use browser_snapshot\.$/,
+  /^the page went away before its picture was ready; take a snapshot\.$/,
   /^unknown command$/,
 ];
 
@@ -409,6 +413,9 @@ function checkedAnswer(value: unknown): AgentAnswer | null {
     hit: str(raw.hit, 16),
     sig: str(raw.sig, 20_000),
     doc: str(raw.doc, 16),
+    errors: strings(raw.errors).map((line) => line.slice(0, 2000)),
+    // A PNG only: anything else is not a picture the server will read.
+    image: typeof raw.image === "string" && raw.image.startsWith("data:image/png;base64,") && raw.image.length <= MAX_RENDER_CHARS ? raw.image : undefined,
     scrollX: num(raw.scrollX),
     scrollY: num(raw.scrollY),
     scrolls: num(raw.scrolls),
@@ -644,7 +651,14 @@ async function observe(
     title: fresh.customTitle ?? fresh.title,
     text: answer.text,
     note: [note, answer.note].filter(Boolean).join(" ") || undefined,
+    ...withReports(fresh.id, answer.errors),
   };
+}
+
+/** The page's errors and blocked requests, for reads only: an action's result stays about the action. */
+function withReports(tabId: string, native: readonly string[] = []): { console?: string[] } {
+  const lines = [...new Set([...native, ...pageReports(tabId)])];
+  return lines.length > 0 ? { console: lines.slice(0, PAGE_REPORTS_SHOWN + 2) } : {};
 }
 
 // By its entry, not the page shown: a granted page can show a data: or about:blank document.
@@ -1140,7 +1154,7 @@ async function fileHint(entry: FileEntry): Promise<string> {
   const kind = reader.fileTabKind(entry);
   const hints: string[] = [];
   if (kind === "preview") hints.push("Its preview works as a page: browser_snapshot, browser_click and browser_type act in it.");
-  if (kind === "image") hints.push(isTauri ? "browser_screenshot shows it." : "Looking at an image needs the desktop app.");
+  if (kind === "image") hints.push("browser_screenshot shows it.");
   if (reader.editable(entry, kind)) hints.push("browser_read_file reads its source and browser_edit_file changes it.");
   else if (kind === "document") hints.push("browser_read_file reads its text; it can't be edited here.");
   else if (kind !== "image") hints.push("It has no text to read.");
@@ -1291,7 +1305,7 @@ async function observeFile(tab: BrowserTab, entry: FileEntry, context: Run, note
   // The agent can write this page, so its links are not the user's.
   if (op.op === "snapshot" || op.op === "find") context.session.pageLinks = new Set();
   const source = op.op === "snapshot" ? "This is a file's preview; browser_read_file and browser_edit_file work on its source." : "";
-  return { ok: true, file: entry.name, text: answer.text, note: [note, answer.note, source].filter(Boolean).join(" ") || undefined };
+  return { ok: true, file: entry.name, text: answer.text, note: [note, answer.note, source].filter(Boolean).join(" ") || undefined, ...withReports(fresh.id, answer.errors) };
 }
 
 async function sameBytes(blob: Blob | undefined, bytes: Uint8Array): Promise<boolean> {
@@ -1369,6 +1383,9 @@ type ShotView = {
   doc?: string;
 };
 const MAX_SHOT_EDGE = 1024;
+// A page's picture of itself (page-agent.ts render): a full-HD PNG with room to spare.
+const MAX_RENDER_CHARS = 24 * 1024 * 1024;
+const RENDER_WAIT_MS = 10_000;
 const LINK_PRESS_MS = 350;
 
 async function pagePoint(tab: BrowserTab, session: Session, x?: number, y?: number): Promise<{ x: number; y: number } | string | null> {
@@ -1668,14 +1685,19 @@ async function screenshot(tab: BrowserTab, context: Run): Promise<Result> {
   const kind = entry.kind === "file" ? await kindOf(entry) : null;
   if (entry.kind === "file" && kind === "image") return imageFile(entry);
   if (entry.kind === "file" && !chatOnScreen(context)) return { ok: false, error: OFF_SCREEN };
-  if (!isTauri) return { ok: false, error: "screenshots of the browser panel need the desktop app; use browser_snapshot." };
+  // What the user typed into card, code and password fields stays out of the picture, as out of the text.
+  const page = entry.kind === "web" || kind === "preview";
+  // The web build can't capture the screen without asking; the page draws itself instead.
+  if (!isTauri) {
+    if (!page) return { ok: false, error: "this tab shows a file; browser_read_file reads it." };
+    if (!chatOnScreen(context)) return { ok: false, error: OFF_SCREEN };
+    return pageScreenshot(tab, entry, context);
+  }
   // A page at work off screen is captured on its own; one on screen as the panel shows it.
   const hidden = !chatOnScreen(context) && hasNativeView(tab.id);
   const pages = document.querySelectorAll<HTMLElement>("[data-browser-page]");
   const element = pages[pages.length - 1];
   if (!hidden && !element) return { ok: false, error: "the browser panel is not on screen." };
-  // What the user typed into card, code and password fields stays out of the picture, as out of the text.
-  const page = entry.kind === "web" || kind === "preview";
   const masked: AgentAnswer | null = page ? await pageCall(tab, { op: "mask", on: true }).catch(() => null) : { ok: true };
   if (!masked?.ok) return { ok: false, error: "the page could not be prepared for a screenshot; use browser_snapshot." };
   let blob: Blob | null;
@@ -1694,6 +1716,55 @@ async function screenshot(tab: BrowserTab, context: Run): Promise<Result> {
   blob = await toPointScale(tab, context.session, blob, masked);
   const image = await dataUrl(blob);
   return { ok: true, url: tabUrl(tab), title: tab.title, ...(entry.kind === "file" ? { file: entry.name } : {}), image };
+}
+
+/** The page's own drawing of itself (web build): its markup and canvases, at CSS size. */
+async function pageScreenshot(tab: BrowserTab, entry: BrowserEntry, context: Run): Promise<Result> {
+  if (entry.kind === "file") showPreview(tab);
+  const masked: AgentAnswer | null = await pageCall(tab, { op: "mask", on: true }).catch(() => null);
+  if (!masked?.ok) return { ok: false, error: "the page could not be prepared for a screenshot; use browser_snapshot." };
+  let shot: AgentAnswer | null = null;
+  try {
+    const id = `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+    const started = await pageCall(tab, { op: "render", id }).catch(() => null);
+    if (!started?.ok) return { ok: false, error: started?.error ?? "the page could not draw a picture of itself; use browser_snapshot." };
+    const until = Date.now() + RENDER_WAIT_MS;
+    while (Date.now() < until) {
+      if (context.signal?.aborted) return { ok: false, error: STOPPED };
+      const answer = await pageCall(tab, { op: "rendered", id }).catch(() => null);
+      if (!answer?.ok) return { ok: false, error: answer?.error ?? "the screenshot failed." };
+      if (!answer.pending) {
+        shot = answer;
+        break;
+      }
+      await sleep(100);
+    }
+  } finally {
+    await pageCall(tab, { op: "mask", on: false }).catch(() => null);
+  }
+  if (!shot?.image) return { ok: false, error: "the page took too long to draw a picture of itself; use browser_snapshot." };
+  const now = findTab(tab.id);
+  if (!now || now.loading || tabUrl(now) !== tabUrl(tab) || currentEntry(now) !== entry) {
+    return { ok: false, error: "the page changed while the screenshot was taken; take a snapshot first." };
+  }
+  let drawn: Blob;
+  try {
+    const bytes = Uint8Array.from(atob(shot.image.slice(shot.image.indexOf(",") + 1)), (char) => char.charCodeAt(0));
+    drawn = new Blob([bytes], { type: "image/png" });
+  } catch {
+    return { ok: false, error: "the screenshot failed." };
+  }
+  const blob = await toPointScale(tab, context.session, drawn, masked);
+  const image = await dataUrl(blob);
+  return {
+    ok: true,
+    url: tabUrl(tab),
+    title: tab.title,
+    ...(entry.kind === "file" ? { file: entry.name } : {}),
+    image,
+    note: "Drawn by the page itself: markup and canvases; images from other sites and embedded frames are left out.",
+    ...withReports(tab.id),
+  };
 }
 
 function dataUrl(blob: Blob): Promise<string> {

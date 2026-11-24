@@ -7,6 +7,7 @@ import { MarkdownPreview } from "@/components/markdown/markdown-preview";
 import { Spinner } from "@/components/ui/spinner";
 import {
   ArtifactHtmlFrame,
+  type CanvasConsoleEntry,
   ReactPreview,
   attachmentTextLanguage,
   truncateAttachmentPreviewText,
@@ -16,6 +17,7 @@ import { MAX_HIGHLIGHT_CHARS } from "@/lib/markdown-plugins";
 import { cn } from "@/lib/utils";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canShowFile, mediaKind, textFileKind } from "./file-kind";
+import { setPageReports } from "./page-console";
 import { registerArtifactFrame } from "./page-frame";
 import { stageEditsPrompt } from "./stage-edits";
 import { DEFAULT_FILE_VIEW, useBrowserStore } from "./store";
@@ -101,6 +103,20 @@ function TextFile({
     (frame: HTMLIFrameElement) => tabId ? registerArtifactFrame(tabId, frame) : undefined,
     [tabId],
   );
+  // The agent reads these beside the page: a script that stopped leaves a blank canvas, not a message.
+  const onReportsChange = useCallback(
+    (load: string, entries: readonly CanvasConsoleEntry[], blockedHosts: readonly string[]) => {
+      if (!tabId) return;
+      const lines = entries
+        .filter((entry) => entry.level === "error" || entry.kind === "error")
+        .map((entry) => {
+          const at = entry.line > 0 ? ` (line ${entry.line}${entry.column > 0 ? `:${entry.column}` : ""})` : "";
+          return entry.kind === "error" ? `Uncaught ${entry.text}${at}` : `console.error: ${entry.text}`;
+        });
+      setPageReports(tabId, `file:${load}`, lines, blockedHosts);
+    },
+    [tabId],
+  );
   const language = useMemo(() => {
     if (!text || text.length > MAX_HIGHLIGHT_CHARS) return null;
     if (kind === "html") return "html";
@@ -132,6 +148,7 @@ function TextFile({
           <div className={cn("size-full overflow-auto", source && "hidden")} style={{ zoom: scale }}>
             <ReactPreview
               onFrameReady={onFrameReady}
+              onReportsChange={onReportsChange}
               source={text}
               lang={/\.jsx$/i.test(name) ? "jsx" : "tsx"}
               title={name}
@@ -157,6 +174,7 @@ function TextFile({
             <ArtifactHtmlFrame
               code={text}
               onFrameReady={onFrameReady}
+              onReportsChange={onReportsChange}
               title={name}
               fill={true}
               reloadNonce={reloadNonce}

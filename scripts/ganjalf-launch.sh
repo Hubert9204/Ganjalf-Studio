@@ -17,6 +17,7 @@
 #   GANJALF_PORT=<port>     first port to try (default: 8890)
 #   GANJALF_NO_BROWSER=1    do not open the browser
 #   GANJALF_AUTO_SKILLS=0   do not let the backend load the skill that fits each request
+#   GANJALF_PAGE_CHECK=0    do not install or offer check_page (headless Chromium for web pages)
 #   UNSLOTH_NO_TORCH=1      first run only: skip PyTorch (GGUF-only, much smaller install)
 #   ROLLING_INSTRUCTION_PIN_GROUPS=<n>  user messages kept in the prompt when the context
 #                           window rolls (default here: 2; 0 turns it off, as upstream does)
@@ -144,6 +145,14 @@ if [ "$(cat "$INSTALLED_MARKER" 2>/dev/null || true)" != "$REPO_REV" ]; then
   echo "$REPO_REV" > "$INSTALLED_MARKER"
 fi
 seed_defaults
+# check_page (headless Chromium for the model's web pages and games): tried once; the script can
+# be rerun by hand, and GANJALF_PAGE_CHECK=0 skips it.
+PAGE_CHECK_MARKER="$UNSLOTH_STUDIO_HOME/.ganjalf-page-check-tried"
+if [ "${GANJALF_PAGE_CHECK:-1}" != "0" ] && [ ! -e "$PAGE_CHECK_MARKER" ]; then
+  touch "$PAGE_CHECK_MARKER"
+  (cd "$REPO_DIR" && bash scripts/ganjalf-install-page-check.sh) \
+    || echo "check_page could not be set up; Studio works without it. See scripts/ganjalf-install-page-check.sh." >&2
+fi
 if [ ! -x "$STUDIO_BIN" ]; then
   STUDIO_BIN="$(command -v unsloth || true)"
 fi

@@ -186,6 +186,7 @@ test("discarding a frame clears only its own draft mark", () => {
       pageRequests: () => ({ stop: noop }), requestForPage: noop, userActionGate, urlRef: { current: null }, frameRef: { current: null },
       window: { addEventListener: noop, removeEventListener: noop }, onPageStorageClear: () => noop,
       onPageStorageWrite: () => noop, origin: "https://a.example", tabIdRef: { current: id },
+      resetPageReports: noop, recordPageReport: noop, loadId: "1",
       onMessageRef: { current: useFrameMessages(id, "https://a.example") },
     };
     const mount = new Function(...Object.keys(globals), code)(...Object.values(globals)) as () => () => void;

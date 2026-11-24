@@ -64,6 +64,10 @@ export type AgentAnswer = {
   hit?: string;
   sig?: string;
   doc?: string;
+  /** `rendered`: the page's picture of itself, a PNG data URL. */
+  image?: string;
+  /** Errors the page reported since it loaded, where the view records them (native views). */
+  errors?: string[];
 };
 
 /** `evaluate`: native views splice the script in past the CSP as `run`; the proxied frame compiles it. */
@@ -1040,6 +1044,146 @@ export function installPageAgent(): PageAgent {
     return { ok: true, text: entry.text };
   };
 
+  // A picture the page draws of itself, for the web build, where the panel can't capture the screen.
+  // Canvases (games, WebGL) are read inside an animation frame, before the browser clears them.
+  const renders = new Map<string, { done: boolean; image: string; error: string; width: number; height: number }>();
+  const visibleRect = (el: Element): DOMRect | null => {
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return null;
+    if (rect.bottom <= 0 || rect.right <= 0 || rect.top >= innerHeight || rect.left >= innerWidth) return null;
+    return rect;
+  };
+  const grabCanvases = (): Promise<Map<HTMLCanvasElement, string>> =>
+    new Promise((resolve) => {
+      let settled = false;
+      const grab = () => {
+        if (settled) return;
+        settled = true;
+        const shots = new Map<HTMLCanvasElement, string>();
+        for (const canvas of Array.from(document.querySelectorAll("canvas")).slice(0, 8)) {
+          if (!visibleRect(canvas)) continue;
+          try {
+            shots.set(canvas, canvas.toDataURL("image/png"));
+          } catch {
+            // Drawn from another site's pixels: the browser won't hand them out.
+          }
+        }
+        resolve(shots);
+      };
+      requestAnimationFrame(grab);
+      // A throttled page never paints: take what the canvases hold.
+      setTimeout(grab, 400);
+    });
+  const pageCss = (): string => {
+    const rules: string[] = [];
+    for (const sheet of Array.from(document.styleSheets)) {
+      try {
+        for (const rule of Array.from(sheet.cssRules)) rules.push(rule.cssText);
+      } catch {
+        // Another site's sheet: its rules can't be read.
+      }
+    }
+    return rules.join("\n").replace(/<\//g, "<\\/");
+  };
+  const backgroundOf = (): string => {
+    for (const el of [document.body, document.documentElement]) {
+      if (!el) continue;
+      const color = getComputedStyle(el).backgroundColor;
+      if (color && color !== "transparent" && !/rgba\([^)]*,\s*0\)$/.test(color)) return color;
+    }
+    return "#ffffff";
+  };
+  const loadImage = (src: string): Promise<HTMLImageElement> =>
+    new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("image"));
+      image.src = src;
+    });
+  const drawPage = async (): Promise<{ image: string; width: number; height: number }> => {
+    const width = Math.max(1, Math.round(innerWidth));
+    const height = Math.max(1, Math.round(innerHeight));
+    const shots = await grabCanvases();
+    const out = document.createElement("canvas");
+    out.width = width;
+    out.height = height;
+    const context = out.getContext("2d");
+    if (!context) throw new Error("no 2d context");
+    const background = backgroundOf();
+    // On a fresh canvas: the first may be tainted by the markup picture.
+    const canvasesOnly = async () => {
+      const plain = document.createElement("canvas");
+      plain.width = width;
+      plain.height = height;
+      const draw = plain.getContext("2d");
+      if (!draw) throw new Error("no 2d context");
+      draw.fillStyle = background;
+      draw.fillRect(0, 0, width, height);
+      for (const [canvas, shot] of shots) {
+        const rect = visibleRect(canvas);
+        if (rect) draw.drawImage(await loadImage(shot), rect.left, rect.top, rect.width, rect.height);
+      }
+      return plain.toDataURL("image/png");
+    };
+    // The page's markup, with each canvas swapped for what it showed, drawn through an SVG image.
+    const clone = document.documentElement.cloneNode(true) as HTMLElement;
+    for (const el of Array.from(clone.querySelectorAll("script, noscript, link[rel~='stylesheet'], iframe, frame, unsloth-agent-cursor"))) el.remove();
+    const originals = Array.from(document.querySelectorAll("canvas"));
+    Array.from(clone.querySelectorAll("canvas")).forEach((copy, index) => {
+      const original = originals[index];
+      const rect = original ? original.getBoundingClientRect() : null;
+      const picture = document.createElement("img");
+      for (const attr of Array.from(copy.attributes)) picture.setAttribute(attr.name, attr.value);
+      const shot = original ? shots.get(original) : undefined;
+      if (shot) picture.setAttribute("src", shot);
+      if (rect) picture.setAttribute("style", `${copy.getAttribute("style") ?? ""};width:${rect.width}px;height:${rect.height}px`);
+      copy.replaceWith(picture);
+    });
+    // Images from elsewhere don't load inside an SVG picture.
+    for (const picture of Array.from(clone.querySelectorAll("img"))) {
+      const src = picture.getAttribute("src") ?? "";
+      if (src && !src.startsWith("data:")) picture.removeAttribute("src");
+      picture.removeAttribute("srcset");
+    }
+    const style = document.createElement("style");
+    style.textContent = pageCss();
+    (clone.querySelector("head") ?? clone).prepend(style);
+    clone.style.setProperty("transform", `translate(${-scrollX}px, ${-scrollY}px)`);
+    const markup = new XMLSerializer().serializeToString(clone);
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+      `<foreignObject x="0" y="0" width="100%" height="100%">${markup}</foreignObject></svg>`;
+    try {
+      const picture = await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+      context.fillStyle = background;
+      context.fillRect(0, 0, width, height);
+      context.drawImage(picture, 0, 0, width, height);
+      return { image: out.toDataURL("image/png"), width, height };
+    } catch {
+      // A browser that won't draw or read back markup pictures (Safari): the canvases alone.
+      return { image: await canvasesOnly(), width, height };
+    }
+  };
+  const startRender = (id: string): Record<string, unknown> => {
+    const oldest = renders.keys().next().value;
+    if (renders.size >= 4 && oldest !== undefined) renders.delete(oldest);
+    const entry = { done: false, image: "", error: "", width: 0, height: 0 };
+    renders.set(id, entry);
+    drawPage().then(
+      (shot) => Object.assign(entry, shot, { done: true }),
+      () => Object.assign(entry, { done: true, error: "the page could not draw a picture of itself; use browser_snapshot." }),
+    );
+    return { ok: true, pending: true };
+  };
+  const rendered = (id: string): Record<string, unknown> => {
+    const entry = renders.get(id);
+    if (!entry) return { ok: false, error: "the page went away before its picture was ready; take a snapshot." };
+    if (!entry.done) return { ok: true, pending: true };
+    renders.delete(id);
+    if (entry.error) return { ok: false, error: entry.error };
+    return { ok: true, image: entry.image, width: entry.width, height: entry.height };
+  };
+
   const click = (ref: string, directLinks: boolean): Record<string, unknown> => {
     const el = lookup(ref);
     el.scrollIntoView({ block: "center", inline: "center" });
@@ -1329,8 +1473,14 @@ export function installPageAgent(): PageAgent {
             ...view(),
           };
         }
-        case "snapshot":
-          return snapshot(command.fullPage === true, ref || undefined);
+        case "snapshot": {
+          const answer = snapshot(command.fullPage === true, ref || undefined);
+          // Filled from page load by the native view's start script (src-tauri browser_webview.rs).
+          const reported = host[Symbol.for("ganjalf.browser.errors")];
+          return Array.isArray(reported) && reported.length > 0
+            ? { ...answer, errors: reported.slice(0, 50).map((line) => String(line).slice(0, 2000)) }
+            : answer;
+        }
         case "find":
           return find(String(command.query ?? ""));
         case "describe":
@@ -1351,6 +1501,10 @@ export function installPageAgent(): PageAgent {
           return compileAndEvaluate(String(command.id ?? ""), command.doc, String(command.script ?? ""));
         case "evaluated":
           return evaluated(String(command.id ?? ""));
+        case "render":
+          return startRender(String(command.id ?? ""));
+        case "rendered":
+          return rendered(String(command.id ?? ""));
         case "type":
           return inOwnTab(() => type(ref, String(command.text ?? ""), command.submit === true));
         case "select":

@@ -19,6 +19,7 @@
 - **Skill scelta dal motore**: se la richiesta corrisponde chiaramente a una skill attiva, il backend ne carica le istruzioni complete prima di generare, come se l'avessi nominata con `@`. I modelli locali piccoli spesso non chiamano `read_skill` o aprono la skill sbagliata.
 - **Skill di serie**: al primo avvio `coding-agent` (flusso di lavoro sul codice: leggere i file grandi a pezzi, riprodurre, correggere, verificare) viene copiata tra le tue skill e `skill-creator` viene attivata, così il modello può scrivere le skill di cui ha bisogno.
 - **Istruzioni fissate nel contesto**: quando la finestra di contesto scorre, le ultime due istruzioni dell'utente restano nel prompt, così il modello non perde il compito a metà lavoro.
+- **Il modello vede le pagine che crea**: il tool `check_page` apre una pagina o un gioco della cartella di lavoro in un Chromium senza finestra sul server (anche in Docker, anche a chat chiusa) e restituisce errori JavaScript, richieste fallite, testo visibile e uno screenshot; può premere tasti per avviare un gioco. Nel pannello browser della chat le letture riportano gli errori della pagina dal caricamento in poi, e `browser_screenshot` funziona anche nella versione web (canvas e WebGL compresi). Dettagli in [studio/PAGE_CHECK.md](studio/PAGE_CHECK.md).
 - **Tema e identità Ganjalf**: palette grigio-argento con accento blu freddo (chiara e scura), nuova mascotte (cappello blu e pipa grigia), logo in barra laterale, icona e titolo della scheda. Le palette con nome di Unsloth restano disponibili.
 - **Tutto il resto di Unsloth Studio**: esecuzione e addestramento di modelli, chat, agenti e strumenti, API compatibile con OpenAI, RAG e ricerca.
 
@@ -63,6 +64,8 @@ docker run --rm --gpus all -p 8000:8000 -v ganjalf-data:/opt/unsloth-studio ganj
 In Docker lo script di avvio non gira: le skill di serie vengono copiate nel volume a ogni avvio del container, le variabili sopra vanno impostate a mano.
 
 **Limite di memoria dei tool (Linux)**: il limite di *Impostazioni > Sicurezza > Limite di memoria* vale sulla memoria usata davvero (un controllo ogni secondo ferma il comando che lo supera). Lo spazio di indirizzi riservabile ha 48 GB in più, perché Node riserva circa 10 GB per ogni modulo WebAssembly e con un tetto stretto `vite build` non parte; si cambia con `GANJALF_SANDBOX_AS_HEADROOM_GB` (`0` torna al tetto rigido di Unsloth).
+
+**check_page**: al primo avvio lo script installa Playwright nell'ambiente di Studio e usa il Chrome/Chromium del sistema, o ne scarica uno (circa 150 MB). Se Chromium non parte per librerie mancanti: `GANJALF_PAGE_CHECK_DEPS=1 bash scripts/ganjalf-install-page-check.sh`. L'immagine Docker lo include (`--build-arg GANJALF_PAGE_CHECK=0` per toglierlo); `GANJALF_PAGE_CHECK=0` lo disattiva.
 
 **Aggiornamenti**: Ganjalf si aggiorna solo da questo repository, mai dal pacchetto PyPI di Unsloth. Fuori da Docker: `git pull && bash scripts/ganjalf-launch.sh`. In Docker: `docker exec <container> unsloth-studio-update` (segue il branch `main` di questo fork; `--pypi` installa invece la release di Unsloth, sostituendo Ganjalf). Quando il branch ha commit nuovi l'interfaccia mostra un avviso con il comando. Dettagli, variabili e procedura di allineamento con Unsloth in [studio/GANJALF_UPDATES.md](studio/GANJALF_UPDATES.md).
 

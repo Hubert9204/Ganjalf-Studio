@@ -10,8 +10,8 @@ export function toolStatusKind(status: string): ToolStatusKind {
   if (status === NUDGE_TOOL_CALLS_STATUS) {
     return "nudge";
   }
-  // edit_file reports "Editing: name" and is local too, so it must not show the globe.
-  return status.startsWith("Running") || status.startsWith("Editing")
+  // edit_file reports "Editing: name" and check_page "Checking page: name"; both are local, so no globe.
+  return status.startsWith("Running") || status.startsWith("Editing") || status.startsWith("Checking page")
     ? "terminal"
     : "web";
 }

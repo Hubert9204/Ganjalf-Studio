@@ -36,11 +36,11 @@ Use this for code in a project folder: building a program, game, app or script, 
 - Delete the scratch files and logs you made, and stop any server you started, or tell the user it is still running.
 
 ## Web pages and browser games
-- `browser_navigate` with a file path shows that one file only: scripts, modules and images next to it do not load. For a page made of several files, start a static server (`nohup python3 -m http.server 8080 > server.log 2>&1 &`) and open `http://localhost:8080/`. If Ganjalf runs inside Docker that address does not reach the panel: inline the scripts into one HTML file for the check.
-- No bundler is needed: `<script type="module">` with relative imports works over the server. For an npm package add an import map, e.g. `"three": "./node_modules/three/build/three.module.js"` (recent three.js has no `three.min.js`).
-- While developing, make the first script in `<head>` put errors where the browser tools can read them: `<script>addEventListener("error", e => document.title = "JS ERROR: " + e.message); addEventListener("unhandledrejection", e => document.title = "JS ERROR: " + e.reason);</script>`. The page title is in every `browser_navigate` and `browser_snapshot` result.
-- A black canvas, or a HUD showing 0/0, means the script stopped: read the error, fix that line, reload. Do not start over.
-- Look at a canvas with `browser_screenshot` when you can read images; if you cannot, say the picture is unchecked. Remove the error trap when done.
+- Check a page with `check_page` when you have it: it runs the file in a headless browser on the server, as from a web server (modules, import maps and sibling files load), and returns its JavaScript errors, failed requests, visible text and a screenshot. Pass `keys` (e.g. `["Enter"]`) to start a game or test its controls. Run it after every change, before you say the page works.
+- Without `check_page`, use the browser panel: `browser_navigate` with a file path loads that one file only, so for a page made of several files start a static server (`nohup python3 -m http.server 8080 > server.log 2>&1 &`) and open `http://localhost:8080/`. Snapshots list the page's errors since it loaded. If Ganjalf runs inside Docker that address does not reach the panel: inline the scripts into one HTML file.
+- No bundler is needed: `<script type="module">` with relative imports works. For an npm package add an import map, e.g. `"three": "./node_modules/three/build/three.module.js"` (recent three.js has no `three.min.js`).
+- A black canvas, a one-color screenshot or a HUD showing 0/0 means the script stopped: read the first error, fix that line, check again. Do not start over.
+- If you could not run the page or cannot read images, say the picture is unchecked.
 
 ## Packaged apps
 If an AppImage, installer or container misbehaves, run the plain binary or script first. If that works, the bug is in the packaging; if not, it is in the code. For OpenGL, check the shader compile logs, glGetError and the number of vertices passed to the draw call.

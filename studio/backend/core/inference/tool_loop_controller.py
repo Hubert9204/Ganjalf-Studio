@@ -865,6 +865,8 @@ def status_for_tool(tool_name: str, arguments: Mapping[str, Any]) -> str:
         return f"Running: {preview}" if preview else "Running command..."
     if tool_name == "view_image":
         return "Viewing image: " + str(arguments.get("path") or "")[:80]
+    if tool_name == "check_page":
+        return "Checking page: " + str(arguments.get("path") or "")[:80]
     if tool_name in MEDIA_CHAT_TOOLS:
         kind = "image" if tool_name == "generate_image" else "video"
         return f"Generating {kind}: " + str(arguments.get("prompt") or "")[:60]
@@ -1115,7 +1117,7 @@ _MCP_TOOL_PREFIX = "mcp__"
 # than the card the user is looking at.
 _IMAGE_SENTINEL_TOOLS = _SANDBOX_TOOLS | {"code_execution", "generate_image"}
 _SOURCE_MAP_TOOLS = frozenset({"search_knowledge_base", "search_conversation"})
-_WORKSPACE_TOOLS = _SANDBOX_TOOLS | {"edit_file", "view_image"}
+_WORKSPACE_TOOLS = _SANDBOX_TOOLS | {"edit_file", "view_image", "check_page"}
 
 
 def _reruns_after_new_work(tool_name: Any) -> bool:

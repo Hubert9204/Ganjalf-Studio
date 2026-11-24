@@ -67,6 +67,7 @@ export function isImageToolName(name: unknown, importedFrom?: unknown): boolean 
   return (
     typeof name === "string" &&
     (name === "view_image" ||
+      name === "check_page" ||
       name === "computer" ||
       name.startsWith("mcp__") ||
       (name === "Read" && importedFrom === "claude"))

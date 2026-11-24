@@ -459,6 +459,43 @@ _FRAME_HTML = r"""<!doctype html>
         const resolve = (href) => {
           try { return toPage(new URL(href, document.baseURI)); } catch { return null; }
         };
+        // For the browser agent: a script that stops leaves a blank page, not a message. Hooked
+        // before the page's scripts run, so errors while it loads are caught too.
+        let errorReports = 50;
+        const errorLineShift = document.currentScript ? document.currentScript.textContent.split("\n").length - 1 : 0;
+        const reportError = (text) => {
+          if (errorReports <= 0) return;
+          errorReports -= 1;
+          try { post({ type: "pageError", text: String(text).slice(0, 2000) }); } catch {}
+        };
+        const describe = (value) => {
+          try {
+            if (value instanceof Error) return value.message || String(value);
+            if (value && typeof value === "object") return JSON.stringify(value).slice(0, 500);
+            return String(value);
+          } catch { return "[object]"; }
+        };
+        addEventListener("error", (event) => {
+          const target = event.target;
+          if (target && target !== window && target.tagName) {
+            const source = target.src || target.href || "";
+            reportError(`Failed to load ${target.tagName.toLowerCase()}${source ? " " + source : ""}`);
+            return;
+          }
+          // Inline code's lines count from this script, which sits before the page's first line.
+          const inline = !event.filename || event.filename === location.href;
+          const line = inline ? event.lineno - errorLineShift : event.lineno;
+          const file = inline ? "" : String(event.filename).split(/[?#]/)[0].split("/").pop() + ":";
+          const where = line > 0 ? ` (${file || "line "}${line}${event.colno ? ":" + event.colno : ""})` : "";
+          const text = String(event.message || describe(event.error)).replace(/^Uncaught /, "");
+          reportError(`Uncaught ${text}${where}`);
+        }, true);
+        addEventListener("unhandledrejection", (event) => reportError(`Unhandled rejection: ${describe(event.reason)}`));
+        const consoleError = console.error;
+        console.error = function (...args) {
+          reportError("console.error: " + args.map(describe).join(" "));
+          return consoleError.apply(this, args);
+        };
         addEventListener("scroll", () => { scrollTimer ||= setTimeout(reportScroll, 200); }, { passive: true });
         const samePage = (url) => {
           const a = new URL(url), b = new URL(pageUrl);

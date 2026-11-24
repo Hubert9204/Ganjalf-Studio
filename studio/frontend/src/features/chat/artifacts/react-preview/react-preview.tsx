@@ -5,7 +5,7 @@
 
 import { Spinner } from "@/components/ui/spinner";
 import { useT } from "@/i18n";
-import { useEffect, useState } from "react";
+import { type ComponentProps, useEffect, useState } from "react";
 import { ArtifactHtmlFrame } from "../html-frame";
 import { type UnavailableReason, compileReactPreview } from "./compile-api";
 import { needsNode, noteNodeAvailability } from "./node-availability";
@@ -60,6 +60,7 @@ export function ReactPreview({
   onOutputCountChange,
   onFixWithModel,
   onFrameReady,
+  onReportsChange,
 }: {
   source: string;
   lang: "jsx" | "tsx";
@@ -70,6 +71,7 @@ export function ReactPreview({
   onOutputCountChange?: (counts: { errors: number; total: number }) => void;
   onFixWithModel?: (prompt: string) => void;
   onFrameReady?: (frame: HTMLIFrameElement) => (() => void) | undefined;
+  onReportsChange?: ComponentProps<typeof ArtifactHtmlFrame>["onReportsChange"];
 }) {
   const t = useT();
   const key = `${lang}\u0000${source}`;
@@ -127,6 +129,7 @@ export function ReactPreview({
       onOutputCountChange={onOutputCountChange}
       onFixWithModel={onFixWithModel}
       onFrameReady={onFrameReady}
+      onReportsChange={onReportsChange}
     />
   );
 }

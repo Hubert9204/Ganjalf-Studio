@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { browserFrameUrl, type PageResponse, requestForPage } from "./api";
+import { recordPageReport, resetPageReports } from "./page-console";
 import { type AnnotateEvent, type FrameMessage, parseFrameMessage, userActionGate } from "./frame-message";
 import { pageRequests } from "./page-requests";
 import { type ScrollPosition, useBrowserStore } from "./store";
@@ -195,6 +196,7 @@ export function PageFrame({
   const postedRef = useRef(false);
 
   useEffect(() => {
+    resetPageReports(tabIdRef.current, `frame:${loadId}`);
     // A page loads and leaves once; repeats are spam.
     let loaded = false;
     let left = false;
@@ -231,6 +233,10 @@ export function PageFrame({
       }
       if (message.type === "agent") {
         agentRequests.get(message.id)?.({ installed: message.installed, result: message.result });
+        return;
+      }
+      if (message.type === "pageError") {
+        if (!left) recordPageReport(tabIdRef.current, `frame:${loadId}`, message.text);
         return;
       }
       if (message.type === "storage") {
@@ -293,7 +299,7 @@ export function PageFrame({
       requests.stop();
       onMessageRef.current({ type: "typed", reset: true });
     };
-  }, [origin]);
+  }, [origin, loadId]);
 
   useEffect(() => {
     const frame = frameRef.current;

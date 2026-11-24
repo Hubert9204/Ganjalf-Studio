@@ -123,6 +123,42 @@ const PAGE_GUARD_SCRIPT: &str = r#"(() => {
 
 const PAGE_RESTORE_SCRIPT: &str = "window.__unslothPageGuard?.();";
 
+// Errors the page reports from its first script on, read by the browser agent's snapshot
+// (frontend features/browser/agent/page-agent.ts): a script that stops leaves a blank page.
+const PAGE_ERRORS_SCRIPT: &str = r#"(() => {
+  const key = Symbol.for("ganjalf.browser.errors");
+  if (window[key]) return;
+  const errors = [];
+  Object.defineProperty(window, key, { value: errors });
+  const add = (text) => {
+    const line = String(text).slice(0, 2000);
+    if (errors.length < 50 && !errors.includes(line)) errors.push(line);
+  };
+  const describe = (value) => {
+    try {
+      if (value instanceof Error) return value.message || String(value);
+      if (value && typeof value === "object") return JSON.stringify(value).slice(0, 500);
+      return String(value);
+    } catch { return "[object]"; }
+  };
+  addEventListener("error", (event) => {
+    const target = event.target;
+    if (target && target !== window && target.tagName) {
+      const source = target.src || target.href || "";
+      add("Failed to load " + target.tagName.toLowerCase() + (source ? " " + source : ""));
+      return;
+    }
+    const where = event.lineno ? " (line " + event.lineno + (event.colno ? ":" + event.colno : "") + ")" : "";
+    add("Uncaught " + String(event.message || describe(event.error)).replace(/^Uncaught /, "") + where);
+  }, true);
+  addEventListener("unhandledrejection", (event) => add("Unhandled rejection: " + describe(event.reason)));
+  const original = console.error;
+  console.error = function (...args) {
+    add("console.error: " + args.map(describe).join(" "));
+    return original.apply(this, args);
+  };
+})();"#;
+
 /// Studio's scrollbar in pages; first in the document, so a page's own scrollbar styles win.
 const PAGE_SCROLLBAR_SCRIPT: &str = r#"(() => {
   const css = "::-webkit-scrollbar{width:8px;height:8px;background:transparent}"
@@ -1599,6 +1635,7 @@ async fn create_view<R: Runtime>(
         })
         .initialization_script(PAGE_RESTORE_SCRIPT)
         .initialization_script(PAGE_SCROLLBAR_SCRIPT)
+        .initialization_script(PAGE_ERRORS_SCRIPT)
         .zoom_hotkeys_enabled(false)
         .devtools(cfg!(debug_assertions))
         .focused(false);

@@ -542,7 +542,7 @@ const ToolFallbackImpl: ToolCallMessagePartComponent = ({
   const picture =
     !isCancelled &&
     !widget &&
-    (toolName === "view_image" || toolName.startsWith("mcp__")) &&
+    (toolName === "view_image" || toolName === "check_page" || toolName.startsWith("mcp__")) &&
     isMcpImageResult(shown)
       ? shown
       : null;

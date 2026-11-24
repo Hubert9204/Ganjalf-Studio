@@ -6475,6 +6475,7 @@ async def _select_request_tools(
         for tool in tools
         if tool["function"]["name"] not in {"read_skill", "create_skill"}
         and (supports_vision or tool["function"]["name"] != "view_image")
+        and _check_page_offered(tool)
     ]
     # Inline on purpose: an await here escapes the api_monitor cancel handling; the cache bounds it.
     enabled_skills = _enabled_agent_skills() if tools_on else []
@@ -32944,6 +32945,15 @@ def _anthropic_offers_tools(payload) -> bool:
     return bool(getattr(payload, "tools", None)) or bool(getattr(payload, "enable_tools", None))
 
 
+def _check_page_offered(tool: dict) -> bool:
+    """check_page only where the server has Playwright and Chromium; any other tool passes."""
+    if tool.get("function", {}).get("name") != "check_page":
+        return True
+    from core.inference.page_check import check_page_available
+
+    return check_page_available()
+
+
 def _payload_offers_tools(payload) -> bool:
     """Client tools or Studio tools on, and tool_choice not "none": the turn may call a tool."""
     if getattr(payload, "tool_choice", None) == "none":
@@ -44330,7 +44340,9 @@ def _select_anthropic_server_tools(
 ) -> list[dict]:
     """Select Unsloth tools requested through Anthropic tools and extensions."""
     available = [
-        tool for tool in all_tools if supports_vision or tool["function"]["name"] != "view_image"
+        tool
+        for tool in all_tools
+        if (supports_vision or tool["function"]["name"] != "view_image") and _check_page_offered(tool)
     ]
     if _enabled_agent_skills():
         from core.inference.tools import READ_SKILL_TOOL
@@ -47152,7 +47164,8 @@ async def anthropic_messages(
     selected_server_tools = [
         tool
         for tool in selected_server_tools
-        if llama_backend.is_vision or tool["function"]["name"] != "view_image"
+        if (llama_backend.is_vision or tool["function"]["name"] != "view_image")
+        and _check_page_offered(tool)
     ]
     server_tools = (
         bool(selected_server_tools)

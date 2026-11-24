@@ -928,6 +928,22 @@ def _one_line(value: str) -> str:
     return " ".join(value.split())
 
 
+_MAX_PAGE_REPORTS = 14
+_MAX_PAGE_REPORT_CHARS = 400
+
+
+def _page_reports(value: Any) -> list[str]:
+    """What the page reported since it loaded (browser panel page-console.ts), bounded: the page writes it."""
+    if not isinstance(value, list):
+        return []
+    lines: list[str] = []
+    for item in value[:_MAX_PAGE_REPORTS]:
+        line = _one_line(_clip(item, _MAX_PAGE_REPORT_CHARS * 2))[:_MAX_PAGE_REPORT_CHARS]
+        if line and line not in lines:
+            lines.append(line)
+    return lines
+
+
 def _fenced(text: str) -> str:
     # The page must not be able to close the fence and speak outside it.
     return re.sub(_FENCE, "untrusted-web-content", text, flags = re.IGNORECASE)
@@ -983,6 +999,12 @@ def format_result(name: str, result: dict, website_policy: Optional[dict]) -> st
         page.append(note)
     if text:
         page.append(text)
+    reports = _page_reports(result.get("console"))
+    if reports:
+        page.append(
+            "Page errors since it loaded (uncaught errors, console.error, blocked requests):\n"
+            + "\n".join(f"- {line}" for line in reports)
+        )
     joined = "\n".join(page)
     body = f"<{_FENCE}>\n{_fenced(joined)}\n</{_FENCE}>\n{_UNTRUSTED_NOTE}" if page else "Done."
     if name == BROWSER_SCREENSHOT:

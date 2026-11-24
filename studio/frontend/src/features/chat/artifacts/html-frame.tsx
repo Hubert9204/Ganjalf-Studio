@@ -142,6 +142,7 @@ export function ArtifactHtmlFrame({
   onOutputCountChange,
   onFixWithModel,
   onFrameReady,
+  onReportsChange,
   kind = "html",
 }: {
   code: string;
@@ -158,6 +159,12 @@ export function ArtifactHtmlFrame({
   // A React preview runs compiled code, so its runtime line numbers aren't shown.
   kind?: "html" | "react";
   onFrameReady?: (frame: HTMLIFrameElement) => (() => void) | undefined;
+  // What this load reported (console output, hosts the policy blocked), for the browser agent.
+  onReportsChange?: (
+    load: string,
+    entries: readonly CanvasConsoleEntry[],
+    blockedHosts: readonly string[],
+  ) => void;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -271,6 +278,9 @@ export function ArtifactHtmlFrame({
   useEffect(() => {
     if (iframeRef.current) return onFrameReady?.(iframeRef.current);
   }, [onFrameReady, src]);
+  useEffect(() => {
+    onReportsChange?.(loadVersion, outputForCanvas.entries, blockedForCanvas.hosts);
+  }, [onReportsChange, loadVersion, outputForCanvas, blockedForCanvas]);
   // Feed only parent-initiated loads, so a self-navigated frame can't self-upgrade.
   const pendingPostRef = useRef(false);
   useEffect(() => {

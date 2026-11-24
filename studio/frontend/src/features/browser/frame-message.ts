@@ -26,6 +26,8 @@ export type FrameMessage =
   | { type: "scriptNavigation" }
   | { type: "needsBrowser" }
   | { type: "typed"; reset?: boolean }
+  /** An uncaught error or console.error in the page, for the browser agent; the page's words. */
+  | { type: "pageError"; text: string }
   /** Find in page: how many matches the query has, and which one is shown (-1: none). */
   | { type: "findResult"; count: number; active: number }
   /** The page's current markup, for printing; null when it couldn't be copied or was too large. */
@@ -95,6 +97,7 @@ const MAX_BODY_CHARS = 1024 * 1024;
 // The frame script caps its copy at the same size.
 const MAX_SNAPSHOT_CHARS = 8 * 1024 * 1024;
 const MAX_TITLE_CHARS = 1024;
+const MAX_PAGE_ERROR_CHARS = 2048;
 const SHORTCUT_KEYS = new Set(["l", "t", "w", "r", "f", "d"]);
 const MAX_QUOTE_CHARS = 300;
 export const MAX_MARKS = 500;
@@ -227,6 +230,10 @@ export function parseFrameMessage(data: unknown): FrameMessage | null {
         return url && name !== null ? { type: "download", name, url } : null;
       }
       return name && message.blob instanceof Blob ? { type: "download", name, blob: message.blob } : null;
+    }
+    case "pageError": {
+      const report = text(message.text, MAX_PAGE_ERROR_CHARS);
+      return report ? { type: "pageError", text: report } : null;
     }
     case "loaded":
       return { type: "loaded", title: title(message.title), favicon: text(message.favicon, MAX_URL_CHARS) };

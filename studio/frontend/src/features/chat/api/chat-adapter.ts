@@ -2438,7 +2438,7 @@ export async function buildLocalTokenCountExtras(
     enabled_tools: [
       ...(ragOn ? ["search_knowledge_base"] : []),
       ...(toolsEnabled ? ["web_search"] : []),
-      ...(codeToolsEnabled ? ["python", "terminal", "edit_file", "view_image"] : []),
+      ...(codeToolsEnabled ? ["python", "terminal", "edit_file", "view_image", "check_page"] : []),
       // match the request gate so token pricing includes only sent skill tools.
       ...skillTools,
       ...browserTools,
@@ -7229,7 +7229,7 @@ export function createOpenAIStreamAdapter(
                     ...(toolsEnabled ? ["web_search"] : []),
                     ...skillTools,
                     ...(codeToolsEnabled
-                      ? ["python", "terminal", "edit_file", "view_image"]
+                      ? ["python", "terminal", "edit_file", "view_image", "check_page"]
                       : []),
                     ...browserTools,
                     ...computerTools,

@@ -204,6 +204,18 @@ RUN set -eux \
  && "${UNSLOTH_STUDIO_HOME}/unsloth_studio/bin/python" -c "import os, sys, studio; print('Unsloth Studio venv', sys.prefix, 'imports studio from', studio.__file__); assert os.path.realpath(studio.__file__).startswith(os.path.realpath('${UNSLOTH_STUDIO_HOME}/src') + '/'), studio.__file__" \
  && ls -la "${UNSLOTH_STUDIO_HOME}"
 
+# check_page (studio/backend/core/inference/page_check.py): Playwright and a headless Chromium,
+# so the model can run the web pages and games it writes and see their errors and a screenshot.
+# Build with --build-arg GANJALF_PAGE_CHECK=0 to leave them out (about 400 MB with libraries).
+ARG GANJALF_PAGE_CHECK=1
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+RUN set -eux \
+ && if [ "${GANJALF_PAGE_CHECK}" = "1" ]; then \
+        "${UNSLOTH_STUDIO_HOME}/unsloth_studio/bin/python" -m pip install --no-cache-dir "playwright>=1.45" \
+     && "${UNSLOTH_STUDIO_HOME}/unsloth_studio/bin/python" -m playwright install --with-deps chromium \
+     && rm -rf /var/lib/apt/lists/*; \
+    fi
+
 COPY supervisord.conf /etc/supervisor/supervisord.conf
 COPY studio_launch.sh /usr/local/bin/unsloth-studio-launch
 COPY studio_password.sh /usr/local/bin/unsloth-studio-password

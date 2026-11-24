@@ -13931,6 +13931,7 @@ CREATE_SKILL_TOOL = {
 }
 
 
+from .page_check import CHECK_PAGE_TOOL
 from .view_image import VIEW_IMAGE_TOOL
 
 
@@ -13940,6 +13941,8 @@ ALL_TOOLS = [
     TERMINAL_TOOL,
     EDIT_FILE_TOOL,
     VIEW_IMAGE_TOOL,
+    # Offered only where Playwright and Chromium are installed (page_check.check_page_available).
+    CHECK_PAGE_TOOL,
     RENDER_HTML_TOOL,
     SEARCH_KNOWLEDGE_BASE_TOOL,
     SEARCH_CONVERSATION_TOOL,
@@ -15492,6 +15495,14 @@ def execute_tool(
                 thread_id = thread_id,
                 tool_execution_mode = tool_execution_mode,
                 host_access_approved = host_access_approved,
+            )
+    if name == "check_page":
+        from .page_check import check_page
+
+        with _session_in_flight(session_id):
+            return _fit_result_to_room(
+                check_page(arguments, _get_workdir(session_id), cancel_event, website_policy),
+                name,
             )
     if name == "view_image":
         from .view_image import view_image

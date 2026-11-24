@@ -548,6 +548,7 @@ export {
 export { ArtifactCard } from "./artifacts/artifact-card";
 export { ReactPreview } from "./artifacts/react-preview/react-preview";
 export { ArtifactHtmlFrame } from "./artifacts/html-frame";
+export type { CanvasConsoleEntry } from "./artifacts/canvas-console";
 export { ResearchMessage } from "./components/research-message";
 export {
   ResearchActivityPanel,
