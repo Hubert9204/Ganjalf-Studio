@@ -945,7 +945,7 @@ pub(crate) fn unique_destination(directory: &Path, file_name: &str) -> Result<Pa
 const NOT_THE_LOG_EXPORT: &str = "Only the local log export endpoint can be downloaded.";
 
 /// Matched by `DESKTOP_LOGIN_REQUIRED` in features/settings/api/debug-logs.ts; keep the two in step.
-const LOGIN_REQUIRED: &str = "Log export requires a signed-in Unsloth session.";
+const LOGIN_REQUIRED: &str = "Log export requires a signed-in Ganjalf session.";
 
 /// A minted desktop session where one exists, otherwise the tab's own token: desktop-login
 /// refuses on multi-account installs and can fail under a custom home. A minting error wins

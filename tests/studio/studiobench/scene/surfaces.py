@@ -256,7 +256,7 @@ _SURFACES: list[Surface] = [
         id = "sidebar:account-menu",
         group = "sidebar",
         title = "Account menu",
-        reach = (("click", 'button[aria-label^="Unsloth account menu"]'), ("wait", 400)),
+        reach = (("click", 'button[aria-label^="Ganjalf account menu"]'), ("wait", 400)),
         settle = {"visible": ".app-user-menu"},
         restore = ESCAPE_OUT,
         root = (".app-user-menu",),

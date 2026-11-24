@@ -418,11 +418,11 @@ AREAS: dict[str, dict] = {
         "covers": ["dropdown-menu-trigger:New tab"],
     },
     "account_menu": {
-        "open": ("click", 'button[aria-label="Unsloth account menu"]'),
+        "open": ("click", 'button[aria-label="Ganjalf account menu"]'),
         "ready": ("overlay",),
         "close": ("key", "Escape"),
         "gone": ("overlay_gone",),
-        "covers": ["dropdown-menu-trigger:Unsloth account menu"],
+        "covers": ["dropdown-menu-trigger:Ganjalf account menu"],
     },
     "organize_chats": {
         "open": ("click", 'button[aria-label="Organize chats"]'),
