@@ -79,7 +79,7 @@ test("parallel aliases point at the supported control", () => {
 
 test("a managed flag with no control says who owns it instead", () => {
   const text = messages("--api-key secret");
-  assert.match(text, /managed by Unsloth/);
+  assert.match(text, /managed by Ganjalf/);
   assert.doesNotMatch(text, /above/);
 });
 

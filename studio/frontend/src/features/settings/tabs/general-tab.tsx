@@ -119,7 +119,7 @@ const UPDATE_REMINDER_CHANNELS: {
   name: string;
   hintKey?: TranslationKey;
 }[] = [
-  { channel: "unsloth", name: "Unsloth" },
+  { channel: "unsloth", name: "Ganjalf" },
   {
     channel: "llama",
     name: "llama.cpp",

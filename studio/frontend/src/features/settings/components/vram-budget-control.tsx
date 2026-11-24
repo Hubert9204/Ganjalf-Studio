@@ -179,7 +179,7 @@ export function VramBudgetControl({
               Default {defaultPercent}%.
             </div>
             <div>
-              Sets how much GPU memory Unsloth may use. Each engine also
+              Sets how much GPU memory Ganjalf may use. Each engine also
               reserves memory for running the model, so 100% does not guarantee
               full GPU residency.
             </div>

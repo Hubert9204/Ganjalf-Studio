@@ -1956,7 +1956,7 @@ export function ApiMonitorPage(): ReactElement {
                 <p className="mx-auto max-w-lg px-6 py-14 text-center text-sm text-muted-foreground">
                   Recording is off: UNSLOTH_STUDIO_DISABLE_API_MONITOR is set.
                   Requests and model loads still run normally, they are just not
-                  listed here. Unset the variable and restart Unsloth to
+                  listed here. Unset the variable and restart Ganjalf to
                   re-enable.
                 </p>
               ) : (

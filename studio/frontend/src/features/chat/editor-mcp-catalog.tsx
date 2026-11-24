@@ -87,7 +87,7 @@ export const EDITOR_MCP: Record<EditorMcpId, EditorCopy> = {
       <>Open Roblox Studio on Windows or macOS.</>,
       <>Open {strong("Assistant → … → Manage MCP Servers")} and turn on {strong("Enable Studio as MCP server")}.</>,
     ],
-    portHint: "Unsloth starts Roblox Studio's own MCP launcher; there is no port.",
+    portHint: "Ganjalf starts Roblox Studio's own MCP launcher; there is no port.",
     noPort: true,
     more: true,
   },

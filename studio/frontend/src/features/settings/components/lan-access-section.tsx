@@ -230,7 +230,7 @@ function LanUrlPanel({ status }: { status: LanAccessStatus | null }) {
         </span>
       )}
       <span className="text-xs text-muted-foreground leading-snug">
-        Can't connect from another device? Allow Unsloth through this computer's
+        Can't connect from another device? Allow Ganjalf through this computer's
         firewall, and check both devices are on the same network (guest Wi-Fi
         often keeps devices apart).
       </span>
@@ -449,7 +449,7 @@ export function LanAccessSection() {
               <AccessStatus status={status} />
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Use Unsloth and its APIs from devices on your Wi-Fi or wired
+              Use Ganjalf and its APIs from devices on your Wi-Fi or wired
               network.
             </p>
           </div>
@@ -667,7 +667,7 @@ export function LanAccessSection() {
         </SettingsRow>
         <SettingsRow
           label="Start automatically"
-          description="Put Unsloth on the network each time it starts. Stopping now won’t turn this off."
+          description="Put Ganjalf on the network each time it starts. Stopping now won’t turn this off."
         >
           <Switch
             checked={status?.autoStart ?? false}

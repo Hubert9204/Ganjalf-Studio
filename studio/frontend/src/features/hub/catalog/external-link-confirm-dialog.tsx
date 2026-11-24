@@ -49,7 +49,7 @@ export function ExternalLinkConfirmDialog() {
             <AlertDialogTitle>Open external link</AlertDialogTitle>
           </div>
           <AlertDialogDescription>
-            You are about to leave Unsloth and open this page in your browser.
+            You are about to leave Ganjalf and open this page in your browser.
             Only continue if you trust the destination.
           </AlertDialogDescription>
         </AlertDialogHeader>

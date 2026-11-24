@@ -1,6 +1,6 @@
 # Explicit Agent Skill mentions
 
-With an enabled skill in the effective model's Unsloth Studio tool catalog, Unsloth Studio reads
+With an enabled skill in the effective model's Ganjalf Studio tool catalog, Ganjalf Studio reads
 the complete `SKILL.md` for an explicit `@skill-name` **before the first
 generation**. With Tools off, the composer offers `read_skill` alone, and only for
 a thread whose user messages mention an enabled skill, so a plain chat stays out
@@ -50,8 +50,8 @@ is never taken as proof that instructions survived compaction. If the complete
 current manifest is already in actual system/tool context, it is not injected a
 second time. Continue/partial-assistant resumes do not activate old mentions.
 
-The Unsloth chat-completions path covers local GGUF, safetensors, managed engines,
-and external Unsloth-owned tool loops (including the shared Codex transport). It
+The Ganjalf chat-completions path covers local GGUF, safetensors, managed engines,
+and external Ganjalf-owned tool loops (including the shared Codex transport). It
 does not change client-tool passthrough or introduce mention execution in unrelated
 Anthropic/OpenAI compatibility endpoints. Tool-less native models and Tools-off
 requests retain their existing behavior.

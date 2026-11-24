@@ -27,11 +27,11 @@ export function cpuFallbackMessage(
 const MMPROJ_FALLBACK_MESSAGES: Record<MmprojFallbackReason, string> = {
   // Three causes lead here (predicted no-fit, GPU alloc failure, crash), so name only the outcome.
   cpu_offload:
-    "Unsloth is running the vision projector in system memory rather than on the GPU. Image input remains available, but image processing may be slower.",
+    "Ganjalf is running the vision projector in system memory rather than on the GPU. Image input remains available, but image processing may be slower.",
   projector_incompatible:
-    "The vision projector is incompatible with the installed llama.cpp build, so Unsloth reloaded this model in text-only mode. Update Unsloth, then reload the model to restore image input.",
+    "The vision projector is incompatible with the installed llama.cpp build, so Ganjalf reloaded this model in text-only mode. Update Ganjalf, then reload the model to restore image input.",
   projector_startup_failure:
-    "The vision projector could not start on the GPU or CPU, so Unsloth reloaded this model in text-only mode. Free memory or check the GPU logs, then reload the model to restore image input.",
+    "The vision projector could not start on the GPU or CPU, so Ganjalf reloaded this model in text-only mode. Free memory or check the GPU logs, then reload the model to restore image input.",
 };
 
 export function isTextOnlyMmprojFallback(

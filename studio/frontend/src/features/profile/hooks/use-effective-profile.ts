@@ -7,7 +7,7 @@ import { useUserProfileStore } from "../stores/user-profile-store";
 
 // The owner's id is the literal "unsloth"; shared so every login-id fallback agrees.
 export function loginDisplayName(sessionSub: string | null): string {
-  return sessionSub === OWNER_USERNAME ? "Unsloth" : (sessionSub ?? "");
+  return sessionSub === OWNER_USERNAME ? "Ganjalf" : (sessionSub ?? "");
 }
 
 export function useEffectiveProfile() {
@@ -21,7 +21,7 @@ export function useEffectiveProfile() {
   const addressName = nickname.trim() || dn.split(/\s+/)[0] || login;
   return {
     sessionSub,
-    displayTitle: dn || login || "Unsloth",
+    displayTitle: dn || login || "Ganjalf",
     addressName,
     avatarDataUrl,
   };

@@ -214,10 +214,23 @@ const UPSTREAM_BRAND_PATTERN = /Unsloth(?! (?:AI|team|Team)\b)/g;
 const CREDIT_KEY_PATTERN =
   /(?:^|\.)(?:about|attribution|acknowledg\w*|copyright|credits?|legal|licen[cs]e\w*|notice)(?:\.|$)/i;
 
+// "an Unsloth" (English) and "d'Unsloth" / "qu'Unsloth" (French) elide before the vowel; Ganjalf
+// starts with a consonant, so the article comes back in full.
+const ELIDED_BRAND_PATTERN =
+  /\b(?:([Aa])n |(d|qu)['’])Unsloth(?! (?:AI|team|Team)\b)/g;
+
 // Applied to the template, before interpolation, so values passed in (model names, paths) are never touched.
-function rebrand(key: string, text: string): string {
+export function rebrand(key: string, text: string): string {
   if (CREDIT_KEY_PATTERN.test(key)) return text;
-  return text.replace(UPSTREAM_BRAND_PATTERN, "Ganjalf");
+  return text
+    .replace(
+      ELIDED_BRAND_PATTERN,
+      (_match, article?: string, elided?: string) =>
+        article
+          ? `${article} Ganjalf`
+          : `${elided === "d" ? "de" : "que"} Ganjalf`,
+    )
+    .replace(UPSTREAM_BRAND_PATTERN, "Ganjalf");
 }
 
 export function translate(

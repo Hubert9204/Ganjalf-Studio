@@ -41,7 +41,7 @@ export function buildChatTourSteps({
       title: "Find a model",
       body: (
         <>
-          Discover models is Unsloth's curated list, On Device is your
+          Discover models is Ganjalf's curated list, On Device is your
           downloads, finetunes and folders, and Favorites keeps the ones you
           star. Searching on Discover reaches all of Hugging Face.
         </>

@@ -86,6 +86,7 @@ import {
 import { shallow } from "zustand/shallow";
 import { partsHaveRenderableRenderHtmlTool } from "@/components/assistant-ui/message-derived";
 import { useMessageMemo } from "@/components/assistant-ui/use-message-memo";
+import { GanjalfWorkingMark } from "@/components/ganjalf-working-mark";
 const ANIMATION_DURATION = 200;
 
 function selectionIntersectsElement(
@@ -209,6 +210,7 @@ function ReasoningTrigger({
       )}
       {...props}
     >
+      {active ? <GanjalfWorkingMark mode="thinking" className="h-5 w-7.5" /> : null}
       {/* No overflow clipping: it cuts the descenders off "Thinking" and "Worked". */}
       <span
         data-slot="reasoning-trigger-label"

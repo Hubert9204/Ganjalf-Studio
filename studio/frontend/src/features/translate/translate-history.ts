@@ -18,7 +18,7 @@ export const TRANSLATE_HISTORY_MAX_ENTRIES = 100;
 /** A longer translation is not kept: the list lives in localStorage, a few megabytes in all. */
 export const TRANSLATE_HISTORY_MAX_CHARS = 20_000;
 export const TRANSLATE_HISTORY_TOTAL_CHARS = 1_000_000;
-export const TRANSLATE_HISTORY_FILE_NAME = "UnslothTranslateFullHistory.txt";
+export const TRANSLATE_HISTORY_FILE_NAME = "GanjalfTranslateFullHistory.txt";
 
 export function capHistory(
   history: readonly TranslateHistoryEntry[],

@@ -303,10 +303,10 @@ export function ShareRunConfigDialog({
               }
             >
               {destination !== "browser"
-                ? "The recipient needs Unsloth Desktop installed."
+                ? "The recipient needs Ganjalf Desktop installed."
                 : remoteAddress
-                  ? "This link contains this Unsloth server's network address. Anyone with it and your password can sign in and control this computer. Share it only with people who should use this Unsloth server; otherwise share a Desktop link."
-                  : "This link contains your Unsloth Web address. Recipients need access to that address. A localhost address opens Unsloth Web on their own computer."}
+                  ? "This link contains this Ganjalf server's network address. Anyone with it and your password can sign in and control this computer. Share it only with people who should use this Ganjalf server; otherwise share a Desktop link."
+                  : "This link contains your Ganjalf Web address. Recipients need access to that address. A localhost address opens Ganjalf Web on their own computer."}
             </p>
           </div>
           <div className="space-y-1.5">

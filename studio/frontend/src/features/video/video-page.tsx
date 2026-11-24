@@ -520,7 +520,7 @@ function exportFilename(video: GalleryVideo, format: VideoExportFormat = "mp4"):
     ? "unknown"
     : `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}` +
       `-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
-  return `Unsloth_video_${stamp}_${video.seed}.${format}`;
+  return `Ganjalf_video_${stamp}_${video.seed}.${format}`;
 }
 
 // MP4 streams from its signed link: cross-origin under Tauri anchors do not save, and clips are

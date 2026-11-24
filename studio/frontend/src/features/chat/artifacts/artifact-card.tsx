@@ -106,10 +106,10 @@ function reactPage(code: string, lang: ReactFenceLang, title: string): () => Pro
     noteNodeAvailability(prepared);
     if (prepared.status === "ready") return prepared.html;
     if (prepared.status === "compile-error") {
-      throw new PageOpenError("This component didn't compile. Open it in the Unsloth Browser to see why.");
+      throw new PageOpenError("This component didn't compile. Open it in the Ganjalf Browser to see why.");
     }
     if (needsNode(prepared.reason)) {
-      throw new PageOpenError("React previews need Node.js. Install it, then re-run Unsloth setup.");
+      throw new PageOpenError("React previews need Node.js. Install it, then re-run Ganjalf setup.");
     }
     throw new PageOpenError("Couldn't prepare this preview.");
   };
@@ -328,7 +328,7 @@ export function ArtifactCard({
             >
               <DropdownMenuItem onSelect={() => open("preview")}>
                 <MenuGlyph icon={InternetIcon} />
-                Unsloth Browser
+                Ganjalf Browser
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={openDefault}>
                 <MenuGlyph icon={LinkSquare02Icon} />

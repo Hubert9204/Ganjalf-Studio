@@ -875,7 +875,7 @@ test("Unsloth Studio is the first preset, any loopback port, and never a custom 
   const studio = urls.map((u) => normalizeMcpUrl(u) === "studio:tools");
   assert.deepEqual(studio, [true, true, true, false, false, false]);
   const presetThenFilter =
-    /const MCP_PRESETS: readonly McpPreset\[\] = \[\s*\{\s*id: "unsloth-studio",\s*displayName: "Unsloth",\s*url: UNSLOTH_STUDIO_TOOLS_MCP_URL,[\s\S]*const customServers = servers\.filter\([^;]*normalizeMcpUrl\(s\.url\) !== "studio:tools"/;
+    /const MCP_PRESETS: readonly McpPreset\[\] = \[\s*\{\s*id: "unsloth-studio",\s*displayName: "Ganjalf",\s*url: UNSLOTH_STUDIO_TOOLS_MCP_URL,[\s\S]*const customServers = servers\.filter\([^;]*normalizeMcpUrl\(s\.url\) !== "studio:tools"/;
   assert.match(MCP_COMPOSER_BUTTON, presetThenFilter);
 });
 

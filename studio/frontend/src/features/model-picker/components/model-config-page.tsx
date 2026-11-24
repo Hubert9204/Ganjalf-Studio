@@ -851,7 +851,7 @@ function GpuMemorySettings({
           <InfoHint>
             <div className="flex flex-col gap-1.5">
               <div>
-                <span className="font-medium">Default:</span> Unsloth fits the
+                <span className="font-medium">Default:</span> Ganjalf fits the
                 model and context to your GPUs.
               </div>
               <div>
@@ -935,7 +935,7 @@ function GpuMemorySettings({
           <div className="flex min-w-0 items-center gap-1.5">
             <span className={LABEL_CLASS}>GPUs</span>
             <InfoHint>
-              Unsloth picks GPUs automatically. Checking them here limits it to
+              Ganjalf picks GPUs automatically. Checking them here limits it to
               those.
               {!isDiffusion &&
                 " Their order here is the order the model gets them."}{" "}
@@ -1037,13 +1037,13 @@ const MLX_OFFLOAD_SLIDERS = [
     part: "experts",
     key: "mlxExpertOffload",
     label: "Experts on Disk",
-    hint: "Share of the MoE experts read from disk as they are needed instead of held in memory. Saves memory but slows generation a lot. 0% keeps every expert in memory; Auto leaves it to Unsloth.",
+    hint: "Share of the MoE experts read from disk as they are needed instead of held in memory. Saves memory but slows generation a lot. 0% keeps every expert in memory; Auto leaves it to Ganjalf.",
   },
   {
     part: "ple",
     key: "mlxPleOffload",
     label: "PLE on Disk",
-    hint: "Share of the per-layer embedding tables read from disk instead of held in memory. Saves memory at a small cost to generation speed. 0% keeps them all in memory; Auto leaves it to Unsloth.",
+    hint: "Share of the per-layer embedding tables read from disk instead of held in memory. Saves memory at a small cost to generation speed. 0% keeps them all in memory; Auto leaves it to Ganjalf.",
   },
 ] as const satisfies readonly {
   part: MlxOffloadablePart;
@@ -1079,7 +1079,7 @@ function MlxOffloadSettings({
           <InfoHint>
             <div className="flex flex-col gap-1.5">
               <div>
-                <span className="font-medium">Default:</span> Unsloth reads
+                <span className="font-medium">Default:</span> Ganjalf reads
                 parts of the model from disk only when it would not otherwise
                 fit in memory.
               </div>
@@ -1155,7 +1155,7 @@ function AdvancedSettingsToggle({
           Advanced settings
         </span>
         <InfoHint>
-          Extra options for how the model loads. Unsloth already picks the best
+          Extra options for how the model loads. Ganjalf already picks the best
           settings for your device, so most setups don't need these.
         </InfoHint>
       </div>
@@ -1330,7 +1330,7 @@ const MLX_CACHE_RAM_HINT =
 const MLX_MICRO_BATCH_HINT =
   "Prompt tokens each prefill step reads. Leave blank for the default (2048). " +
   "Larger values read long prompts faster but use more memory; when experts " +
-  "are read from disk, Unsloth's own step is the most it uses.";
+  "are read from disk, Ganjalf's own step is the most it uses.";
 
 /** A blank-means-default count, clamped to the batch bounds llama.cpp and MLX share. */
 function BatchCountRow({
@@ -1534,8 +1534,8 @@ function MlxSpeculativeRows({
               every step drafts exactly this many, even when plain decoding would
               be faster (a copy of repeated text replaces a draft when it should
               yield more). Above that depth, or for Ngram, it is a
-              ceiling and Unsloth decodes plainly when drafting would be slower.
-              Leave blank to let Unsloth tune it for this machine.
+              ceiling and Ganjalf decodes plainly when drafting would be slower.
+              Leave blank to let Ganjalf tune it for this machine.
             </InfoHint>
           </div>
           <input
@@ -1990,7 +1990,7 @@ function LoadModeRow({
           <span className={LABEL_CLASS}>Mmap/Mlock</span>
           <InfoHint>
             How the weights are read off disk (--load-mode). Auto is the
-            default and lets Unsloth pick. mmap maps the file, mlock keeps the
+            default and lets Ganjalf pick. mmap maps the file, mlock keeps the
             model in RAM, DirectIO streams it, and None asks for no special
             mode.
             Model Memory, in Settings, overrides this when it is on.
@@ -2742,7 +2742,7 @@ function ExtraArgsRow({
             </div>
             <div>
               Quote values with spaces or backslashes. Nothing runs a shell, so
-              $HOME, ; and | are ordinary characters. Flags Unsloth owns, like
+              $HOME, ; and | are ordinary characters. Flags Ganjalf owns, like
               the model and the port, are refused.
             </div>
           </div>
@@ -4565,7 +4565,7 @@ export function ModelConfigPage({
                   <p className="text-ui-11 text-amber-500">
                     {isAppleUnifiedMemory ? (
                       <>
-                        Above Unsloth&apos;s free-memory estimate (
+                        Above Ganjalf&apos;s free-memory estimate (
                         {loadedMaxContextLength.toLocaleString()} tokens). It
                         may still load, but macOS may have to compress or swap
                         other apps and generation may slow down.

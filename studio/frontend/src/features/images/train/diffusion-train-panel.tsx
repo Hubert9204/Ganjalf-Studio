@@ -1287,7 +1287,7 @@ export function DiffusionTrainPanel({
       return;
     }
     if (!outputDir.trim()) {
-      toast.error("Name the adapter (this becomes its folder under Unsloth outputs).");
+      toast.error("Name the adapter (this becomes its folder under Ganjalf outputs).");
       return;
     }
     // The backend silently skips uncaptioned images when instance_prompt is empty.

@@ -239,7 +239,7 @@ function deleteAccountDatabase(
     request.onblocked = () =>
       reject(
         new Error(
-          "Close other Unsloth tabs and retry signing in to clear the previous account's data.",
+          "Close other Ganjalf tabs and retry signing in to clear the previous account's data.",
         ),
       );
   });

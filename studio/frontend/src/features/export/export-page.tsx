@@ -1820,7 +1820,7 @@ export function ExportPage() {
                                 <div className="text-ui-11 text-muted-foreground">
                                   Portable FP8/INT8 (torchao) export needs torchao
                                   0.15 or newer, which is not installed here. Update
-                                  Unsloth, or use 16-bit or GGUF.
+                                  Ganjalf, or use 16-bit or GGUF.
                                 </div>
                               )}
                             </div>
@@ -2113,7 +2113,7 @@ export function ExportPage() {
                                         className="text-xs text-muted-foreground"
                                       >
                                         Absolute path to a .dat or .gguf imatrix
-                                        file on the machine running Unsloth. Leave
+                                        file on the machine running Ganjalf. Leave
                                         blank to auto-download the upstream Unsloth
                                         imatrix for the base model, if one exists.
                                       </p>

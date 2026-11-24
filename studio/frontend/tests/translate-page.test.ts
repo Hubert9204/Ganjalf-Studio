@@ -363,7 +363,7 @@ test("the chat handoff and the export list translations oldest first", () => {
     exportHistory(entries),
     "[2026-01-01T00:00:00.000Z] Detected language -> French\nHello\n\nBonjour\n\n---\n\n[2026-01-02T00:00:00.000Z] English -> German (Hy-MT2 1.8B)\nBye\n\nTschuss\n",
   );
-  assert.equal(TRANSLATE_HISTORY_FILE_NAME, "UnslothTranslateFullHistory.txt");
+  assert.equal(TRANSLATE_HISTORY_FILE_NAME, "GanjalfTranslateFullHistory.txt");
 });
 
 test("a cut-off or filtered reply fails, and history is shared across windows", () => {

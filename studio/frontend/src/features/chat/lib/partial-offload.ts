@@ -129,7 +129,7 @@ export function offloadWarning(counts: OffloadCounts): OffloadWarning | null {
           "problem rather than a size one, so a smaller quantization will not " +
           "help. The llama-server log in Settings > Logs has the reason. To " +
           "reinstall the engine, use Repair installation in Settings in the " +
-          "desktop app, or re-run the Unsloth installer.",
+          "desktop app, or re-run the Ganjalf installer.",
       };
     case "noneFit":
       return {

@@ -39,7 +39,7 @@ const { loginDisplayName } = loadWithStubs<{
 });
 
 test("the reserved owner id is the only subject whose spelling is mapped", () => {
-  assert.equal(loginDisplayName(OWNER_USERNAME), "Unsloth");
+  assert.equal(loginDisplayName(OWNER_USERNAME), "Ganjalf");
   for (const chosen of ["alice", "bob", "unsloth2", "Unsloth", "UNSLOTH", " unsloth "]) {
     assert.equal(loginDisplayName(chosen), chosen);
   }

@@ -58,7 +58,7 @@ test("a non-HTTP insecure context keeps the existing live error path", () => {
   );
   assert.equal(
     insecureDictationGuidance("live"),
-    "Open Unsloth at http://127.0.0.1 (localhost) or over HTTPS to dictate.",
+    "Open Ganjalf at http://127.0.0.1 (localhost) or over HTTPS to dictate.",
   );
   assert.doesNotMatch(insecureDictationGuidance("live"), /choose a recording/i);
 });

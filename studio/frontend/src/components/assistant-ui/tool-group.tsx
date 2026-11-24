@@ -36,7 +36,7 @@ import {
 import { useDetachThreadFromBottom } from "@/components/assistant-ui/use-intent-aware-autoscroll";
 import { useCollapseScrollLock } from "@/hooks/use-collapse-scroll-lock";
 import { cn } from "@/lib/utils";
-import { Spinner } from "@/components/ui/spinner";
+import { GanjalfWorkingMark } from "@/components/ganjalf-working-mark";
 import { awaitsConfirmation, holdsOwnOutput } from "./tool-fold-exemptions";
 import {
   syncToolActivityPreference,
@@ -178,7 +178,7 @@ function ToolGroupTrigger({
       {...props}
     >
       {active ? (
-        <Spinner className="aui-tool-group-trigger-loader" />
+        <GanjalfWorkingMark mode="agent" label="Loading" className="aui-tool-group-trigger-loader h-5 w-7.5" />
       ) : (
         <HugeiconsIcon
           icon={WrenchIcon}

@@ -19,7 +19,7 @@ export function UnslothStudioMcpRow(): ReactElement {
     let live = true;
     loadMcpAccess().then(
       (next) => live && setEnabled(next.enabled),
-      (err) => console.warn("Couldn't load the Unsloth MCP status.", err),
+      (err) => console.warn("Couldn't load the Ganjalf MCP status.", err),
     );
     return () => {
       live = false;

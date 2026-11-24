@@ -1966,12 +1966,12 @@ export function AudioPage({
                 // Every audio page shows the pill; only speech and transcription models train today.
                 if (!workflowTab.createTrain) {
                   toast.info(
-                    `Training isn't available for ${workflowTab.label} yet. Unsloth trains text-to-speech and speech-to-text models on the Train page.`,
+                    `Training isn't available for ${workflowTab.label} yet. Ganjalf trains text-to-speech and speech-to-text models on the Train page.`,
                   );
                   return;
                 }
                 toast.info(
-                  "Audio fine-tuning lives on the Train page. Unsloth trains TTS and STT models there. Pick an audio model and appropriate dataset.",
+                  "Audio fine-tuning lives on the Train page. Ganjalf trains TTS and STT models there. Pick an audio model and appropriate dataset.",
                   { duration: 8000 },
                 );
                 void navigateSelf({ to: "/studio" });

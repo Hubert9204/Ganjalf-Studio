@@ -274,7 +274,7 @@ const EMPTY_CATALOG_HINTS: Record<string, { title: string; description: string }
 const SYSTEM_ONE_EMPTY_CATALOG_HINT = {
   title: "No decision models found on this server.",
   description:
-    "Type the model name in the box below. For another Unsloth server, type default.",
+    "Type the model name in the box below. For another Ganjalf server, type default.",
 };
 
 function emptyCatalogHint(providerType: string): {
@@ -2309,7 +2309,7 @@ export function ChatProvidersSettings({
                     </Label>
                     <p className="text-xs leading-snug text-muted-foreground">
                       {decisionsOnly
-                        ? "Up to the version, such as /v1. Unsloth adds /systemone."
+                        ? "Up to the version, such as /v1. Ganjalf adds /systemone."
                         : "OpenAI-compatible endpoint."}
                     </p>
                   </div>
@@ -2531,7 +2531,7 @@ export function ChatProvidersSettings({
                     id="provider-extra-headers"
                     value={extraHeadersDraft}
                     onChange={(event) => setExtraHeadersDraft(event.target.value)}
-                    placeholder={"X-Title: Unsloth\nX-Session-Id: {{CHAT_SESSION_ID}}"}
+                    placeholder={"X-Title: Ganjalf\nX-Session-Id: {{CHAT_SESSION_ID}}"}
                     aria-describedby="provider-extra-headers-help"
                     className="min-h-20 font-mono text-xs md:text-xs"
                   />
@@ -2551,7 +2551,7 @@ export function ChatProvidersSettings({
                       id="provider-auto-reload-models-help"
                       className="text-xs text-muted-foreground"
                     >
-                      Refresh once on connect and after a disconnect while Unsloth is open.
+                      Refresh once on connect and after a disconnect while Ganjalf is open.
                       New model IDs are enabled automatically. Saved in this browser.
                     </p>
                   </div>

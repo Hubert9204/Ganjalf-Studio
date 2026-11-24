@@ -48,7 +48,7 @@ export async function clearDesktopSignedOut(): Promise<void> {
 }
 
 const TAURI_AUTH_FAILURE_FALLBACK =
-  "Desktop authentication failed. Update or repair the managed Unsloth install, then restart Unsloth.";
+  "Desktop authentication failed. Update or repair the managed Ganjalf install, then restart Ganjalf.";
 const BACKEND_NOT_READY_MESSAGE = "Backend is not ready";
 
 function authFailureMessage(error: unknown): string {

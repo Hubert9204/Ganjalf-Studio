@@ -178,7 +178,7 @@ function UpsamplerDownloadNotice({
               {size ? `Download (${size})` : "Download"}
             </Button>
           ) : (
-            <span className="text-muted-foreground">Ask the owner of this Unsloth install to download it.</span>
+            <span className="text-muted-foreground">Ask the owner of this Ganjalf install to download it.</span>
           )}
         </>
       )}

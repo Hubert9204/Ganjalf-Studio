@@ -12,7 +12,7 @@ export interface StampSource {
   model_kind?: string | null;
 }
 
-const BRAND = "Unsloth";
+const BRAND = "Ganjalf";
 const PATH_SEP = /[\\/]/;
 const GGUF_SUFFIX = /(\.gguf|-gguf)$/i;
 const FONT_FAMILY =

@@ -31,9 +31,9 @@ test("account identity supplies the sidebar name and avatar unless a display nam
     },
   );
 
-  // The owner's reserved id "unsloth" displays as "Unsloth"; other usernames show verbatim.
+  // The owner's reserved id "unsloth" displays as "Ganjalf"; other usernames show verbatim.
   for (const [username, shown] of [
-    ["unsloth", "Unsloth"],
+    ["unsloth", "Ganjalf"],
     ["alice", "alice"],
     ["bob", "bob"],
   ]) {
@@ -44,7 +44,7 @@ test("account identity supplies the sidebar name and avatar unless a display nam
     assert.equal(effective.sessionSub, username);
     assert.equal(
       initialsFromName(effective.displayTitle),
-      username[0].toUpperCase(),
+      shown[0].toUpperCase(),
     );
   }
 
@@ -57,6 +57,6 @@ test("account identity supplies the sidebar name and avatar unless a display nam
   assert.equal(renderProfile().displayTitle, "bob");
   for (const invalidToken of [null, "invalid-token"]) {
     token = invalidToken;
-    assert.equal(renderProfile().displayTitle, "Unsloth");
+    assert.equal(renderProfile().displayTitle, "Ganjalf");
   }
 });

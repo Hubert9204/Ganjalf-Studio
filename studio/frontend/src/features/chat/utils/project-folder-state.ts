@@ -3,7 +3,7 @@
 
 import type { ProjectRecord } from "../types";
 
-export const MANAGED_FOLDER_LABEL = "Unsloth-managed folder";
+export const MANAGED_FOLDER_LABEL = "Ganjalf-managed folder";
 
 export type ProjectFolderState = {
   chosen: boolean;
@@ -47,8 +47,8 @@ export function projectFolderState(project: FolderFields): ProjectFolderState {
     problem: !unavailable
       ? null
       : status === "replaced"
-        ? "A different folder is at this path now. Tools are using the Unsloth-managed folder until you choose the folder again."
-        : "This folder can't be found. Tools are using the Unsloth-managed folder until you choose it again.",
+        ? "A different folder is at this path now. Tools are using the Ganjalf-managed folder until you choose the folder again."
+        : "This folder can't be found. Tools are using the Ganjalf-managed folder until you choose it again.",
   };
 }
 

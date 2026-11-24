@@ -70,7 +70,7 @@ type McpPreset = {
 const MCP_PRESETS: readonly McpPreset[] = [
   {
     id: "unsloth-studio",
-    displayName: "Unsloth",
+    displayName: "Ganjalf",
     url: UNSLOTH_STUDIO_TOOLS_MCP_URL,
   },
   {
@@ -219,7 +219,7 @@ export function McpComposerButton({
         ...MCP_PRESETS,
         {
           id: "unsloth-decisions",
-          displayName: "Unsloth Decisions",
+          displayName: "Ganjalf Decisions",
           url: decisionsUrl,
         },
       ]

@@ -177,6 +177,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { MascotImg } from "@/components/mascot-img";
 import { Spinner } from "@/components/ui/spinner";
+import { GanjalfWorkingMark } from "@/components/ganjalf-working-mark";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7926,6 +7927,19 @@ const PartsWithRoundTail: FC<{ children: ReactNode }> = ({ children }) => {
 
 // Mounted only under a running reply waiting on the model, so the thread's other messages subscribe to nothing new.
 const GeneratingStatus: FC = () => {
+  // A reply that already called a tool is an agent between rounds; the mark puffs harder for it.
+  const agentic = useAuiState(({ message }) =>
+    message.content.some((part) => part.type === "tool-call"),
+  );
+  return (
+    <span className="inline-flex max-w-full min-w-0 items-center gap-2 align-bottom">
+      <GanjalfWorkingMark mode={agentic ? "agent" : "generating"} />
+      <GeneratingStatusLabel />
+    </span>
+  );
+};
+
+const GeneratingStatusLabel: FC = () => {
   // Keyed like DiffusionCanvas: a first turn reads "__default" until the thread persists.
   const threadKey =
     useAuiState(({ threadListItem }) => threadListItem.remoteId) ?? "__default";

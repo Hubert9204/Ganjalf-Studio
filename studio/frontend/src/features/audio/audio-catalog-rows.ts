@@ -209,7 +209,7 @@ export function umbrellaFolderFindings(
   for (const folder of folders) {
     if (!seedFolders.has(folder) && !Object.hasOwn(unoffered, folder)) {
       warnings.push(
-        `${AUDIO_CPP_REPO}: '${folder}/' is not in the bundled seed; Unsloth lists it from /api/inference/audio/catalog`,
+        `${AUDIO_CPP_REPO}: '${folder}/' is not in the bundled seed; Ganjalf lists it from /api/inference/audio/catalog`,
       );
     }
   }

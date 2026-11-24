@@ -178,7 +178,7 @@ export interface AudioApiSnippetInput {
   os: AudioApiOs;
 }
 
-const SPEAK_TEXT = "Hello from Unsloth.";
+const SPEAK_TEXT = "Hello from Ganjalf.";
 const CLONE_TEXT = "This is my voice, speaking text I never recorded.";
 const CLONE_TRANSCRIPT = "The words spoken in me.wav.";
 const EDIT_FROM = "The quick brown fox jumps over the lazy dog.";
@@ -410,7 +410,7 @@ client = OpenAI(base_url=f"{BASE}/v1", api_key=KEY)`;
   }
   if (studio) {
     out += `${sdk ? "\n" : ""}
-# Uploads, saved voices and workflow runs are Unsloth routes the OpenAI SDK has no method for.
+# Uploads, saved voices and workflow runs are Ganjalf routes the OpenAI SDK has no method for.
 studio = httpx.Client(base_url=BASE, headers={"Authorization": f"Bearer {KEY}"}, timeout=None)
 
 
@@ -453,7 +453,7 @@ const client = new OpenAI({ baseURL: BASE + "/v1", apiKey: KEY });`;
   if (studio) {
     out += `
 
-// Uploads, saved voices and workflow runs are Unsloth routes the OpenAI SDK has no method for.
+// Uploads, saved voices and workflow runs are Ganjalf routes the OpenAI SDK has no method for.
 async function studio(path, init = {}) {
   const response = await fetch(BASE + path, {
     ...init,

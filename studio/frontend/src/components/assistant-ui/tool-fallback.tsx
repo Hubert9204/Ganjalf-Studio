@@ -11,7 +11,7 @@ import {
   UnmeasuredCollapsibleTrigger as CollapsibleTrigger,
   CLOSE_FALLBACK_MARGIN_MS,
 } from "@/components/ui/unmeasured-collapsible";
-import { Spinner } from "@/components/ui/spinner";
+import { GanjalfWorkingMark } from "@/components/ganjalf-working-mark";
 // eslint-disable-next-line no-restricted-imports -- the feature barrel imports this component
 import { useChatPreferencesStore } from "@/features/chat/stores/chat-preferences-store";
 import { useDetachThreadFromBottom } from "@/components/assistant-ui/use-intent-aware-autoscroll";
@@ -249,7 +249,7 @@ function ToolFallbackTrigger({
       {...props}
     >
       {isRunning ? (
-        <Spinner className="aui-tool-fallback-trigger-icon" />
+        <GanjalfWorkingMark mode="agent" label="Loading" className="aui-tool-fallback-trigger-icon h-5 w-7.5" />
       ) : ToolIcon ? (
         <ToolIcon
           data-slot="tool-fallback-trigger-icon"

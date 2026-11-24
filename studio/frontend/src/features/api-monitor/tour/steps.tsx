@@ -10,7 +10,7 @@ export const apiMonitorTourSteps: TourStep[] = [
     title: "Your endpoint",
     body: (
       <>
-        Unsloth serves an OpenAI-compatible API. Point any client at this base
+        Ganjalf serves an OpenAI-compatible API. Point any client at this base
         URL and send the model name shown below it. Context and queue slots sit
         beside the model.
       </>

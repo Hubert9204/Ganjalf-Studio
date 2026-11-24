@@ -99,7 +99,7 @@ export function ImageLoraExportCard({ preselect }: { preselect?: string }) {
       icon={ImageAdd02Icon}
       chipTint="var(--chart-1)"
       title="Export an image LoRA"
-      description="Save a copy of an image generation LoRA you trained (or added) on the Images page: the .safetensors adapter plus its .json metadata. Any Unsloth install lists it again from a custom models folder."
+      description="Save a copy of an image generation LoRA you trained (or added) on the Images page: the .safetensors adapter plus its .json metadata. Any Ganjalf install lists it again from a custom models folder."
     >
       <div className="flex flex-col gap-6">
         <div className="grid gap-4 @md/train-section:grid-cols-2">

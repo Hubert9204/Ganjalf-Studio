@@ -585,7 +585,7 @@ test("an empty wildcard bind is distinct from a missing bind field", () => {
   );
   assert.equal(
     msg,
-    "This launch binds every network interface, so Unsloth is on the network already.",
+    "This launch binds every network interface, so Ganjalf is on the network already.",
   );
   assert.ok(!msg.includes("--host"));
 });
@@ -594,7 +594,7 @@ test("a backend that omits the bind host still explains the block", () => {
   // Fixed text with nothing to interpolate, so the sentence itself is the contract.
   assert.equal(
     lanAccessBlockMessage(blocked("launch_managed"), false),
-    "This launch already puts Unsloth on the network.",
+    "This launch already puts Ganjalf on the network.",
   );
 });
 

@@ -150,7 +150,7 @@ const DESKTOP_STATUS_PATTERN = /^Download failed with status (\d{3})\./;
 
 // Must match LOGIN_REQUIRED in native_file_dialogs.rs.
 const DESKTOP_LOGIN_REQUIRED =
-  "Log export requires a signed-in Unsloth session.";
+  "Log export requires a signed-in Ganjalf session.";
 
 function desktopExportError(error: unknown): LogExportError {
   const message =

@@ -27,7 +27,7 @@ function permissionHint(userAgent: string): string {
     case "mac":
       return "Grant access in System Settings > Privacy & Security > Files and Folders, then refresh the list.";
     case "windows":
-      return "Check the folder's security permissions, or allow Unsloth in Controlled Folder Access, then refresh the list.";
+      return "Check the folder's security permissions, or allow Ganjalf in Controlled Folder Access, then refresh the list.";
     default:
       return "Check the folder's permissions, then refresh the list.";
   }
@@ -40,7 +40,7 @@ export function scanFolderStatusCopy(
   switch (status) {
     case "permission_denied":
       return {
-        title: "Unsloth is not allowed to read this folder",
+        title: "Ganjalf is not allowed to read this folder",
         hint: permissionHint(userAgent),
       };
     case "partial":

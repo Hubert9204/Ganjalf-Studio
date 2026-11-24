@@ -1413,7 +1413,7 @@ export function AppSidebar() {
             ? "Training was left out of this install (Chat only). Use Upgrade to full install in Settings to add it."
             : "Training was left out of this install (--no-torch). Reinstall without --no-torch to enable Train."
         : chatOnlyReason === "rosetta"
-        ? "Unsloth is running under Rosetta (x86_64 Python). Re-run the installer from a native arm64 terminal to enable training."
+        ? "Ganjalf is running under Rosetta (x86_64 Python). Re-run the installer from a native arm64 terminal to enable training."
         : chatOnlyReason === "intel_mac"
         ? "Training needs Apple Silicon or a GPU. Intel Macs are chat-only."
         : chatOnlyReason === "torch_cpu_build" ||
@@ -5991,10 +5991,11 @@ export function AppSidebar() {
                   {/* Logo lockup follows the UI font size at half rate:
                       base + (root scale - 1) * 8px. Exact base sizes at 16px. */}
                   <img
-                    src="/circle-logo-small.png"
-                    alt="Unsloth"
+                    src="/favicon.svg"
+                    alt="Ganjalf"
                     className={cn(
-                      "relative top-px -left-px shrink-0 rounded-full object-cover",
+                      // The Ganjalf badge is a rounded square; a circle crop would cut off the pipe.
+                      "relative top-px -left-px shrink-0 rounded-[22%] object-cover",
                       // Web Studio only; the desktop header keeps its own sizes.
                       usesDesktopTitlebar
                         ? "h-[calc(22px+0.5rem*var(--ui-font-scale,1))] w-[calc(22px+0.5rem*var(--ui-font-scale,1))]"
@@ -6002,7 +6003,7 @@ export function AppSidebar() {
                     )}
                   />
                   <span className="relative -top-px truncate font-heading text-[calc(13px+0.5rem*var(--ui-font-scale,1))] font-semibold tracking-[0em] leading-tight text-black dark:text-foreground dark:tracking-[0.02em]">
-                    unsloth
+                    ganjalf
                   </span>
                   <span className="nav-badge ml-0.5 inline-flex shrink-0 items-center justify-center rounded-full border border-nav-beta-border px-[calc(5px*var(--ui-space-scale,1))] pt-[calc(3px*var(--ui-space-scale,1))] pb-[calc(2px*var(--ui-space-scale,1))] text-[calc(0.5rem*var(--ui-font-scale,1))] font-medium leading-none tracking-[0.04em] text-nav-fg-muted antialiased subpixel-antialiased shadow-[0_1px_2px_rgba(0,0,0,0.06)] dark:shadow-[0_1px_2px_var(--background)]">
                     {t("shell.beta")}
@@ -6773,7 +6774,7 @@ export function AppSidebar() {
                       pr on the button reserves room for the settings cog */}
                   <div className="flex min-w-0 flex-1 flex-col gap-px leading-tight group-data-[collapsible=icon]:hidden">
                     <span className="truncate font-heading text-ui-13p5 tracking-[0.025em] dark:tracking-[0.04em] font-semibold text-nav-fg">{displayTitle}</span>
-                    <span className="truncate text-ui-11p5 tracking-nav text-muted-foreground">Unsloth</span>
+                    <span className="truncate text-ui-11p5 tracking-nav text-muted-foreground">Ganjalf</span>
                   </div>
                 </SidebarMenuButton>
               )}

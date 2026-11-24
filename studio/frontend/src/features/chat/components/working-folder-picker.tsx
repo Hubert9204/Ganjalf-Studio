@@ -171,7 +171,7 @@ export function WorkingFolderPicker({
               <span className="truncate text-ui-12 text-muted-foreground">
                 {chosen
                   ? "Tools read and write files here."
-                  : "Unsloth keeps this project's files in a folder of its own."}
+                  : "Ganjalf keeps this project's files in a folder of its own."}
               </span>
             )}
           </div>
@@ -251,7 +251,7 @@ export function WorkingFolderPicker({
             ? "Choose the folder again to retry, or use the managed folder."
             : !isTauri
               ? isOwner
-                ? "Choosing a folder here works on this computer with remote access off. Otherwise use Unsloth Desktop, or the managed folder."
+                ? "Choosing a folder here works on this computer with remote access off. Otherwise use Ganjalf Desktop, or the managed folder."
                 : "Only the owner can choose a local working folder."
               : !isOwner
                 ? "Only the owner can choose a local working folder."

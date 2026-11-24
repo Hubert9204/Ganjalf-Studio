@@ -190,7 +190,7 @@ test("no model loaded points at Audio instead of a model name", async () => {
   });
   await assert.rejects(
     adapter.generateStudioTtsAudio("hello"),
-    /^Error: No Unsloth speech model is loaded\. Open Audio › Text to Speech/,
+    /^Error: No Ganjalf speech model is loaded\. Open Audio › Text to Speech/,
   );
 });
 
@@ -301,7 +301,7 @@ test("a named speech model that was unloaded says to load it again", async () =>
   );
   await assert.rejects(
     adapter.generateStudioTtsAudio("hello"),
-    /^Error: The Unsloth speech model for read aloud is no longer loaded\. Load it again in Audio › Text to Speech/,
+    /^Error: The Ganjalf speech model for read aloud is no longer loaded\. Load it again in Audio › Text to Speech/,
   );
 });
 

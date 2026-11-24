@@ -72,18 +72,190 @@ html.dark:not([data-palette]) {
   --sidebar-ring: #7ea6f0;
 }
 
-/* Sidebar brand. The app draws the Unsloth badge and the word "unsloth" itself, in a file too
- * large to edit here, so they are swapped by CSS: the bitmap is pushed out of its box and the
- * Ganjalf icon is drawn behind it; the word is blanked and "ganjalf" is drawn in its place. */
-img[src="/circle-logo-small.png"] {
-  object-fit: none;
-  object-position: -9999px 0;
-  background: url("/favicon.svg") center / contain no-repeat;
-}
-img[src="/circle-logo-small.png"] + span {
-  font-size: 0 !important;
-}
-img[src="/circle-logo-small.png"] + span::after {
-  content: "ganjalf";
-  font-size: calc(13px + 0.5rem * var(--ui-font-scale, 1));
+/* Busy mark (components/ganjalf-working-mark.tsx): a book turning its pages beside a smoking pipe.
+ * In the components layer so a Tailwind size utility passed as className still wins. Only
+ * transform and opacity animate, plus one fill on the turning page. */
+@layer components {
+  .ganjalf-working {
+    --gw-turn: 2.2s;
+    --gw-smoke: 2.7s;
+    --gw-page: #ffffff;
+    --gw-edge: #94a3b8;
+    --gw-line: #aab4c3;
+    --gw-shade: #dbe4f3;
+    --gw-smoke-color: #94a3b8;
+    --gw-ember: #7aa5f5;
+    display: inline-block;
+    flex: none;
+    width: 2.25em;
+    height: 1.5em;
+    overflow: visible;
+    vertical-align: middle;
+  }
+
+  html.dark .ganjalf-working {
+    --gw-page: #dbe4f3;
+    --gw-edge: #6b778a;
+    --gw-line: #8b97a8;
+    --gw-shade: #aab4c3;
+    --gw-smoke-color: #dbe4f3;
+    --gw-ember: #cfe0ff;
+  }
+
+  .ganjalf-working[data-mode="thinking"] {
+    --gw-turn: 3s;
+    --gw-smoke: 3.2s;
+  }
+
+  .ganjalf-working[data-mode="generating"] {
+    --gw-turn: 1.5s;
+  }
+
+  .ganjalf-working[data-mode="agent"] {
+    --gw-smoke: 1.9s;
+  }
+
+  .ganjalf-working .gw-page {
+    fill: var(--gw-page);
+    stroke: var(--gw-edge);
+    stroke-width: 0.7;
+    stroke-linejoin: round;
+  }
+
+  .ganjalf-working .gw-lines {
+    fill: none;
+    stroke: var(--gw-line);
+    stroke-width: 0.9;
+    stroke-linecap: round;
+  }
+
+  .ganjalf-working .gw-spine {
+    stroke: var(--gw-edge);
+    stroke-width: 0.8;
+  }
+
+  .ganjalf-working .gw-stem {
+    fill: none;
+    stroke: #aab4c3;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+  }
+
+  .ganjalf-working .gw-mouthpiece {
+    stroke: #6b778a;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+  }
+
+  /* Hinged on the spine (x = 18): scaleX 1 -> -1 lays the right leaf over the left page. */
+  .ganjalf-working .gw-turn {
+    transform-box: view-box;
+    transform-origin: 18px 18px;
+    animation: gw-turn var(--gw-turn) cubic-bezier(0.45, 0, 0.25, 1) infinite;
+  }
+
+  /* The leaf darkens while it stands upright, as a page catches less light. */
+  .ganjalf-working .gw-leaf {
+    animation: gw-shade var(--gw-turn) cubic-bezier(0.45, 0, 0.25, 1) infinite;
+  }
+
+  .ganjalf-working .gw-turn-late,
+  .ganjalf-working .gw-turn-late .gw-leaf {
+    animation-delay: calc(var(--gw-turn) / -2);
+  }
+
+  .ganjalf-working .gw-ember {
+    fill: var(--gw-ember);
+    animation: gw-ember var(--gw-smoke) ease-in-out infinite;
+  }
+
+  .ganjalf-working .gw-wisp {
+    fill: none;
+    stroke: var(--gw-smoke-color);
+    stroke-width: 1.3;
+    stroke-linecap: round;
+    stroke-dasharray: 3 4;
+    opacity: 0.55;
+    animation: gw-wisp var(--gw-smoke) linear infinite;
+  }
+
+  .ganjalf-working .gw-puff {
+    fill: var(--gw-smoke-color);
+    opacity: 0;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: gw-puff var(--gw-smoke) ease-out infinite;
+  }
+
+  .ganjalf-working .gw-puff-2 {
+    animation-delay: calc(var(--gw-smoke) / -3);
+  }
+
+  .ganjalf-working .gw-puff-3 {
+    animation-delay: calc(var(--gw-smoke) * -2 / 3);
+  }
+
+  @keyframes gw-turn {
+    0%,
+    15% {
+      transform: scaleX(1);
+    }
+    65%,
+    100% {
+      transform: scaleX(-1);
+    }
+  }
+
+  @keyframes gw-shade {
+    0%,
+    15%,
+    65%,
+    100% {
+      fill: var(--gw-page);
+    }
+    40% {
+      fill: var(--gw-shade);
+    }
+  }
+
+  @keyframes gw-puff {
+    0% {
+      opacity: 0;
+      transform: translate(0, 0) scale(0.35);
+    }
+    18% {
+      opacity: 0.85;
+    }
+    100% {
+      opacity: 0;
+      transform: translate(-2.5px, -12px) scale(1.4);
+    }
+  }
+
+  @keyframes gw-wisp {
+    to {
+      stroke-dashoffset: -14;
+    }
+  }
+
+  @keyframes gw-ember {
+    0%,
+    100% {
+      opacity: 0.35;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  /* A still frame: book open, one puff above the pipe. */
+  @media (prefers-reduced-motion: reduce) {
+    .ganjalf-working * {
+      animation: none !important;
+    }
+    .ganjalf-working .gw-puff-1 {
+      opacity: 0.6;
+      transform: translate(-1px, -6px);
+    }
+  }
 }

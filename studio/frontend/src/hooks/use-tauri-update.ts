@@ -536,7 +536,7 @@ export function useTauriUpdate(externalServerPort: number | null = null) {
     if (cleanupRearmedRef.current) return true;
     if (await resumeCleanup()) return true;
     setError(
-      "Crash cleanup could not be re-armed. Restart Unsloth before continuing.",
+      "Crash cleanup could not be re-armed. Restart Ganjalf before continuing.",
     );
     updateStatus("error");
     return false;

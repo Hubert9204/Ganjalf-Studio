@@ -295,7 +295,7 @@ export function OnDeviceFoldersDialog({
           <DialogHeader className="shrink-0 border-b border-border/60 px-5 py-4">
             <DialogTitle className="text-ui-15">Model folders</DialogTitle>
             <DialogDescription className="text-ui-12 text-muted-foreground">
-              Unsloth lists models from your Models folder and from any custom
+              Ganjalf lists models from your Models folder and from any custom
               folders you add. Nothing is moved or copied.
             </DialogDescription>
           </DialogHeader>

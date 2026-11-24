@@ -420,7 +420,7 @@ export const Route = createRootRoute({
 
 const HIDDEN_NAVBAR_ROUTES = ["/login", "/change-password"];
 
-const DEFAULT_DOCUMENT_TITLE = "Unsloth";
+const DEFAULT_DOCUMENT_TITLE = "Ganjalf";
 
 function RootLayout() {
   const t = useT();

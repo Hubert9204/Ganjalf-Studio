@@ -15,7 +15,7 @@ export interface LoraAddGroup {
 
 const GROUPS: { heading: string; match: (l: DiffusionLoraInfo) => boolean }[] =
   [
-    { heading: "Fine-tuned in Unsloth", match: (l) => Boolean(l.fine_tuned) },
+    { heading: "Fine-tuned in Ganjalf", match: (l) => Boolean(l.fine_tuned) },
     {
       heading: "On this device",
       match: (l) => !l.fine_tuned && l.source === "local",

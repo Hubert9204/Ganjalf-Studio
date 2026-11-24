@@ -641,7 +641,7 @@ function exportFilename(image: GalleryImage, format: ImageExportFormat = "png"):
     `-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
   const suffix = image.batch_index > 0 ? `_${image.batch_index}` : "";
   const ext = format === "jpeg" ? "jpg" : format;
-  return `Unsloth_${stamp}_${image.seed}${suffix}.${ext}`;
+  return `Ganjalf_${stamp}_${image.seed}${suffix}.${ext}`;
 }
 
 // Re-encoded client-side (JPEG flattened onto white), with the info stamp when it is on. Every
@@ -3337,7 +3337,7 @@ export function ImagesPage({
           description:
             (notApplied.length > 0 ? `Not applied: ${notApplied.join(", ")}. ` : "") +
             (newerRecipeSchema(recipe)
-              ? "It was made with a newer Unsloth; update to use every setting."
+              ? "It was made with a newer Ganjalf; update to use every setting."
               : "This model or build does not support them."),
         });
       }
@@ -3356,7 +3356,7 @@ export function ImagesPage({
       }
       if (!recipe) {
         toast.error("No generation settings found in this image", {
-          description: "Images saved by Unsloth, ComfyUI, or tools that write a parameters block can be loaded.",
+          description: "Images saved by Ganjalf, ComfyUI, or tools that write a parameters block can be loaded.",
         });
         return;
       }

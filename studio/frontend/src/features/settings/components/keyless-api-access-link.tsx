@@ -11,7 +11,7 @@ export function KeylessApiAccessLink() {
   return (
     <SettingsRow
       label="Keyless API access"
-      description="Use Unsloth from other apps without creating an API key. Turn it on in Remote & LAN."
+      description="Use Ganjalf from other apps without creating an API key. Turn it on in Remote & LAN."
     >
       <button
         type="button"

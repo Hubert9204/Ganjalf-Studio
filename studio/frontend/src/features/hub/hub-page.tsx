@@ -1855,7 +1855,7 @@ export function ModelsPage() {
         )
       ) {
         toast.error(
-          `${selectedModel.hubRepoId} is not an audio model Unsloth can run yet. The Audio page lists the families it supports.`,
+          `${selectedModel.hubRepoId} is not an audio model Ganjalf can run yet. The Audio page lists the families it supports.`,
           { duration: 7000 },
         );
         return;

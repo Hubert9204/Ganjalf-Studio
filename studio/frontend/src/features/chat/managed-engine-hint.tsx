@@ -29,8 +29,8 @@ export function ManagedEngineHint({
   return (
     <p className="pb-3 text-xs leading-snug text-muted-foreground">
       {status.installed
-        ? `${name} is already installed in Unsloth. Pick it as the Inference engine in a model's run settings to run models without a separate server.`
-        : `Unsloth can directly install ${name} and run models with it, so you do not need a separate server.`}
+        ? `${name} is already installed in Ganjalf. Pick it as the Inference engine in a model's run settings to run models without a separate server.`
+        : `Ganjalf can directly install ${name} and run models with it, so you do not need a separate server.`}
       {/* System is owner-only. */}
       {isOwner ? (
         <>

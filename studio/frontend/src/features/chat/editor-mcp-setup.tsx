@@ -47,7 +47,7 @@ function UnrealToolsInstaller() {
 
   return (
     <div className="space-y-2 border-t pt-3">
-      <p>Unreal MCP cannot save levels. Install Unsloth&apos;s level save tools into your project so the model can save what it builds.</p>
+      <p>Unreal MCP cannot save levels. Install Ganjalf&apos;s level save tools into your project so the model can save what it builds.</p>
       <Label htmlFor="unreal-tools-project">Unreal project folder</Label>
       <div className="flex flex-wrap items-center gap-2">
         <Input id="unreal-tools-project" className="min-w-0 flex-1" value={projectPath} disabled={busy} placeholder="Folder that holds your .uproject file" onChange={(event) => { setProjectPath(event.target.value); setResult(null); }} />
@@ -85,7 +85,7 @@ export function EditorMcpSetup({ editorId, servers, onBusyChange, onClose }: {
       const rows = await listMcpBuiltins(wait, editorId);
       if (generation.current !== current) return;
       const row = rows.find((item) => item.builtin_id === editorId);
-      if (!row) throw new Error(`${copy.name} MCP is not available from this Unsloth backend.`);
+      if (!row) throw new Error(`${copy.name} MCP is not available from this Ganjalf backend.`);
       setConfig(row);
       setLoadError(null);
       if (!initialized.current) {
@@ -130,7 +130,7 @@ export function EditorMcpSetup({ editorId, servers, onBusyChange, onClose }: {
       if (action === "test") {
         const result = await testEditorMcp(editorId, { ...settings, consent });
         if (!mounted.current) return;
-        if (!result.ok) throw new Error(result.error ?? "MCP connection failed. Retry or check the Unsloth backend.");
+        if (!result.ok) throw new Error(result.error ?? "MCP connection failed. Retry or check the Ganjalf backend.");
         setConnection(result.editor_ready ? "ready" : "partial");
         setMessage(`MCP connected (${result.tool_count} tools). ${result.editor_ready
           ? `${copy.name} ready.`
@@ -190,7 +190,7 @@ export function EditorMcpSetup({ editorId, servers, onBusyChange, onClose }: {
         </span>
       </div>
       {!config?.is_enabled && <p className="text-sm leading-relaxed text-muted-foreground">
-        Unsloth connects to the MCP server that the {copy.name} add-on runs on this computer. Nothing is downloaded.
+        Ganjalf connects to the MCP server that the {copy.name} add-on runs on this computer. Nothing is downloaded.
       </p>}
       {config?.installed === false && !config.is_enabled && (
         <div className="flex flex-wrap items-center gap-2">
@@ -198,7 +198,7 @@ export function EditorMcpSetup({ editorId, servers, onBusyChange, onClose }: {
           <Button size="sm" variant="outline" disabled={locked} onClick={() => openInstallGuide(copy.guide, onClose)}>Guide to Install</Button>
         </div>
       )}
-      {duplicate && <p className="text-xs leading-relaxed text-amber-600">A custom {copy.name} server also exists. Disable it in Manage MCP servers if you prefer Unsloth’s managed setup.</p>}
+      {duplicate && <p className="text-xs leading-relaxed text-amber-600">A custom {copy.name} server also exists. Disable it in Manage MCP servers if you prefer Ganjalf’s managed setup.</p>}
       {config && !config.is_enabled && (
         <div className="flex items-start gap-3">
           <Checkbox id={`${editorId}-mcp-consent`} className="mt-0.5" checked={consent} disabled={locked} onCheckedChange={(checked) => setConsent(checked === true)} />
@@ -220,7 +220,7 @@ export function EditorMcpSetup({ editorId, servers, onBusyChange, onClose }: {
         </CollapsibleTrigger>
         <CollapsibleContent className="[--duration:200ms] motion-reduce:animate-none">
         <div className="space-y-4 pt-4 text-sm leading-relaxed text-muted-foreground">
-          <p>Run {copy.name} on the Unsloth backend machine.</p>
+          <p>Run {copy.name} on the Ganjalf backend machine.</p>
           <Button size="sm" variant="outline" onClick={() => openLink(copy.link.url)}>{copy.link.label}</Button>
           <ol className="list-decimal space-y-3 pl-5">
             {copy.steps.map((step, index) => <li key={index}>{step}</li>)}

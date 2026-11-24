@@ -3303,7 +3303,7 @@ async function ensureDefaultModelDownloaded(
   };
   const totalLabel = formatDownloadBytes(expectedBytes);
   const description =
-    `Unsloth couldn’t find an existing model. Unsloth is now getting ` +
+    `Ganjalf couldn’t find an existing model. Ganjalf is now getting ` +
     `${DEFAULT_CHAT_MODEL_LABEL} ready for use. You can stop the download or ` +
     `manage models later in the 'Model hub'`;
   setToast(
@@ -3645,7 +3645,7 @@ async function autoLoadSmallestModel(options?: AutoLoadOptions): Promise<{
       label,
       // Older backends and non-Error throws carry no detail; still name the model that failed.
       detail:
-        detail || "The server did not report a reason. Check the Unsloth logs.",
+        detail || "The server did not report a reason. Check the Ganjalf logs.",
       blamesModel,
     };
   }
@@ -4852,7 +4852,7 @@ export function createOpenAIStreamAdapter(
             ) !== true)
         ) {
           throw new Error(
-            "Deep research requires a selected local model or a connection whose provider supports Unsloth tools.",
+            "Deep research requires a selected local model or a connection whose provider supports Ganjalf tools.",
           );
         }
         const reasoningRequested =
@@ -7384,7 +7384,7 @@ export function createOpenAIStreamAdapter(
                 throw new ChatGenerationTerminalError(
                   "failed",
                   generationRun?.error ||
-                    "The Unsloth backend restarted during generation.",
+                    "The Ganjalf backend restarted during generation.",
                 );
               }
               if (generationStatus === "cancelled" && !runSignal.aborted) {
@@ -7732,7 +7732,7 @@ export function createOpenAIStreamAdapter(
                         body: JSON.stringify({
                           action_id: raw.id,
                           session_id: typeof raw.session_id === "string" ? raw.session_id : "",
-                          result: { ok: false, error: "the browser panel could not load; ask the user to reload Unsloth." },
+                          result: { ok: false, error: "the browser panel could not load; ask the user to reload Ganjalf." },
                         }),
                       }).catch(() => undefined);
                     },
@@ -9190,7 +9190,7 @@ export function createOpenAIStreamAdapter(
               toast.error("Response interrupted", {
                 description:
                   err.message ||
-                  "The Unsloth backend stopped during generation.",
+                  "The Ganjalf backend stopped during generation.",
                 duration: 8000,
               });
             }

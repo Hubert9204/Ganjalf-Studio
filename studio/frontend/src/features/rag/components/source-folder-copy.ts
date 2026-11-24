@@ -7,7 +7,7 @@ export const SOURCE_FOLDER_DESCRIPTION =
 export function sourceFolderUnavailableMessage(isDesktop: boolean): string {
   return isDesktop
     ? "Folder selection is unavailable with this connection. You can still upload documents."
-    : "Open Unsloth Desktop to add a source folder. You can still upload documents.";
+    : "Open Ganjalf Desktop to add a source folder. You can still upload documents.";
 }
 
 export const FOLDER_SYNC_HELP =

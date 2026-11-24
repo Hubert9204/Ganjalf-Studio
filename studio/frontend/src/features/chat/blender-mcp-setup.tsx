@@ -49,7 +49,7 @@ export function BlenderMcpSetup({ servers, disabled, onBusyChange, onClose }: {
       const rows = await listMcpBuiltins(wait, "blender");
       if (generation.current !== current) return;
       const blender = rows.find((row) => row.builtin_id === "blender");
-      if (!blender) throw new Error("Blender MCP is not available from this Unsloth backend.");
+      if (!blender) throw new Error("Blender MCP is not available from this Ganjalf backend.");
       setConfig(blender);
       setLoadError(null);
       if (!initialized.current) {
@@ -93,7 +93,7 @@ export function BlenderMcpSetup({ servers, disabled, onBusyChange, onClose }: {
       if (action === "test") {
         const result = await testBlenderMcp({ ...settings, consent });
         if (!mounted.current) return;
-        if (!result.ok) throw new Error(result.error ?? "MCP connection failed. Retry or check the Unsloth backend.");
+        if (!result.ok) throw new Error(result.error ?? "MCP connection failed. Retry or check the Ganjalf backend.");
         // Keep it in the form, or the next Enable saves an empty path.
         if (result.blender_path) setBlenderPath(result.blender_path);
         setConnection(result.blender_ready ? "ready" : "partial");
@@ -149,7 +149,7 @@ export function BlenderMcpSetup({ servers, disabled, onBusyChange, onClose }: {
         </span>
       </div>
       {!config?.is_enabled && <p className="text-sm leading-relaxed text-muted-foreground">
-        Unsloth downloads and sets up MCP on first use. Internet is needed once; the Blender add-on is installed separately.
+        Ganjalf downloads and sets up MCP on first use. Internet is needed once; the Blender add-on is installed separately.
       </p>}
       {config?.installed === false && !config.is_enabled && (
         <div className="flex flex-wrap items-center gap-2">
@@ -157,7 +157,7 @@ export function BlenderMcpSetup({ servers, disabled, onBusyChange, onClose }: {
           <Button size="sm" variant="outline" disabled={locked} onClick={() => openInstallGuide("blender", onClose)}>Guide to Install</Button>
         </div>
       )}
-      {duplicate && <p className="text-xs leading-relaxed text-amber-600">A custom Blender server also exists. Disable it in Manage MCP servers if you prefer Unsloth’s managed setup.</p>}
+      {duplicate && <p className="text-xs leading-relaxed text-amber-600">A custom Blender server also exists. Disable it in Manage MCP servers if you prefer Ganjalf’s managed setup.</p>}
       {config && !config.is_enabled && (
         <div className="flex items-start gap-3">
           <Checkbox id="blender-mcp-consent" className="mt-0.5" checked={consent} disabled={locked} onCheckedChange={(checked) => setConsent(checked === true)} />
@@ -181,7 +181,7 @@ export function BlenderMcpSetup({ servers, disabled, onBusyChange, onClose }: {
         </CollapsibleTrigger>
         <CollapsibleContent className="[--duration:200ms] motion-reduce:animate-none">
         <div className="space-y-4 pt-4 text-sm leading-relaxed text-muted-foreground">
-          <p>Use Blender {config?.min_blender_version ?? "5.1.0"}+ on the Unsloth backend machine.</p>
+          <p>Use Blender {config?.min_blender_version ?? "5.1.0"}+ on the Ganjalf backend machine.</p>
           <Button size="sm" variant="outline" onClick={() => openLink("https://www.blender.org/lab/mcp-server/")}>Download Blender add-on</Button>
           <ol className="list-decimal space-y-3 pl-5">
             <li>In Blender, enable <strong className="font-medium text-foreground">Online Access</strong> in Preferences → System.</li>
@@ -200,7 +200,7 @@ export function BlenderMcpSetup({ servers, disabled, onBusyChange, onClose }: {
         </CollapsibleTrigger>
         <CollapsibleContent className="[--duration:200ms] motion-reduce:animate-none">
         <div className="space-y-4 pt-4">
-          <p className="text-xs leading-relaxed text-muted-foreground">Loopback only (127.0.0.1). Match the add-on’s port. Unsloth needs Python 3.10+.</p>
+          <p className="text-xs leading-relaxed text-muted-foreground">Loopback only (127.0.0.1). Match the add-on’s port. Ganjalf needs Python 3.10+.</p>
           <div className="grid gap-3 sm:grid-cols-[100px_1fr]">
             <div className="space-y-1">
               <Label htmlFor="blender-mcp-port">Port</Label>

@@ -72,7 +72,7 @@ test("a typical 1024 image gets the full line plus the brand on a bottom bar", (
     layout.barHeight,
   ]);
   const texts = calls.filter((c) => c.op === "fillText").map((c) => c.args[0]);
-  assert.deepEqual(texts, [text, "Unsloth"]);
+  assert.deepEqual(texts, [text, "Ganjalf"]);
 });
 
 test("a narrow image drops the brand and shrinks the line to fit", () => {

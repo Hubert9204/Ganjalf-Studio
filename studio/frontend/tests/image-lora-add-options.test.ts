@@ -45,7 +45,7 @@ const ids = (groups: ReturnType<typeof loraAddGroups>) =>
 test("every catalog LoRA is listed, grouped as fine-tuned, on this device, then Hugging Face", () => {
   const groups = loraAddGroups(CATALOG, new Set(), "");
   assert.deepEqual(headings(groups), [
-    "Fine-tuned in Unsloth",
+    "Fine-tuned in Ganjalf",
     "On this device",
     "From Hugging Face",
   ]);

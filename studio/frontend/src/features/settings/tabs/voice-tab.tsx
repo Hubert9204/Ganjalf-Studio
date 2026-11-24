@@ -138,7 +138,7 @@ const DICTATION_LANGUAGES: { value: string; label: string }[] = [
 
 // Independent of UI locale: the voice or model may not support that language.
 const TTS_PREVIEW_TEXT =
-  "Hello from Unsloth! This is a preview of the selected voice.";
+  "Hello from Ganjalf! This is a preview of the selected voice.";
 
 /** Curated Whisper models come from the Unsloth GGUF repos (stt_ggml_sidecar.py). */
 function sttModelSource(model: SttModel): string {

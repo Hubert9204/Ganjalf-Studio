@@ -54,7 +54,7 @@ test("a missing or swapped folder is flagged and drops its branch", () => {
     });
     assert.equal(state.unavailable, true, status);
     assert.equal(state.branch, null, status);
-    assert.match(state.problem ?? "", /Unsloth-managed folder/, status);
+    assert.match(state.problem ?? "", /Ganjalf-managed folder/, status);
   }
 });
 

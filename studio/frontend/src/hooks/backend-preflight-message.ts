@@ -32,11 +32,11 @@ function llamaRuntimeFolder(): string {
 }
 
 export function runtimeRepairFailureMessage(error: string): string {
-  return `Unsloth could not repair its llama.cpp runtime. Antivirus may be blocking the download or removing files as they are installed. Allow the runtime folder, usually ${llamaRuntimeFolder()}, in your antivirus, or check your connection, then retry. Repair error: ${error}`;
+  return `Ganjalf could not repair its llama.cpp runtime. Antivirus may be blocking the download or removing files as they are installed. Allow the runtime folder, usually ${llamaRuntimeFolder()}, in your antivirus, or check your connection, then retry. Repair error: ${error}`;
 }
 
 export function runtimeRepairRecurrenceMessage(): string {
-  return `Unsloth's llama.cpp runtime is missing files again soon after a repair. Antivirus may be removing them. Allow the runtime folder, usually ${llamaRuntimeFolder()}, in your antivirus, then press Retry to reinstall it.`;
+  return `Ganjalf's llama.cpp runtime is missing files again soon after a repair. Antivirus may be removing them. Allow the runtime folder, usually ${llamaRuntimeFolder()}, in your antivirus, then press Retry to reinstall it.`;
 }
 
 export function preflightStaleMessage(
@@ -52,20 +52,20 @@ export function preflightStaleMessage(
       typeof navigator !== "undefined" && /Win/i.test(navigator.platform ?? "")
         ? " This usually means a network or roaming profile is not available yet."
         : "";
-    return `Unsloth cannot reach your user folder, so it has nowhere to run from.${cause} Reconnect and try again.`;
+    return `Ganjalf cannot reach your user folder, so it has nowhere to run from.${cause} Reconnect and try again.`;
   }
   // One of Unsloth's own path settings is unresolvable; the value is the fix.
   if (kind === PATH_SETTING_UNRESOLVABLE) {
-    const which = setting ? `${setting} points` : "One of Unsloth's folder settings points";
-    return `${which} somewhere that cannot be resolved, so Unsloth has nowhere safe to run from. Set it to a full path, such as D:\\unsloth-cache, and try again.`;
+    const which = setting ? `${setting} points` : "One of Ganjalf's folder settings points";
+    return `${which} somewhere that cannot be resolved, so Ganjalf has nowhere safe to run from. Set it to a full path, such as D:\\unsloth-cache, and try again.`;
   }
   // The install is current but files are gone (usually quarantine), so "too old" would mislead.
   if (isLlamaRuntimeReason(kind)) {
     // Names the default root (UNSLOTH_LLAMA_CPP_PATH can move it), hence "usually".
-    return `Unsloth's llama.cpp runtime is missing files, which usually means security software quarantined them. Run \`unsloth studio update\` to reinstall it, and allow the folder it installs into, usually ${llamaRuntimeFolder()}, in your antivirus if it happens again.`;
+    return `Ganjalf's llama.cpp runtime is missing files, which usually means security software quarantined them. Run \`unsloth studio update\` to reinstall it, and allow the folder it installs into, usually ${llamaRuntimeFolder()}, in your antivirus if it happens again.`;
   }
   if (disposition === "owned_stale") {
-    return "Desktop-owned Unsloth backend is too old for this desktop app. Run `unsloth studio update`, then restart Unsloth.";
+    return "Desktop-owned Ganjalf backend is too old for this desktop app. Run `unsloth studio update`, then restart Ganjalf.";
   }
-  return "Managed Unsloth install is too old. Run `unsloth studio update`.";
+  return "Managed Ganjalf install is too old. Run `unsloth studio update`.";
 }

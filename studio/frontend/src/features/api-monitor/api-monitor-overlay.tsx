@@ -487,7 +487,7 @@ function ApiMonitorPanel({
             >
               <span className="min-w-0 truncate">
                 {unreachable
-                  ? "Can't reach Unsloth. Retrying…"
+                  ? "Can't reach Ganjalf. Retrying…"
                   : (servedNames[0] ?? "No model loaded")}
               </span>
               {!unreachable && servedNames.length > 1 ? (

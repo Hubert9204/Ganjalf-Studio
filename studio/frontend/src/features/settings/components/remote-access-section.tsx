@@ -175,7 +175,7 @@ function RemotePasswordRow({
       description={
         multi
           ? "This changes the installation owner's password. Every other account signs in with its own."
-          : "Remote browsers sign in as unsloth. The Unsloth Desktop App keeps signing in automatically."
+          : "Remote browsers sign in as unsloth. The Ganjalf Desktop App keeps signing in automatically."
       }
     >
       <ChangePasswordDialog initial={status.passwordPending} onDone={onDone} />
@@ -341,7 +341,7 @@ export function RemoteAccessSection() {
               <AccessStatus status={status} />
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Use Unsloth and its APIs from other devices over a secure,
+              Use Ganjalf and its APIs from other devices over a secure,
               temporary Cloudflare URL.
             </p>
           </div>
@@ -371,7 +371,7 @@ export function RemoteAccessSection() {
 
         <SettingsRow
           label="Start automatically"
-          description="Create a new remote URL each time Unsloth starts. Stopping now won’t turn this off."
+          description="Create a new remote URL each time Ganjalf starts. Stopping now won’t turn this off."
         >
           <Switch
             checked={status?.autoStart ?? false}

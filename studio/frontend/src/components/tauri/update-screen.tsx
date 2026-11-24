@@ -29,7 +29,7 @@ function Logo() {
   return (
     <div className="flex items-center justify-center gap-3">
       <img
-        src="/sticker.png"
+        src="/favicon.svg"
         alt=""
         aria-hidden="true"
         className="h-[calc(60px*var(--ui-space-scale,1))] w-[calc(60px*var(--ui-space-scale,1))] object-contain"
@@ -38,7 +38,7 @@ function Logo() {
         className="text-ui-50 font-semibold leading-none tracking-[-0.02em] text-foreground"
         style={{ fontFamily: '"Hellix", sans-serif' }}
       >
-        unsloth
+        ganjalf
       </span>
     </div>
   );

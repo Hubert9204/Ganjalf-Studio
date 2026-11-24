@@ -79,7 +79,7 @@ function describeFailure(
       }
     : {
         title: `Can't reach ${hub}`,
-        body: `Unsloth couldn't load ${resourceLabel} from ${hub}.`,
+        body: `Ganjalf couldn't load ${resourceLabel} from ${hub}.`,
         offlineLike: false,
       };
 }
