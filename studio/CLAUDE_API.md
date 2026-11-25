@@ -48,8 +48,8 @@ curl -fsSL https://claude.ai/install.sh | bash
 ~/.ganjalf-studio/unsloth_studio/bin/unsloth start claude
 ```
 
-- Se non trova il server (Ganjalf parte dalla porta 8890), indicalo:
-  `UNSLOTH_STUDIO_URL=http://127.0.0.1:8890 ~/.ganjalf-studio/unsloth_studio/bin/unsloth start claude`.
+- Se non trova il server (di solito è sulla porta 8888), indicalo:
+  `UNSLOTH_STUDIO_URL=http://127.0.0.1:8888 ~/.ganjalf-studio/unsloth_studio/bin/unsloth start claude`.
 - `--no-launch` stampa le variabili e il comando invece di avviarlo (per un'altra shell o WSL);
   `--model <repo>` carica un altro modello prima di partire.
 - Durante l'elaborazione di un prompt lungo Ganjalf manda righe di keep-alive ogni 15 secondi, così

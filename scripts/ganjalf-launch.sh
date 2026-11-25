@@ -7,14 +7,15 @@
 # - keeps the skills in studio/ganjalf_skills in your skills folder: copied when missing,
 #   updated when you have not edited them, left alone when you have
 # - switches on the bundled skill-creator once, so a model can write the skills it needs
-# - picks the first free port from 8890 and opens the browser once the server answers
+# - picks the first free port from 8888 and opens the browser once the server answers;
+#   LAN access (Settings) serves the network on that same port
 #
 # Run it as your normal user, not as root: the folder picker only offers folders under
 # the home of the user Studio runs as.
 #
 # Optional environment:
 #   GANJALF_HOME=<dir>      data and environment folder (default: ~/.ganjalf-studio)
-#   GANJALF_PORT=<port>     first port to try (default: 8890)
+#   GANJALF_PORT=<port>     first port to try (default: 8888)
 #   GANJALF_HOST=<address>  address to listen on (default: 127.0.0.1, this computer only).
 #                           0.0.0.0 lets other devices on the network (a phone) open the same
 #                           server at http://<this computer's IP>:<port>. Every device must use
@@ -29,7 +30,7 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export UNSLOTH_STUDIO_HOME="${GANJALF_HOME:-$HOME/.ganjalf-studio}"
-FIRST_PORT="${GANJALF_PORT:-8890}"
+FIRST_PORT="${GANJALF_PORT:-8888}"
 HOST="${GANJALF_HOST:-127.0.0.1}"
 STUDIO_BIN="$UNSLOTH_STUDIO_HOME/unsloth_studio/bin/unsloth"
 

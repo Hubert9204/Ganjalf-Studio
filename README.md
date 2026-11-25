@@ -84,7 +84,7 @@ Per aggiornare e riavviare, sempre:
 cd ~/Ganjalf-Studio && git pull && bash scripts/ganjalf-launch.sh
 ```
 
-Lo script tiene dati e ambiente in `~/.ganjalf-studio` (separati da un eventuale Unsloth Studio), installa da questo repository, sceglie la prima porta libera da `8890` e apre il browser. L'installazione scarica diversi GB; la GPU NVIDIA viene riconosciuta da sola.
+Lo script tiene dati e ambiente in `~/.ganjalf-studio` (separati da un eventuale Unsloth Studio), installa da questo repository, sceglie la prima porta libera da `8888` e apre il browser. Dagli altri dispositivi si usa la stessa porta: con **Impostazioni → Accesso LAN** attivo, l'indirizzo di rete è `http://<IP del PC>:<stessa porta>` (lo stesso server, non un secondo). L'installazione scarica diversi GB; la GPU NVIDIA viene riconosciuta da sola.
 
 - **Primo avvio dopo un aggiornamento**: se il `git pull` ha cambiato l'interfaccia o le dipendenze, lo script reinstalla e ricompila il frontend da solo, quindi ci mette qualche minuto in più. Il backend e le skill invece non richiedono reinstallazione.
 - **`check_page`**: alla prima esecuzione lo script installa Playwright nell'ambiente di Studio e usa il Chrome/Chromium del sistema, o ne scarica uno (circa 150 MB). Ci prova una volta sola; se Chromium non parte per librerie mancanti: `GANJALF_PAGE_CHECK_DEPS=1 bash scripts/ganjalf-install-page-check.sh`. `GANJALF_PAGE_CHECK=0` lo disattiva.

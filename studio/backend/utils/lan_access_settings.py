@@ -622,6 +622,18 @@ def _server_loop(app_state):
     return loop
 
 
+def _same_port_first(app, ports: tuple[int, ...]) -> tuple[int, ...]:
+    """Ganjalf: with no port saved, the network uses the port this computer already uses, so the
+    PC and a phone open the same address (127.0.0.1:8888 and 192.168.x.y:8888). The LAN listener
+    binds each LAN address, not 0.0.0.0, so it shares the port with a loopback-only server."""
+    if get_lan_access_port() is not None:
+        return ports
+    main = getattr(getattr(app, "state", None), "server_port", None)
+    if not _valid_port(main):
+        return ports
+    return (main, *[port for port in ports if port != main])
+
+
 def start_lan_access(app) -> dict:
     """Bring the LAN listener up for this launch. Repeated requests are idempotent."""
     from lan_access import start_lan_listener
@@ -632,7 +644,7 @@ def start_lan_access(app) -> dict:
         if not status["can_start"]:
             raise RuntimeError(status["block_reason"] or "operation_in_progress")
 
-        ports = lan_access_port_candidates()
+        ports = _same_port_first(app, lan_access_port_candidates())
         selected = _read_lan_access_addresses(strict = True)
         addresses = start_lan_listener(
             app,
