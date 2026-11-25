@@ -10260,8 +10260,88 @@ def _memory_watchdog(
         logger.debug("sandbox memory watchdog stopped", exc_info = True)
 
 
+# Ganjalf: the whole machine running out of memory freezes the desktop (Linux thrashes long
+# before the OOM killer acts); a `make -j` beside the model did. Whatever the sandbox setting, an
+# agent command that holds real memory is stopped once free memory falls under this share.
+_LOW_MEMORY_POLL_S = 1.0
+_LOW_MEMORY_MIN_TREE_BYTES = 512 * 1024 * 1024
+
+
+def _low_memory_floor_bytes(total: int) -> int:
+    """GANJALF_MIN_FREE_MEMORY_PCT (default 6) of the machine's memory, at least 1 GiB; 0 = off."""
+    try:
+        pct = float(os.environ.get("GANJALF_MIN_FREE_MEMORY_PCT", "6"))
+    except ValueError:
+        pct = 6.0
+    if pct <= 0:
+        return 0
+    return max(int(total * min(pct, 50.0) / 100), 1024**3)
+
+
+def _system_memory() -> "tuple[int, int] | None":
+    """(available, total) bytes: /proc/meminfo on Linux, psutil elsewhere."""
+    try:
+        with open("/proc/meminfo", encoding = "ascii") as handle:
+            fields = dict(line.split(":", 1) for line in handle if ":" in line)
+        return (
+            int(fields["MemAvailable"].split()[0]) * 1024,
+            int(fields["MemTotal"].split()[0]) * 1024,
+        )
+    except (OSError, KeyError, ValueError):
+        pass
+    try:
+        import psutil
+        memory = psutil.virtual_memory()
+        return int(memory.available), int(memory.total)
+    except Exception:  # noqa: BLE001 - no reading: no guard
+        return None
+
+
+def _low_memory_guard(
+    proc,
+    pgid,
+    poll_s: float = _LOW_MEMORY_POLL_S,
+) -> None:
+    try:
+        while proc.poll() is None:
+            reading = _system_memory()
+            if reading is None:
+                return
+            available, total = reading
+            floor = _low_memory_floor_bytes(total)
+            if not floor:
+                return
+            if available < floor:
+                processes = _tree_processes(proc.pid)
+                # Only a command that is part of the problem: the model may hold most of the RAM.
+                if _tree_memory_bytes(processes) >= _LOW_MEMORY_MIN_TREE_BYTES:
+                    proc._ganjalf_low_memory = (available, total)
+                    for process in reversed(processes[1:]):
+                        try:
+                            process.kill()
+                        except Exception:  # noqa: BLE001 - already gone
+                            pass
+                    _killpg_captured(pgid)
+                    _kill_process_tree(proc)
+                    return
+            time.sleep(poll_s)
+    except Exception:  # noqa: BLE001 - an unguarded run, not a failed tool call
+        logger.debug("low-memory guard stopped", exc_info = True)
+
+
+def _guard_system_memory(proc, pgid) -> None:
+    if not _psutil_available() and not os.path.exists("/proc/meminfo"):
+        return
+    reading = _system_memory()
+    if reading is None or not _low_memory_floor_bytes(reading[1]):
+        return
+    threading.Thread(target = _low_memory_guard, args = (proc, pgid), daemon = True).start()
+
+
 def _cap_tool_memory(proc, pgid, sandboxed: bool) -> None:
     """The sandbox memory limit where RLIMIT_AS does not work: a job memory limit on Windows, a watchdog elsewhere."""
+    if _psutil_available():
+        _guard_system_memory(proc, pgid)
     if not sandboxed or (sys.platform == "linux" and not _linux_rss_watchdog):
         return
     limit_bytes = sandbox_memory_limit.memory_limit_bytes()
@@ -10280,14 +10360,25 @@ def _completion_reason(proc, timed_out: bool, cancel_event) -> str:
     if timed_out:
         return "timed_out"
     # A watchdog kill is forced like a cancel, so MXC still replays its DACL journal.
-    if (cancel_event is not None and cancel_event.is_set()) or getattr(
-        proc, "_unsloth_memory_exceeded", None
+    if (
+        (cancel_event is not None and cancel_event.is_set())
+        or getattr(proc, "_unsloth_memory_exceeded", None)
+        or getattr(proc, "_ganjalf_low_memory", None)
     ):
         return "cancelled"
     return "finished"
 
 
 def _memory_exceeded_note(proc) -> str:
+    low = getattr(proc, "_ganjalf_low_memory", None)
+    if low:
+        available, total = low
+        return (
+            f"Stopped: the computer was running out of memory ({available / 1024**3:.1f} GB free of "
+            f"{total / 1024**3:.0f} GB), so this command was ended before the desktop froze. Run it "
+            "again with fewer parallel jobs (e.g. make -j2 / ninja -j2) or in smaller steps; do not "
+            "just repeat it.\n"
+        )
     limit_bytes = getattr(proc, "_unsloth_memory_exceeded", None)
     if not limit_bytes:
         return ""

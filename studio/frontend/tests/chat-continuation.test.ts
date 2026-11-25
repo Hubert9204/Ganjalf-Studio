@@ -646,9 +646,17 @@ test("pressing Stop is never undone by an automatic resume", () => {
   assert.equal(shouldAutoContinue("cancelled", "parent-1"), false);
 });
 
-test("a dropped connection still asks, rather than retrying silently", () => {
+test("a turn that died on an error is resumed once, then the bar comes back", () => {
   resetAutoContinue();
+  assert.equal(shouldAutoContinue("interrupted", "parent-1"), true);
+  recordAutoContinue("parent-1", "interrupted");
   assert.equal(shouldAutoContinue("interrupted", "parent-1"), false);
+  // Its own budget: the Max Tokens rounds of the same turn are untouched.
+  assert.equal(autoContinueCount("parent-1"), 0);
+  assert.equal(shouldAutoContinue("length", "parent-1"), true);
+  assert.equal(shouldAutoContinue("interrupted", "parent-2"), true);
+  resetAutoContinue("parent-1");
+  assert.equal(shouldAutoContinue("interrupted", "parent-1"), true);
 });
 
 test("automatic resumes are bounded, then the bar comes back", () => {

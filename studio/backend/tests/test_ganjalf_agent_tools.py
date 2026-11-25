@@ -580,3 +580,27 @@ def test_agent_commands_run_below_the_desktop(project, monkeypatch):
     monkeypatch.setenv("GANJALF_TOOL_NICE", "0")
     out = run("terminal", {"command": "sleep 0.5; nice"})
     assert out.strip().splitlines()[-1].strip() == str(base)
+
+
+def test_a_command_is_stopped_before_the_machine_runs_out_of_memory(project, monkeypatch):
+    pytest.importorskip("psutil")
+    total = 64 * 1024**3
+    monkeypatch.setattr(tools, "_system_memory", lambda: (2 * 1024**3, total))  # 2 of 64 GB free
+    monkeypatch.setattr(tools, "_LOW_MEMORY_MIN_TREE_BYTES", 0)
+    monkeypatch.setattr(tools, "_LOW_MEMORY_POLL_S", 0.05)
+    started = time.monotonic()
+    out = run("terminal", {"command": "sleep 20; echo finished"})
+    assert time.monotonic() - started < 10
+    assert "Stopped: the computer was running out of memory (2.0 GB free of 64 GB)" in out
+    assert "finished" not in out and "-j2" in out
+
+    # Plenty free, or the guard switched off: the command runs to the end.
+    monkeypatch.setattr(tools, "_system_memory", lambda: (40 * 1024**3, total))
+    assert "finished" in run("terminal", {"command": "sleep 0.3; echo finished"})
+    monkeypatch.setattr(tools, "_system_memory", lambda: (2 * 1024**3, total))
+    monkeypatch.setenv("GANJALF_MIN_FREE_MEMORY_PCT", "0")
+    assert "finished" in run("terminal", {"command": "sleep 0.3; echo finished"})
+    assert tools._low_memory_floor_bytes(total) == 0
+    monkeypatch.delenv("GANJALF_MIN_FREE_MEMORY_PCT")
+    assert tools._low_memory_floor_bytes(total) == int(total * 0.06)
+    assert tools._low_memory_floor_bytes(8 * 1024**3) == 1024**3  # at least 1 GiB

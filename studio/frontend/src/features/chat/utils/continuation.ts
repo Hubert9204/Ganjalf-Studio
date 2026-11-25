@@ -517,6 +517,16 @@ export const AUTO_CONTINUE_LIMIT = 3;
 /** Keyed by parent: a continuation runs as a sibling, so a per-message counter would reset. */
 const spent = new Map<string, number>();
 
+/** Ganjalf: a long agent turn that dies mid-way ("An error occurred") is resumed once on its
+ *  own, from where it stopped, instead of waiting for the user to type "continua". A second
+ *  failure in the same turn brings the Continue bar back. */
+export const AUTO_RESUME_AFTER_ERROR_LIMIT = 1;
+
+/** Wait before that retry, so a backend that is restarting or reloading the model can answer. */
+export const AUTO_RESUME_AFTER_ERROR_DELAY_MS = 2500;
+
+const spentAfterError = new Map<string, number>();
+
 export function shouldAutoContinue(
   reason: IncompleteReason | null | undefined,
   key: string | null | undefined,
@@ -532,7 +542,13 @@ export function shouldAutoContinue(
     promptTarget?: number;
   } = {},
 ): boolean {
-  if (reason !== "length" || !key) {
+  if (!key) {
+    return false;
+  }
+  if (reason === "interrupted") {
+    return (spentAfterError.get(key) ?? 0) < AUTO_RESUME_AFTER_ERROR_LIMIT;
+  }
+  if (reason !== "length") {
     return false;
   }
   if (fits === false) {
@@ -551,7 +567,14 @@ export function shouldAutoContinue(
 }
 
 /** Called before the run starts, so a failed run still consumes its budget. */
-export function recordAutoContinue(key: string): void {
+export function recordAutoContinue(
+  key: string,
+  reason?: IncompleteReason | null,
+): void {
+  if (reason === "interrupted") {
+    spentAfterError.set(key, (spentAfterError.get(key) ?? 0) + 1);
+    return;
+  }
   spent.set(key, (spent.get(key) ?? 0) + 1);
 }
 
@@ -1104,9 +1127,11 @@ export function shouldAutoContinueMessage(
 export function resetAutoContinue(key?: string): void {
   if (key === undefined) {
     spent.clear();
+    spentAfterError.clear();
     startedThisSession.clear();
     tab.reset();
   } else {
     spent.delete(key);
+    spentAfterError.delete(key);
   }
 }

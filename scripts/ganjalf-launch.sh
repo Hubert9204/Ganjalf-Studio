@@ -10,8 +10,9 @@
 # - picks the first free port from 8888 and opens the browser once the server answers;
 #   LAN access (Settings) serves the network on that same port
 #
-# Run it as your normal user, not as root: the folder picker only offers folders under
-# the home of the user Studio runs as.
+# Started as root through sudo / sudo -i / doas / pkexec, it keeps working for the user who
+# asked: that user's home, Studio data, skills and downloaded models (never /root), and files
+# it creates there are handed back to that user, so a later normal launch still works.
 #
 # Optional environment:
 #   GANJALF_HOME=<dir>      data and environment folder (default: ~/.ganjalf-studio)
@@ -31,6 +32,55 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Root started for someone else (sudo -i sets HOME=/root): find that user.
+REAL_USER=""
+if [ "$(id -u)" = "0" ]; then
+  if [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER}" != "root" ]; then
+    REAL_USER="$SUDO_USER"
+  elif [ -n "${DOAS_USER:-}" ] && [ "${DOAS_USER}" != "root" ]; then
+    REAL_USER="$DOAS_USER"
+  elif [ -n "${PKEXEC_UID:-}" ] && [ "${PKEXEC_UID}" != "0" ]; then
+    REAL_USER="$(id -nu "$PKEXEC_UID" 2>/dev/null || true)"
+  else
+    # sudo -i then su, or a root shell: the owner of this checkout, if it is not root.
+    owner="$(stat -c %U "$REPO_DIR" 2>/dev/null || true)"
+    [ -n "$owner" ] && [ "$owner" != "root" ] && [ "$owner" != "UNKNOWN" ] && REAL_USER="$owner"
+  fi
+fi
+if [ -n "$REAL_USER" ]; then
+  REAL_HOME="$(getent passwd "$REAL_USER" 2>/dev/null | cut -d: -f6 || true)"
+  if [ -n "$REAL_HOME" ] && [ -d "$REAL_HOME" ]; then
+    REAL_UID="$(id -u "$REAL_USER")"
+    REAL_GID="$(id -g "$REAL_USER")"
+    export HOME="$REAL_HOME"
+    export USER="$REAL_USER" LOGNAME="$REAL_USER"
+    # Root's own XDG folders would send caches and models back under /root.
+    for var in XDG_CONFIG_HOME XDG_CACHE_HOME XDG_DATA_HOME XDG_STATE_HOME HF_HOME \
+               HF_HUB_CACHE HUGGINGFACE_HUB_CACHE TRANSFORMERS_CACHE UV_CACHE_DIR; do
+      case "${!var:-}" in /root|/root/*) unset "$var" ;; esac
+    done
+    [ -d "/run/user/$REAL_UID" ] && export XDG_RUNTIME_DIR="/run/user/$REAL_UID"
+    # git refuses another user's checkout when run as root ("dubious ownership").
+    export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="$REPO_DIR"
+  else
+    REAL_USER=""
+  fi
+fi
+
+# Files root created in the user's folders go back to the user (only root-owned ones).
+give_back_to_user() {
+  [ -n "$REAL_USER" ] || return 0
+  local dir
+  for dir in "$@"; do
+    [ -e "$dir" ] && chown -R --from=0:0 "$REAL_UID:$REAL_GID" "$dir" 2>/dev/null || true
+  done
+}
+user_folders() {
+  give_back_to_user "$UNSLOTH_STUDIO_HOME" "$HOME/.cache" "$HOME/.agents" "$HOME/.unsloth" \
+    "$HOME/.local/share/unsloth" "$REPO_DIR"
+}
+
 export UNSLOTH_STUDIO_HOME="${GANJALF_HOME:-$HOME/.ganjalf-studio}"
 FIRST_PORT="${GANJALF_PORT:-8888}"
 HOST="${GANJALF_HOST:-127.0.0.1}"
@@ -57,6 +107,14 @@ find_free_port() {
 }
 
 open_browser() {
+  # As root the browser belongs to the user's desktop session, so open it as that user.
+  if [ -n "$REAL_USER" ] && command -v xdg-open >/dev/null 2>&1 && command -v runuser >/dev/null 2>&1; then
+    runuser -u "$REAL_USER" -- env DISPLAY="${DISPLAY:-:0}" XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
+      WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}" \
+      DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$REAL_UID/bus" \
+      xdg-open "$1" >/dev/null 2>&1 || echo "Open $1 in your browser."
+    return
+  fi
   if command -v xdg-open >/dev/null 2>&1; then
     xdg-open "$1" >/dev/null 2>&1 || true
   elif command -v open >/dev/null 2>&1; then
@@ -134,8 +192,10 @@ seed_defaults() {
   seed_overrides
 }
 
-if [ "$(id -u)" = "0" ]; then
-  echo "Warning: running as root. Studio will only offer folders under $HOME, and its tools can write anywhere." >&2
+if [ -n "$REAL_USER" ]; then
+  echo "Running as root for $REAL_USER: home, data and models stay in $HOME. The agent's tools run as root and can write anywhere." >&2
+elif [ "$(id -u)" = "0" ]; then
+  echo "Warning: running as root with no other user found, so data and models go under $HOME." >&2
 fi
 
 # The marker records what the installation was built from and is written only after install.sh
@@ -153,6 +213,7 @@ if [ "$(cat "$INSTALLED_MARKER" 2>/dev/null || true)" != "$REPO_REV" ]; then
   echo "$REPO_REV" > "$INSTALLED_MARKER"
 fi
 seed_defaults
+user_folders
 # check_page (headless Chromium for the model's web pages and games). A reinstall can rebuild
 # Studio's Python environment and drop Playwright, so it is checked on every launch and set up
 # again at most once per revision; GANJALF_PAGE_CHECK=0 skips it.
@@ -197,7 +258,7 @@ if [ "$HOST" != "127.0.0.1" ]; then
 fi
 "$STUDIO_BIN" studio -H "$HOST" -p "$PORT" &
 SERVER_PID=$!
-trap 'kill "$SERVER_PID" 2>/dev/null || true' INT TERM EXIT
+trap 'kill "$SERVER_PID" 2>/dev/null || true; user_folders' INT TERM EXIT
 
 # Up to two minutes for the server to start answering.
 for _ in $(seq 1 240); do

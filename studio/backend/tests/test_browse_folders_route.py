@@ -200,7 +200,9 @@ def test_create_browse_folder_rejects_unsafe_names(browse_home, name):
     assert list(browse_home.iterdir()) == []
 
 
-def test_create_browse_folder_stays_inside_the_allowlist(browse_home, tmp_path):
+def test_create_browse_folder_stays_inside_the_allowlist(browse_home, tmp_path, monkeypatch):
+    # Ganjalf opens the whole disk to the owner; the upstream limit is still one switch away.
+    monkeypatch.setenv("GANJALF_BROWSE_ALL", "0")
     outside = tmp_path / "outside"
     outside.mkdir()
     payload = models_route.BrowseFolderCreate(parent = str(outside), name = "x")

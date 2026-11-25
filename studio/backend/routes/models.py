@@ -1737,8 +1737,36 @@ def _build_browse_allowlist(
     return deduped
 
 
-def _is_path_inside_allowlist(target: Path, allowed_roots: list[Path]) -> bool:
-    """Realpath, so symlinks cannot escape; whole components only; POSIX / covers no descendants"""
+# Ganjalf: on a single-owner install the folder picker walks the whole disk -- up from the home to
+# /home and /, and into /mnt, /opt, /srv, /media... -- instead of stopping at the home folder.
+# Managed (multi-account) installs keep their private workspace. GANJALF_BROWSE_ALL=0 restores
+# the upstream limits. Pseudo-filesystems stay hidden, and credential folders stay closed.
+_WHOLE_DISK_DENIED = ("/proc", "/sys", "/dev")
+
+
+def _browse_whole_disk(managed: bool) -> bool:
+    return (
+        not managed
+        and os.name == "posix"
+        and os.environ.get("GANJALF_BROWSE_ALL", "1").strip().lower()
+        not in ("0", "false", "no", "off")
+    )
+
+
+def _browse_denied(path: str, whole_disk: bool = False) -> bool:
+    if not whole_disk:
+        from storage.studio_db import is_denied_system_path
+        return is_denied_system_path(path)
+    return any(path == prefix or path.startswith(prefix + "/") for prefix in _WHOLE_DISK_DENIED)
+
+
+def _is_path_inside_allowlist(
+    target: Path,
+    allowed_roots: list[Path],
+    whole_disk: bool = False,
+) -> bool:
+    """Realpath, so symlinks cannot escape; whole components only; POSIX / covers no descendants
+    (except in Ganjalf's whole-disk mode)"""
     try:
         target_real = os.path.normcase(os.path.realpath(str(target)))
     except OSError:
@@ -1752,6 +1780,8 @@ def _is_path_inside_allowlist(target: Path, allowed_roots: list[Path]) -> bool:
             return True
         drive, tail = os.path.splitdrive(root_real)
         if os.path.dirname(root_real) == root_real and not drive:
+            if whole_disk:
+                return True
             # Bare POSIX root ("/"): equality above is the only match; don't authorize descendants.
             continue
         if drive.startswith(("\\\\", "//")) and not tail:
@@ -1821,12 +1851,17 @@ def _match_browse_child(current: Path, name: str) -> Optional[Path]:
     return loose[0] if len(loose) == 1 else None
 
 
-def _resolve_browse_target(path: Optional[str], allowed_roots: list[Path]) -> Path:
+def _resolve_browse_target(
+    path: Optional[str],
+    allowed_roots: list[Path],
+    whole_disk: bool = False,
+) -> Path:
     from storage.studio_db import (
         contains_sensitive_path_component,
         is_denied_system_path,
     )
 
+    denied = (lambda p: _browse_denied(p, True)) if whole_disk else is_denied_system_path
     requested_path = _normalize_browse_request_path(path)
     resolved_roots: list[Path] = []
     seen_roots: set[str] = set()
@@ -1878,7 +1913,7 @@ def _resolve_browse_target(path: Optional[str], allowed_roots: list[Path]) -> Pa
                     status_code = 400,
                     detail = "Invalid path",
                 ) from exc
-            if not _is_path_inside_allowlist(resolved_child, resolved_roots):
+            if not _is_path_inside_allowlist(resolved_child, resolved_roots, whole_disk):
                 raise HTTPException(
                     status_code = 403,
                     detail = (
@@ -1891,7 +1926,7 @@ def _resolve_browse_target(path: Optional[str], allowed_roots: list[Path]) -> Pa
                     status_code = 403,
                     detail = "Credential or configuration directories are not browseable.",
                 )
-            if is_denied_system_path(str(resolved_child)):
+            if denied(str(resolved_child)):
                 raise HTTPException(
                     status_code = 403,
                     detail = "System directories are not browseable.",
@@ -1904,7 +1939,7 @@ def _resolve_browse_target(path: Optional[str], allowed_roots: list[Path]) -> Pa
                 detail = "Credential or configuration directories are not browseable.",
             )
         # Zero-component case: the requested path IS an allowlist root (legacy "/" or a drive root).
-        if is_denied_system_path(str(current)):
+        if denied(str(current)):
             raise HTTPException(
                 status_code = 403,
                 detail = "System directories are not browseable.",
@@ -1946,12 +1981,18 @@ def _browse_scope(path: Optional[str]):
         if managed
         else _build_browse_allowlist(media_roots, drive_roots)
     )
+    if _browse_whole_disk(managed):
+        allowed_roots = [*allowed_roots, Path("/")]
     return path, managed, media_roots, drive_roots, allowed_roots
 
 
-def _resolve_logged_browse_target(path: Optional[str], allowed_roots: list[Path]) -> Path:
+def _resolve_logged_browse_target(
+    path: Optional[str],
+    allowed_roots: list[Path],
+    whole_disk: bool = False,
+) -> Path:
     try:
-        return _resolve_browse_target(path, allowed_roots)
+        return _resolve_browse_target(path, allowed_roots, whole_disk)
     except HTTPException:
         if path is not None and path.strip():
             logger.warning(
@@ -1999,12 +2040,12 @@ def browse_folders(
     from utils.paths import hf_default_cache_dir, well_known_model_dirs
     from storage.studio_db import (
         contains_sensitive_path_component,
-        is_denied_system_path,
         list_scan_folders,
     )
 
     path, managed, media_roots, drive_roots, allowed_roots = _browse_scope(path)
-    target = _resolve_logged_browse_target(path, allowed_roots)
+    whole_disk = _browse_whole_disk(managed)
+    target = _resolve_logged_browse_target(path, allowed_roots, whole_disk)
 
     names: list[str] = []
     truncated = False
@@ -2044,7 +2085,7 @@ def browse_folders(
                     resolved_child = os.path.realpath(child.path)
                 except (OSError, ValueError):
                     resolved_child = child.path
-                if is_denied_system_path(resolved_child):
+                if _browse_denied(resolved_child, whole_disk):
                     continue
                 names.append(name)
     except PermissionError as exc:
@@ -2080,7 +2121,9 @@ def browse_folders(
 
     # Parent is None at the filesystem root or outside the allowed roots, else the up-row would 403.
     parent: Optional[str]
-    if target.parent == target or not _is_path_inside_allowlist(target.parent, allowed_roots):
+    if target.parent == target or not _is_path_inside_allowlist(
+        target.parent, allowed_roots, whole_disk
+    ):
         parent = None
     else:
         parent = str(target.parent)
@@ -2102,7 +2145,7 @@ def browse_folders(
         if resolved in seen_sug:
             return
         # Drop denied system dirs so no chip 403s; drive roots stay, with only their system subdirs denied.
-        if is_denied_system_path(resolved):
+        if _browse_denied(resolved, whole_disk):
             return
         if _safe_is_dir(resolved):
             seen_sug.add(resolved)
@@ -2120,6 +2163,9 @@ def browse_folders(
         _add_sug(home, "Home", "home")
         for name in ("Desktop", "Documents", "Downloads"):
             _add_sug(home / name, kind = "user")
+        if whole_disk:
+            _add_sug(Path("/"), "Computer", "drive")
+            _add_sug(home.parent, None, "drive")
         for p in (*media_roots, *drive_roots):
             _add_sug(p, p.name or None, "drive")
         try:
@@ -2186,7 +2232,7 @@ def create_browse_folder(
     if not _valid_new_folder_name(name) or contains_sensitive_path_component(name):
         raise HTTPException(status_code = 400, detail = "That folder name cannot be used.")
     parent, managed, _media, _drives, allowed_roots = _browse_scope(payload.parent)
-    target = _resolve_logged_browse_target(parent, allowed_roots)
+    target = _resolve_logged_browse_target(parent, allowed_roots, _browse_whole_disk(managed))
     created = target / name
     if not managed:
         inside_studio = is_path_within(created, studio_root())

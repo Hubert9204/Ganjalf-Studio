@@ -297,6 +297,7 @@ import {
   forgetAutoContinue,
   recordAutoContinue,
   shouldAutoContinueMessage,
+  AUTO_RESUME_AFTER_ERROR_DELAY_MS,
 } from "@/features/chat/utils/continuation";
 import {
   holdAutoContinueRun,
@@ -8400,7 +8401,7 @@ const ContinueMessageBarForLastMessage: FC = () => {
     let mounted = true;
     // Claimed in module scope under a cross-tab lock: a ref survives StrictMode replay but not a
     // remount, and module scope alone does not cover a second tab.
-    void claimAutoContinue(messageId, runThreadId ?? "").then((claim) => {
+    const claimAndStart = () => claimAutoContinue(messageId, runThreadId ?? "").then((claim) => {
       if (claim === "started") {
         // `aui.thread()` follows the selection, so check the message still exists BEFORE holding:
         // a hold whose run never appears renews forever and blocks other tabs.
@@ -8416,7 +8417,7 @@ const ContinueMessageBarForLastMessage: FC = () => {
         // Held for as long as this thread's run generates; the bar unmounts almost at once.
         holdAutoContinueRun(messageId, runThreadId);
         // Started even if unmounted, and recorded BEFORE the run so an empty round spends its budget.
-        recordAutoContinue(parentId);
+        recordAutoContinue(parentId, reason);
         // The run's own promise is what ends the hold if this preflight is stopped.
         watchAutoContinueRun(messageId, runThreadId, startContinuation());
         return;
@@ -8426,14 +8427,28 @@ const ContinueMessageBarForLastMessage: FC = () => {
         setHeldElsewhereFor(messageId);
       }
     });
+    // Ganjalf: a turn that died on an error waits a moment, so a reloading backend can answer.
+    if (reason !== "interrupted") {
+      void claimAndStart();
+      return () => {
+        mounted = false;
+      };
+    }
+    const wait = setTimeout(() => {
+      if (mounted) {
+        void claimAndStart();
+      }
+    }, AUTO_RESUME_AFTER_ERROR_DELAY_MS);
     return () => {
       mounted = false;
+      clearTimeout(wait);
     };
   }, [
     aui,
     autoContinuing,
     parentId,
     messageId,
+    reason,
     startContinuation,
     runThreadId,
   ]);
