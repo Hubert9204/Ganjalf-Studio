@@ -176,7 +176,6 @@ def load_mentioned_skills(
         # Plugins' SessionStart and UserPromptSubmit hooks (core/plugins/hooks.py).
         try:
             from core.plugins import hooks as plugin_hooks
-
             hooked = plugin_hooks.prompt_context(
                 messages, session_id = session_id, workdir = plugin_hooks.workdir_for(session_id)
             )
@@ -220,7 +219,9 @@ def load_mentioned_skills(
         min(_MAX_LOAD_BYTES, max(0, int(context_length) * 2)) if context_length else _MAX_LOAD_BYTES
     )
     loaded_bytes = 0
-    for name, automatic in [(name, False) for name in names] + [(name, True) for name in auto_names]:
+    for name, automatic in [(name, False) for name in names] + [
+        (name, True) for name in auto_names
+    ]:
         if permission_upgrade is not None:
             mode, bypass = permission_upgrade.apply(mode, bypass)
         if cancel_event is not None and cancel_event.is_set():

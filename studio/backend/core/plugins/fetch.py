@@ -62,7 +62,12 @@ class Source:
 
     @classmethod
     def from_dict(cls, data: dict) -> "Source":
-        return cls(**{key: str(data.get(key) or "") for key in ("kind", "owner", "repo", "ref", "path", "url")})
+        return cls(
+            **{
+                key: str(data.get(key) or "")
+                for key in ("kind", "owner", "repo", "ref", "path", "url")
+            }
+        )
 
     def label(self) -> str:
         if self.kind == "github":
@@ -125,9 +130,10 @@ def _github_headers() -> dict:
 
 def _download(url: str, headers: Optional[dict] = None) -> bytes:
     import httpx
-
     try:
-        with httpx.Client(follow_redirects = True, timeout = DOWNLOAD_TIMEOUT_S, headers = headers) as client:
+        with httpx.Client(
+            follow_redirects = True, timeout = DOWNLOAD_TIMEOUT_S, headers = headers
+        ) as client:
             with client.stream("GET", url) as response:
                 if response.status_code == 404:
                     raise FetchError(f"Not found: {url} (a private repository needs GITHUB_TOKEN).")
@@ -144,7 +150,11 @@ def _download(url: str, headers: Optional[dict] = None) -> bytes:
         raise FetchError(f"Download failed: {exc}") from exc
 
 
-def github_commit(owner: str, repo: str, ref: str = "") -> Optional[str]:
+def github_commit(
+    owner: str,
+    repo: str,
+    ref: str = "",
+) -> Optional[str]:
     """The commit a ref points at now, or None when GitHub can't say (offline, rate limit)."""
     import httpx
 
@@ -226,7 +236,11 @@ def unpack(data: bytes, dest: Path) -> None:
 
 def _single_top_folder(root: Path) -> Path:
     """GitHub archives wrap everything in `owner-repo-sha/`."""
-    entries = [entry for entry in root.iterdir() if not entry.name.startswith(".") or entry.name in (".claude-plugin",)]
+    entries = [
+        entry
+        for entry in root.iterdir()
+        if not entry.name.startswith(".") or entry.name in (".claude-plugin",)
+    ]
     if len(entries) == 1 and entries[0].is_dir() and entries[0].name != ".claude-plugin":
         return entries[0]
     return root
@@ -262,12 +276,21 @@ def _clone(url: str, ref: str, dest: Path) -> Optional[str]:
             env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"},
         )
         return (
-            subprocess.run(["git", "-C", str(dest), "rev-parse", "HEAD"], capture_output = True, text = True, timeout = 20).stdout.strip()
+            subprocess.run(
+                ["git", "-C", str(dest), "rev-parse", "HEAD"],
+                capture_output = True,
+                text = True,
+                encoding = "utf-8",
+                errors = "replace",
+                timeout = 20,
+            ).stdout.strip()
             or None
         )
     except (subprocess.SubprocessError, OSError) as exc:
         detail = getattr(exc, "stderr", b"") or b""
-        raise FetchError(f"git clone failed: {detail.decode(errors = 'replace').strip() or exc}") from exc
+        raise FetchError(
+            f"git clone failed: {detail.decode(errors = 'replace').strip() or exc}"
+        ) from exc
 
 
 def fetch(source: Source, dest: Path) -> dict:
@@ -288,7 +311,9 @@ def fetch(source: Source, dest: Path) -> dict:
             unpack(_download(url, _github_headers()), raw)
             top = _single_top_folder(raw)
             match = re.search(r"-([0-9a-f]{7,40})$", top.name)
-            commit = github_commit(source.owner, source.repo, source.ref) or (match[1] if match else None)
+            commit = github_commit(source.owner, source.repo, source.ref) or (
+                match[1] if match else None
+            )
         except FetchError:
             if not shutil.which("git"):
                 raise

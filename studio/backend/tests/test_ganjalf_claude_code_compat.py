@@ -31,9 +31,7 @@ def test_claude_code_fields_are_accepted():
         messages = [
             {
                 "role": "user",
-                "content": [
-                    {"type": "text", "text": "go", "cache_control": {"type": "ephemeral"}}
-                ],
+                "content": [{"type": "text", "text": "go", "cache_control": {"type": "ephemeral"}}],
             }
         ],
     )

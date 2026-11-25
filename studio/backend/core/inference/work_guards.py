@@ -23,7 +23,9 @@ from typing import Any, Iterable, Mapping, Optional
 DEFAULT_VERIFY_AFTER_WRITES = 6
 
 # Always a page or a piece of one.
-_MARKUP_EXTS = frozenset({".html", ".htm", ".css", ".scss", ".sass", ".less", ".vue", ".svelte", ".jsx", ".tsx"})
+_MARKUP_EXTS = frozenset(
+    {".html", ".htm", ".css", ".scss", ".sass", ".less", ".vue", ".svelte", ".jsx", ".tsx"}
+)
 # A page only when an HTML file sits beside or above them (a Node backend is not a page).
 _SCRIPT_EXTS = frozenset({".js", ".mjs", ".cjs", ".ts"})
 _WEB_EXTS = _MARKUP_EXTS | _SCRIPT_EXTS
@@ -34,7 +36,9 @@ _SHELL_WRITE_RES = (
     re.compile(rf"(?<![0-9&<>])>>?\s*['\"]?({_PATH_CHARS})"),
     re.compile(rf"\btee\s+(?:-a\s+)?['\"]?({_PATH_CHARS})"),
     re.compile(rf"\b(?:cp|mv)\s+(?:-\w+\s+)*\S+\s+['\"]?({_PATH_CHARS})"),
-    re.compile(rf"\bsed\s+(?:-\w+\s+)*-i\S*\s+(?:-\w+\s+)*(?:'[^']*'|\"[^\"]*\"|\S+)\s+['\"]?({_PATH_CHARS})"),
+    re.compile(
+        rf"\bsed\s+(?:-\w+\s+)*-i\S*\s+(?:-\w+\s+)*(?:'[^']*'|\"[^\"]*\"|\S+)\s+['\"]?({_PATH_CHARS})"
+    ),
 )
 # Python writes: open("f", "w"/"a"/"x"…), Path("f").write_text(...).
 _PY_WRITE_RES = (
@@ -129,7 +133,12 @@ def runs_something(tool_name: str, arguments: Mapping[str, Any]) -> bool:
             return False
         if not written_paths("python", arguments):
             return True
-        return bool(re.search(r"\b(?:print\s*\(|assert\b|subprocess\b|unittest\b|pytest\b|runpy\b|exec\s*\()", code))
+        return bool(
+            re.search(
+                r"\b(?:print\s*\(|assert\b|subprocess\b|unittest\b|pytest\b|runpy\b|exec\s*\()",
+                code,
+            )
+        )
     return False
 
 
@@ -150,7 +159,9 @@ class WorkLedger:
     def note_call(self, tool_name: str, arguments: Any, failed: bool) -> str:
         """Record an executed call; returns a note for the model, or ""."""
         try:
-            return self._note_call(tool_name, arguments if isinstance(arguments, Mapping) else {}, failed)
+            return self._note_call(
+                tool_name, arguments if isinstance(arguments, Mapping) else {}, failed
+            )
         except Exception:  # noqa: BLE001 -- a guard must never break the loop
             return ""
 
@@ -238,7 +249,9 @@ def _has_html_nearby(root: Path, rel_path: str) -> bool:
             if root != folder and root not in folder.parents:
                 return False
             if folder.is_dir() and any(
-                child.suffix.lower() in (".html", ".htm") for child in folder.iterdir() if child.is_file()
+                child.suffix.lower() in (".html", ".htm")
+                for child in folder.iterdir()
+                if child.is_file()
             ):
                 return True
             if folder == root:

@@ -30,7 +30,20 @@ GLOB_MAX_RESULTS = 300
 SCAN_MAX_FILES = 20_000
 # Folders a search skips unless the pattern or path names them.
 SKIPPED_DIRS = frozenset(
-    {".git", "node_modules", ".venv", "venv", "__pycache__", ".mypy_cache", ".pytest_cache", ".next", ".cache", "dist", "build", ".ganjalf"}
+    {
+        ".git",
+        "node_modules",
+        ".venv",
+        "venv",
+        "__pycache__",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".next",
+        ".cache",
+        "dist",
+        "build",
+        ".ganjalf",
+    }
 )
 
 _todos_lock = threading.Lock()
@@ -44,7 +57,6 @@ def todo_write(arguments: dict, session_id: Optional[str]) -> str:
     todos = (arguments or {}).get("todos")
     if isinstance(todos, str):
         import json
-
         try:
             todos = json.loads(todos)
         except ValueError:
@@ -83,7 +95,12 @@ def todo_write(arguments: dict, session_id: Optional[str]) -> str:
         advice.append("All items are done: verify the result, then give the final answer.")
     else:
         advice.append("Update the list as soon as an item is done (do not batch the updates).")
-    return f"Task list updated ({done}/{len(clean)} done):\n" + "\n".join(lines) + "\n" + " ".join(advice)
+    return (
+        f"Task list updated ({done}/{len(clean)} done):\n"
+        + "\n".join(lines)
+        + "\n"
+        + " ".join(advice)
+    )
 
 
 def current_todos(session_id: Optional[str]) -> list[dict]:
@@ -127,7 +144,11 @@ def _int(value, default: int, low: int, high: int) -> int:
     return max(low, min(high, number))
 
 
-def read_file(arguments: dict, session_id: Optional[str], disable_sandbox: bool = False) -> str:
+def read_file(
+    arguments: dict,
+    session_id: Optional[str],
+    disable_sandbox: bool = False,
+) -> str:
     arguments = arguments or {}
     target, error = _resolve(arguments.get("path"), session_id, disable_sandbox)
     if error:
@@ -182,7 +203,9 @@ def _walk(root: str, include_skipped: bool):
     """Files under root, skipping heavy folders; stops after SCAN_MAX_FILES."""
     seen = 0
     for folder, dirs, files in os.walk(root):
-        dirs[:] = sorted(d for d in dirs if include_skipped or (d not in SKIPPED_DIRS and not d.startswith(".")))
+        dirs[:] = sorted(
+            d for d in dirs if include_skipped or (d not in SKIPPED_DIRS and not d.startswith("."))
+        )
         for name in sorted(files):
             seen += 1
             if seen > SCAN_MAX_FILES:
@@ -197,14 +220,20 @@ def _matches_glob(relative: str, pattern: str) -> bool:
     patterns = [p.strip() for p in pattern.split(",") if p.strip()]
     for item in patterns:
         if "/" in item or "**" in item:
-            if fnmatch.fnmatch(relative, item) or fnmatch.fnmatch(relative, item.replace("**/", "")):
+            if fnmatch.fnmatch(relative, item) or fnmatch.fnmatch(
+                relative, item.replace("**/", "")
+            ):
                 return True
         elif fnmatch.fnmatch(os.path.basename(relative), item):
             return True
     return False
 
 
-def grep(arguments: dict, session_id: Optional[str], disable_sandbox: bool = False) -> str:
+def grep(
+    arguments: dict,
+    session_id: Optional[str],
+    disable_sandbox: bool = False,
+) -> str:
     arguments = arguments or {}
     pattern = str(arguments.get("pattern") or "")
     if not pattern:
@@ -220,7 +249,11 @@ def grep(arguments: dict, session_id: Optional[str], disable_sandbox: bool = Fal
     include = str(arguments.get("glob") or "")
     context = _int(arguments.get("context"), 0, 0, 5)
     files_only = arguments.get("files_only") is True
-    candidates = [root] if os.path.isfile(root) else _walk(root, include_skipped = any(d in pattern + include for d in SKIPPED_DIRS))
+    candidates = (
+        [root]
+        if os.path.isfile(root)
+        else _walk(root, include_skipped = any(d in pattern + include for d in SKIPPED_DIRS))
+    )
     base = root if os.path.isdir(root) else os.path.dirname(root)
     hits: list[str] = []
     matched_files: list[str] = []
@@ -261,14 +294,26 @@ def grep(arguments: dict, session_id: Optional[str], disable_sandbox: bool = Fal
         if count >= GREP_MAX_MATCHES:
             break
     if not matched_files:
-        return f"No matches for /{pattern}/" + (f" in files matching {include}" if include else "") + "."
+        return (
+            f"No matches for /{pattern}/"
+            + (f" in files matching {include}" if include else "")
+            + "."
+        )
     if files_only:
         return f"{len(matched_files)} file(s) match:\n" + "\n".join(matched_files)
-    more = f"\n(stopped at {GREP_MAX_MATCHES} matches; narrow the pattern or the glob)" if count >= GREP_MAX_MATCHES else ""
+    more = (
+        f"\n(stopped at {GREP_MAX_MATCHES} matches; narrow the pattern or the glob)"
+        if count >= GREP_MAX_MATCHES
+        else ""
+    )
     return f"{count} match(es) in {len(matched_files)} file(s):\n" + "\n".join(hits) + more
 
 
-def glob(arguments: dict, session_id: Optional[str], disable_sandbox: bool = False) -> str:
+def glob(
+    arguments: dict,
+    session_id: Optional[str],
+    disable_sandbox: bool = False,
+) -> str:
     arguments = arguments or {}
     pattern = str(arguments.get("pattern") or "**/*").strip()
     root, error = _resolve(arguments.get("path") or ".", session_id, disable_sandbox)
@@ -281,7 +326,9 @@ def glob(arguments: dict, session_id: Optional[str], disable_sandbox: bool = Fal
         relative = os.path.relpath(path, root).replace(os.sep, "/")
         if _matches_glob(relative, pattern):
             try:
-                found.append((os.path.getmtime(path), _shown(path, session_id), os.path.getsize(path)))
+                found.append(
+                    (os.path.getmtime(path), _shown(path, session_id), os.path.getsize(path))
+                )
             except OSError:
                 continue
     if not found:
@@ -289,7 +336,11 @@ def glob(arguments: dict, session_id: Optional[str], disable_sandbox: bool = Fal
     found.sort(key = lambda item: -item[0])
     shown = found[:GLOB_MAX_RESULTS]
     lines = [f"{relative} ({_size(size)})" for _, relative, size in shown]
-    more = f"\n... and {len(found) - len(shown)} more; narrow the pattern." if len(found) > len(shown) else ""
+    more = (
+        f"\n... and {len(found) - len(shown)} more; narrow the pattern."
+        if len(found) > len(shown)
+        else ""
+    )
     return f"{len(found)} file(s), newest first:\n" + "\n".join(lines) + more
 
 
@@ -321,9 +372,15 @@ TODO_WRITE_TOOL = {
                     "items": {
                         "type": "object",
                         "properties": {
-                            "content": {"type": "string", "description": "The step, imperative (e.g. 'Add the camera')."},
+                            "content": {
+                                "type": "string",
+                                "description": "The step, imperative (e.g. 'Add the camera').",
+                            },
                             "status": {"type": "string", "enum": list(TODO_STATUSES)},
-                            "activeForm": {"type": "string", "description": "Present tense shown while in progress (e.g. 'Adding the camera')."},
+                            "activeForm": {
+                                "type": "string",
+                                "description": "Present tense shown while in progress (e.g. 'Adding the camera').",
+                            },
                         },
                         "required": ["content", "status"],
                     },
@@ -346,9 +403,15 @@ READ_FILE_TOOL = {
         "parameters": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "File path, relative to the working directory."},
+                "path": {
+                    "type": "string",
+                    "description": "File path, relative to the working directory.",
+                },
                 "offset": {"type": "integer", "description": "First line to read (1-based)."},
-                "limit": {"type": "integer", "description": f"How many lines (max {READ_MAX_LINES})."},
+                "limit": {
+                    "type": "integer",
+                    "description": f"How many lines (max {READ_MAX_LINES}).",
+                },
             },
             "required": ["path"],
         },
@@ -368,10 +431,19 @@ GREP_TOOL = {
             "type": "object",
             "properties": {
                 "pattern": {"type": "string", "description": "Regular expression (Python syntax)."},
-                "path": {"type": "string", "description": "Folder or file to search (default: the working directory)."},
-                "glob": {"type": "string", "description": "Only files matching this, e.g. '*.ts' or 'src/**/*.tsx'; comma-separate several."},
+                "path": {
+                    "type": "string",
+                    "description": "Folder or file to search (default: the working directory).",
+                },
+                "glob": {
+                    "type": "string",
+                    "description": "Only files matching this, e.g. '*.ts' or 'src/**/*.tsx'; comma-separate several.",
+                },
                 "ignore_case": {"type": "boolean"},
-                "context": {"type": "integer", "description": "Lines of context around each match (0-5)."},
+                "context": {
+                    "type": "integer",
+                    "description": "Lines of context around each match (0-5).",
+                },
                 "files_only": {"type": "boolean", "description": "Only list the files that match."},
             },
             "required": ["pattern"],
@@ -391,7 +463,10 @@ GLOB_TOOL = {
             "type": "object",
             "properties": {
                 "pattern": {"type": "string", "description": "Glob pattern; default '**/*'."},
-                "path": {"type": "string", "description": "Folder to search (default: the working directory)."},
+                "path": {
+                    "type": "string",
+                    "description": "Folder to search (default: the working directory).",
+                },
             },
         },
     },
@@ -422,7 +497,16 @@ EXIT_PLAN_MODE_TOOL = {
 
 # What plan mode keeps: reading, searching, the web, pages, images, the task list, skills.
 PLAN_MODE_TOOL_NAMES = frozenset(
-    {"read_file", "grep", "glob", "web_search", "view_image", "check_page", "todo_write", "read_skill"}
+    {
+        "read_file",
+        "grep",
+        "glob",
+        "web_search",
+        "view_image",
+        "check_page",
+        "todo_write",
+        "read_skill",
+    }
 )
 PLAN_APPROVAL_TAG = "[awaiting_plan_approval]"
 
@@ -433,7 +517,11 @@ def apply_plan_mode(tools: list[dict]) -> list[dict]:
     kept = [tool for tool in tools if tool["function"]["name"] in PLAN_MODE_TOOL_NAMES]
     if "terminal" in names or "edit_file" in names:
         have = {tool["function"]["name"] for tool in kept}
-        kept += [tool for tool in (READ_FILE_TOOL, GREP_TOOL, GLOB_TOOL, TODO_WRITE_TOOL) if tool["function"]["name"] not in have]
+        kept += [
+            tool
+            for tool in (READ_FILE_TOOL, GREP_TOOL, GLOB_TOOL, TODO_WRITE_TOOL)
+            if tool["function"]["name"] not in have
+        ]
     return kept + [EXIT_PLAN_MODE_TOOL]
 
 
@@ -454,7 +542,16 @@ def code_agent_tools() -> list[dict]:
         return []
     from .background_jobs import TERMINAL_KILL_TOOL, TERMINAL_OUTPUT_TOOL
 
-    return [TODO_WRITE_TOOL, READ_FILE_TOOL, GREP_TOOL, GLOB_TOOL, TERMINAL_OUTPUT_TOOL, TERMINAL_KILL_TOOL]
+    return [
+        TODO_WRITE_TOOL,
+        READ_FILE_TOOL,
+        GREP_TOOL,
+        GLOB_TOOL,
+        TERMINAL_OUTPUT_TOOL,
+        TERMINAL_KILL_TOOL,
+    ]
 
 
-CODE_AGENT_TOOL_NAMES = frozenset({"todo_write", "read_file", "grep", "glob", "terminal_output", "terminal_kill"})
+CODE_AGENT_TOOL_NAMES = frozenset(
+    {"todo_write", "read_file", "grep", "glob", "terminal_output", "terminal_kill"}
+)

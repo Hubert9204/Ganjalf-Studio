@@ -687,7 +687,9 @@ def test_studio_update_records_every_packages_target_for_the_rollback(tmp_path: 
     info.mkdir()
     (info / "METADATA").write_text("Metadata-Version: 2.1\nName: bar\nVersion: 1.0\n")
     res = _run(
-        STUDIO_UPDATE, ["--pypi", "--no-restart", "--packages", "unsloth unsloth_zoo bar>=2 foo==2"], env
+        STUDIO_UPDATE,
+        ["--pypi", "--no-restart", "--packages", "unsloth unsloth_zoo bar>=2 foo==2"],
+        env,
     )
     calls = _calls(env)
     assert res.returncode != 0
@@ -848,7 +850,9 @@ def test_studio_update_with_deps_adds_the_studio_extra_to_a_qualified_unsloth_sp
     assert "unsloth[studio]_zoo" not in calls and " unsloth_zoo" in calls, calls
     env = _studio_env(tmp_path / "extras")
     res = _run(
-        STUDIO_UPDATE, ["--pypi", "--with-deps", "--no-restart", "--packages", "unsloth[cu128]>=2026.9"], env
+        STUDIO_UPDATE,
+        ["--pypi", "--with-deps", "--no-restart", "--packages", "unsloth[cu128]>=2026.9"],
+        env,
     )
     assert "unsloth[studio,cu128]>=2026.9" in _calls(env), _calls(env)
 
@@ -1173,7 +1177,9 @@ def test_a_plain_update_follows_the_ganjalf_branch_not_pypi(tmp_path: Path):
     assert "STUB-GIT remote add origin https://github.com/Hubert9204/Ganjalf-Studio" in calls, calls
     assert "install -U" not in calls, "a plain Ganjalf update must not pull Unsloth's PyPI release"
     assert "@main (Ganjalf)" in res.stdout
-    assert (home / "src" / ".ganjalf-revision").read_text().strip() == "0123456789abcdef0123456789abcdef01234567"
+    assert (
+        home / "src" / ".ganjalf-revision"
+    ).read_text().strip() == "0123456789abcdef0123456789abcdef01234567"
 
 
 def test_the_update_repo_and_branch_can_be_chosen(tmp_path: Path):

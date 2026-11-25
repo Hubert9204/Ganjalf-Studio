@@ -112,7 +112,9 @@ def test_external_full_access_only_nudge_never_carries_it():
 def test_memory_only_nudge_stays_without_it():
     from routes.inference import _build_tool_action_nudge
     memory = [{"type": "function", "function": {"name": "update_memory", "parameters": {}}}]
-    assert ap.PROTOCOL_MARKER not in _build_tool_action_nudge(tools = memory, model_name = "Qwen3.8-27B")
+    assert ap.PROTOCOL_MARKER not in _build_tool_action_nudge(
+        tools = memory, model_name = "Qwen3.8-27B"
+    )
 
 
 def test_append_to_system_message_drops_the_repeat():
@@ -137,13 +139,23 @@ def test_tool_error_nudge_asks_for_a_changed_retry():
 
 class TestAgenticPresenceCap:
     @staticmethod
-    def _presence(monkeypatch, *, agentic, explicit = None, saved = None, env = None, thinking = False):
+    def _presence(
+        monkeypatch,
+        *,
+        agentic,
+        explicit = None,
+        saved = None,
+        env = None,
+        thinking = False,
+    ):
         from utils.inference import inference_config as cfg
 
         if env is not None:
             monkeypatch.setenv("GANJALF_AGENTIC_PRESENCE_PENALTY", env)
         monkeypatch.delenv("UNSLOTH_SAMPLING_PRESENCE_PENALTY", raising = False)
-        monkeypatch.setattr(cfg, "_recommended_sampling", lambda model_id: {"presence_penalty": 1.5})
+        monkeypatch.setattr(
+            cfg, "_recommended_sampling", lambda model_id: {"presence_penalty": 1.5}
+        )
         monkeypatch.setattr(cfg, "_saved_sampling", lambda model_id: saved or {})
         effective = cfg.resolve_effective_sampling(
             "unsloth/Qwen3.8-27B-GGUF",
@@ -172,7 +184,12 @@ class TestAgenticPresenceCap:
 
     def test_thinking_keeps_an_explicit_or_saved_value(self, monkeypatch):
         assert self._presence(monkeypatch, agentic = False, thinking = True, explicit = 1.5) == 1.5
-        assert self._presence(monkeypatch, agentic = False, thinking = True, saved = {"presence_penalty": 1.0}) == 1.0
+        assert (
+            self._presence(
+                monkeypatch, agentic = False, thinking = True, saved = {"presence_penalty": 1.0}
+            )
+            == 1.0
+        )
 
     def test_env_sets_or_disables_it(self, monkeypatch):
         assert self._presence(monkeypatch, agentic = True, env = "0.5") == 0.5
@@ -194,7 +211,9 @@ def test_payload_offers_tools(fields, expected):
 
     from routes.inference import _payload_offers_tools
 
-    payload = SimpleNamespace(**{"tools": None, "enable_tools": None, "tool_choice": None, **fields})
+    payload = SimpleNamespace(
+        **{"tools": None, "enable_tools": None, "tool_choice": None, **fields}
+    )
     assert _payload_offers_tools(payload) is expected
 
 

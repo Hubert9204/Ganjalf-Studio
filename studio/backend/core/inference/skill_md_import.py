@@ -41,13 +41,7 @@ def _clean_path(raw: str) -> str:
     normalized = (raw or "").replace("\\", "/")
     parts = [part for part in normalized.split("/") if part not in ("", ".")]
     drive = bool(parts) and len(parts[0]) >= 2 and parts[0][1] == ":"
-    if (
-        not parts
-        or normalized.startswith("/")
-        or drive
-        or ".." in parts
-        or "\x00" in normalized
-    ):
+    if not parts or normalized.startswith("/") or drive or ".." in parts or "\x00" in normalized:
         raise SkillError(f"Unsafe file path: {raw!r}")
     return "/".join(parts)
 

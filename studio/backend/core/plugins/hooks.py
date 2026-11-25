@@ -91,7 +91,9 @@ def _all_hooks() -> dict[str, list[tuple[str, str, dict]]]:
         for event, groups in summary.get("hooks", {}).items():
             for group in groups:
                 for hook in group["hooks"]:
-                    hooks.setdefault(event, []).append((record["name"], group.get("matcher", ""), hook))
+                    hooks.setdefault(event, []).append(
+                        (record["name"], group.get("matcher", ""), hook)
+                    )
     with _cache_lock:
         _cache["key"] = key
         _cache["hooks"] = hooks
@@ -160,7 +162,9 @@ def _if_matches(condition: str, tool: str, tool_input: dict) -> bool:
         return False
     if match[2] is None:
         return True
-    subject = tool_input.get("command") or tool_input.get("file_path") or tool_input.get("url") or ""
+    subject = (
+        tool_input.get("command") or tool_input.get("file_path") or tool_input.get("url") or ""
+    )
     pattern = match[2].replace(":*", "*")
     return fnmatch.fnmatchcase(str(subject), pattern)
 
@@ -188,7 +192,6 @@ def _kill(process: subprocess.Popen) -> None:
     try:
         if os.name != "nt":
             import signal
-
             os.killpg(process.pid, signal.SIGKILL)
         else:
             process.kill()
@@ -201,7 +204,13 @@ def _kill(process: subprocess.Popen) -> None:
 
 
 def _run_one(
-    plugin: str, hook: dict, event: str, payload: dict, cwd: str, outcome: Outcome, cancel_event = None
+    plugin: str,
+    hook: dict,
+    event: str,
+    payload: dict,
+    cwd: str,
+    outcome: Outcome,
+    cancel_event = None,
 ) -> None:
     from .manager import data_dir, expand, plugin_dir
 
@@ -223,6 +232,8 @@ def _run_one(
             stdout = subprocess.PIPE,
             stderr = subprocess.PIPE,
             text = True,
+            encoding = "utf-8",
+            errors = "replace",
             cwd = cwd if os.path.isdir(cwd) else None,
             env = env,
             # Its own process group, so a stop or a timeout takes the whole hook down.
@@ -255,21 +266,31 @@ def _run_one(
             outcome.messages.append(f"{plugin}: {event} hook timed out after {timeout:g} s")
             return
     result = subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
-    logger.info("Plugin %s %s hook exit %s in %.1fs", plugin, event, result.returncode, time.monotonic() - started)
+    logger.info(
+        "Plugin %s %s hook exit %s in %.1fs",
+        plugin,
+        event,
+        result.returncode,
+        time.monotonic() - started,
+    )
     stdout, stderr = _clip(result.stdout), _clip(result.stderr)
     if result.returncode == 2:
         outcome.blocked = True
         outcome.reasons.append(f"[{plugin}] {stderr or 'blocked by a hook'}")
         return
     if result.returncode != 0:
-        outcome.messages.append(f"{plugin}: {event} hook failed ({result.returncode}): {stderr[:500]}")
+        outcome.messages.append(
+            f"{plugin}: {event} hook failed ({result.returncode}): {stderr[:500]}"
+        )
         return
     data = _parse(stdout)
     if data is None:
         if stdout and event in ("UserPromptSubmit", "SessionStart"):
             outcome.context.append(f"[{plugin}] {stdout}")
         return
-    specific = data.get("hookSpecificOutput") if isinstance(data.get("hookSpecificOutput"), dict) else {}
+    specific = (
+        data.get("hookSpecificOutput") if isinstance(data.get("hookSpecificOutput"), dict) else {}
+    )
     if data.get("continue") is False:
         outcome.blocked = True
         outcome.reasons.append(f"[{plugin}] {data.get('stopReason') or 'stopped by a hook'}")
@@ -278,7 +299,9 @@ def _run_one(
         outcome.reasons.append(f"[{plugin}] {data.get('reason') or 'blocked by a hook'}")
     if specific.get("permissionDecision") == "deny":
         outcome.blocked = True
-        outcome.reasons.append(f"[{plugin}] {specific.get('permissionDecisionReason') or 'denied by a hook'}")
+        outcome.reasons.append(
+            f"[{plugin}] {specific.get('permissionDecisionReason') or 'denied by a hook'}"
+        )
     context = specific.get("additionalContext")
     if isinstance(context, str) and context.strip():
         outcome.context.append(f"[{plugin}] {_clip(context)}")
@@ -304,7 +327,9 @@ def run_event(
     for plugin, matcher, hook in entries:
         if tool_names and not _matches(matcher, tool_names):
             continue
-        if hook.get("if") and not (tool_names and _if_matches(hook["if"], tool_names[0], tool_input or {})):
+        if hook.get("if") and not (
+            tool_names and _if_matches(hook["if"], tool_names[0], tool_input or {})
+        ):
             continue
         if cancel_event is not None and cancel_event.is_set():
             outcome.cancelled = True
@@ -319,7 +344,12 @@ def run_event(
 
 
 def before_tool(
-    name: str, arguments: Any, *, session_id: Optional[str], workdir: str, cancel_event = None
+    name: str,
+    arguments: Any,
+    *,
+    session_id: Optional[str],
+    workdir: str,
+    cancel_event = None,
 ) -> Optional[str]:
     """None to run the call, or the text that replaces its result."""
     if not has_hooks("PreToolUse"):
@@ -341,7 +371,13 @@ def before_tool(
 
 
 def after_tool(
-    name: str, arguments: Any, result: str, *, session_id: Optional[str], workdir: str, cancel_event = None
+    name: str,
+    arguments: Any,
+    result: str,
+    *,
+    session_id: Optional[str],
+    workdir: str,
+    cancel_event = None,
 ) -> str:
     if not has_hooks("PostToolUse") or not isinstance(result, str):
         return result
@@ -351,7 +387,12 @@ def after_tool(
         response["stdout"] = response["output"]
     outcome = run_event(
         "PostToolUse",
-        {"session_id": session_id or "", "tool_name": tool, "tool_input": tool_input, "tool_response": response},
+        {
+            "session_id": session_id or "",
+            "tool_name": tool,
+            "tool_input": tool_input,
+            "tool_response": response,
+        },
         cwd = workdir,
         tool_names = (tool, name),
         tool_input = tool_input,
@@ -370,21 +411,33 @@ def after_tool(
     return result + note
 
 
-def prompt_context(messages: list[dict], *, session_id: Optional[str], workdir: str) -> Optional[str]:
+def prompt_context(
+    messages: list[dict], *, session_id: Optional[str], workdir: str
+) -> Optional[str]:
     """SessionStart (first user message) and UserPromptSubmit: text for the system prompt, or None."""
     if not (has_hooks("UserPromptSubmit") or has_hooks("SessionStart")) or not messages:
         return None
     if messages[-1].get("role") != "user":
         return None
     content = messages[-1].get("content")
-    prompt = content if isinstance(content, str) else "\n".join(
-        part.get("text", "") for part in content or [] if isinstance(part, dict) and part.get("type") == "text"
+    prompt = (
+        content
+        if isinstance(content, str)
+        else "\n".join(
+            part.get("text", "")
+            for part in content or []
+            if isinstance(part, dict) and part.get("type") == "text"
+        )
     )
     parts: list[str] = []
     if sum(1 for message in messages if message.get("role") == "user") == 1:
-        start = run_event("SessionStart", {"session_id": session_id or "", "source": "startup"}, cwd = workdir)
+        start = run_event(
+            "SessionStart", {"session_id": session_id or "", "source": "startup"}, cwd = workdir
+        )
         parts.extend(start.context)
-    submit = run_event("UserPromptSubmit", {"session_id": session_id or "", "prompt": prompt}, cwd = workdir)
+    submit = run_event(
+        "UserPromptSubmit", {"session_id": session_id or "", "prompt": prompt}, cwd = workdir
+    )
     parts.extend(submit.context)
     if submit.blocked:
         parts.append(
@@ -394,13 +447,19 @@ def prompt_context(messages: list[dict], *, session_id: Optional[str], workdir: 
     return "Plugin hooks:\n" + "\n\n".join(parts) if parts else None
 
 
-def stop_check(last_text: str, *, session_id: Optional[str], workdir: str, rounds: int) -> Optional[str]:
+def stop_check(
+    last_text: str, *, session_id: Optional[str], workdir: str, rounds: int
+) -> Optional[str]:
     """When the agent is about to finish: a reason to keep working, or None."""
     if rounds >= MAX_STOP_BLOCKS or not has_hooks("Stop"):
         return None
     outcome = run_event(
         "Stop",
-        {"session_id": session_id or "", "stop_hook_active": rounds > 0, "last_assistant_message": last_text[:MAX_OUTPUT_CHARS]},
+        {
+            "session_id": session_id or "",
+            "stop_hook_active": rounds > 0,
+            "last_assistant_message": last_text[:MAX_OUTPUT_CHARS],
+        },
         cwd = workdir,
     )
     if not outcome.blocked:
@@ -411,7 +470,6 @@ def stop_check(last_text: str, *, session_id: Optional[str], workdir: str, round
 def workdir_for(session_id: Optional[str]) -> str:
     try:
         from core.inference.tools import _get_workdir
-
         return _get_workdir(session_id)
     except Exception:
         return str(Path.cwd())

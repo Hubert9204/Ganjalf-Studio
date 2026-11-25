@@ -4550,8 +4550,13 @@ def _pull_ganjalf_checkout() -> bool:
         repo = f"https://github.com/{repo.strip('/')}"
     if not (root / ".git").exists():
         typer.echo("Ganjalf Studio updates from its own repository, not from PyPI.", err = True)
-        typer.echo("  This tree has no .git (a Docker image): run `unsloth-studio-update` there.", err = True)
-        typer.echo("  To install Unsloth's release instead: GANJALF_UPDATE_SOURCE=unsloth unsloth studio update", err = True)
+        typer.echo(
+            "  This tree has no .git (a Docker image): run `unsloth-studio-update` there.", err = True
+        )
+        typer.echo(
+            "  To install Unsloth's release instead: GANJALF_UPDATE_SOURCE=unsloth unsloth studio update",
+            err = True,
+        )
         raise typer.Exit(2)
     typer.echo(f"Updating Ganjalf Studio from {repo} ({branch})...")
     # --ff-only: a checkout with local commits or edits is left for the owner to merge.

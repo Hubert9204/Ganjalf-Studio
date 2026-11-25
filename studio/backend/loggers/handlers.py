@@ -110,6 +110,8 @@ _QUIET_SUCCESS_PATHS = {
     "/api/inference/video/generate-progress",
     # The Images queue panel's list; enqueue, move, cancel and clear are not GETs and still log.
     "/api/inference/images/queue",
+    # Ganjalf: the chat's background-jobs menu; stopping a job is a POST and still logs.
+    "/api/inference/background-jobs",
     # Polled by the Images page while the FLUX.3 prompt upsampler downloads.
     "/api/inference/images/prompt-upsampler/status",
     "/api/llama/update-status",

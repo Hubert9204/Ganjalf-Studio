@@ -25,7 +25,12 @@ def _tree(tmp_path: Path, *, git: bool = True) -> Path:
 
 @pytest.fixture(autouse = True)
 def _env(monkeypatch):
-    for name in ("GANJALF_UPDATE_SOURCE", "GANJALF_UPDATE_REPO", "GANJALF_UPDATE_BRANCH", "UNSLOTH_STUDIO_REPO"):
+    for name in (
+        "GANJALF_UPDATE_SOURCE",
+        "GANJALF_UPDATE_REPO",
+        "GANJALF_UPDATE_BRANCH",
+        "UNSLOTH_STUDIO_REPO",
+    ):
         monkeypatch.delenv(name, raising = False)
 
 
@@ -56,12 +61,24 @@ def test_the_checkout_is_fast_forwarded_from_the_ganjalf_repo(tmp_path, monkeypa
         lambda cmd, **kw: calls.append(cmd) or subprocess.CompletedProcess(cmd, 0),
     )
     assert studio._pull_ganjalf_checkout() is True
-    assert calls == [["git", "-C", str(root), "pull", "--ff-only", "https://github.com/Hubert9204/Ganjalf-Studio", "dev"]]
+    assert calls == [
+        [
+            "git",
+            "-C",
+            str(root),
+            "pull",
+            "--ff-only",
+            "https://github.com/Hubert9204/Ganjalf-Studio",
+            "dev",
+        ]
+    ]
 
 
 def test_a_tree_that_cannot_fast_forward_installs_nothing(tmp_path, monkeypatch):
     monkeypatch.setenv("STUDIO_LOCAL_REPO", str(_tree(tmp_path)))
-    monkeypatch.setattr(studio.subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1))
+    monkeypatch.setattr(
+        studio.subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1)
+    )
     with pytest.raises(typer.Exit) as exc:
         studio._pull_ganjalf_checkout()
     assert exc.value.exit_code == 1

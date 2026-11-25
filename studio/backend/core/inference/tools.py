@@ -15231,7 +15231,7 @@ def _render_html_result(arguments: dict) -> str:
     )
 
 
-def execute_tool(
+def _execute_tool_unhooked(
     name: str,
     arguments: dict,
     cancel_event = None,
@@ -15345,7 +15345,11 @@ def execute_tool(
             f"{'Updated' if record.get('replaced') else 'Created'} Agent Skill '{record['name']}' "
             f"at {record['path']}"
             + (f" with {carried} extra file{'s' if carried != 1 else ''}" if carried else "")
-            + (" (the previous version is kept in .ganjalf-skill-history)" if record.get("replaced") else "")
+            + (
+                " (the previous version is kept in .ganjalf-skill-history)"
+                if record.get("replaced")
+                else ""
+            )
             + ". It is enabled and ready to use."
         )
 
@@ -15357,6 +15361,7 @@ def execute_tool(
             SkillError,
             read_skill_resource,
         )
+
         copy_to = arguments.get("copy_to")
         if isinstance(copy_to, str) and copy_to.strip():
             # Ganjalf: a template or script lands in the project without costing context twice.
@@ -15364,7 +15369,9 @@ def execute_tool(
 
             resource = arguments.get("resource") or "SKILL.md"
             try:
-                record, normalized, content = _read_enabled_skill_text(arguments.get("name") or "", resource)
+                record, normalized, content = _read_enabled_skill_text(
+                    arguments.get("name") or "", resource
+                )
             except SkillError as exc:
                 return f"Error: {exc}"
             with _session_in_flight(session_id):
@@ -15607,7 +15614,6 @@ def execute_tool(
     promoted = None
     if name == "terminal" and arguments.get("run_in_background") is not True:
         from .command_shapes import promoted_background
-
         promoted = promoted_background(arguments.get("command", ""))
     if name == "terminal" and (arguments.get("run_in_background") is True or promoted):
         from . import background_jobs
@@ -15640,7 +15646,6 @@ def execute_tool(
         return started
     if name == "exit_plan_mode":
         from . import agent_tools
-
         return agent_tools.exit_plan_mode(arguments)
     if name in ("todo_write", "read_file", "grep", "glob"):
         from . import agent_tools
@@ -15654,7 +15659,6 @@ def execute_tool(
             )
     if name in ("terminal_output", "terminal_kill"):
         from . import background_jobs
-
         handler = background_jobs.output if name == "terminal_output" else background_jobs.kill
         return handler(arguments, session_id)
     if name == "terminal":
@@ -15685,7 +15689,6 @@ def execute_tool(
         return result
     if name == "run_agent":
         from core.plugins.agents import run_agent
-
         with _session_in_flight(session_id):
             return _fit_result_to_room(
                 run_agent(
@@ -15699,7 +15702,6 @@ def execute_tool(
             )
     if name == "check_page":
         from .page_check import check_page
-
         with _session_in_flight(session_id):
             return _fit_result_to_room(
                 check_page(arguments, _get_workdir(session_id), cancel_event, website_policy),
@@ -15740,9 +15742,6 @@ def execute_tool(
     return f"Unknown tool: {name}"
 
 
-_execute_tool_unhooked = execute_tool
-
-
 @functools.wraps(_execute_tool_unhooked)
 def execute_tool(name: str, arguments: dict, *args, **kwargs) -> str:
     """Runs a tool by name (``_execute_tool_unhooked``), between the PreToolUse and PostToolUse
@@ -15757,7 +15756,9 @@ def execute_tool(name: str, arguments: dict, *args, **kwargs) -> str:
         return _execute_tool_unhooked(name, arguments, *args, **kwargs)
     import inspect as _inspect
 
-    bound = _inspect.signature(_execute_tool_unhooked).bind_partial(name, arguments, *args, **kwargs)
+    bound = _inspect.signature(_execute_tool_unhooked).bind_partial(
+        name, arguments, *args, **kwargs
+    )
     session_id = bound.arguments.get("session_id")
     cancel_event = bound.arguments.get("cancel_event")
     workdir = plugin_hooks.workdir_for(session_id)
@@ -15772,6 +15773,10 @@ def execute_tool(name: str, arguments: dict, *args, **kwargs) -> str:
     return plugin_hooks.after_tool(
         name, arguments, result, session_id = session_id, workdir = workdir, cancel_event = cancel_event
     )
+
+
+# functools.wraps copied the unhooked name; callers and logs know this one as execute_tool.
+execute_tool.__name__ = execute_tool.__qualname__ = "execute_tool"
 
 
 def _opt_int(v) -> int | None:
@@ -23050,7 +23055,12 @@ _DIGEST_MAX_ERROR_LINES = 30
 _DIGEST_LINE_CHARS = 300
 
 
-def _output_digest(text: str, limit: int, *, numbered: bool = True) -> str:
+def _output_digest(
+    text: str,
+    limit: int,
+    *,
+    numbered: bool = True,
+) -> str:
     """Error lines from the part a head-only cut would drop, then the last lines; "" when not worth it.
 
     At most ~40% of the room (errors up to 15%, tail up to 25%), so the head and its paging hint stay
@@ -23072,7 +23082,9 @@ def _output_digest(text: str, limit: int, *, numbered: bool = True) -> str:
     tail_lines.reverse()
     # The middle: what the head and the tail do not already show.
     tail_text = (
-        f"\n\n[last {len(tail_lines)} lines of the output]\n" + "\n".join(tail_lines) if tail_lines else ""
+        f"\n\n[last {len(tail_lines)} lines of the output]\n" + "\n".join(tail_lines)
+        if tail_lines
+        else ""
     )
     floor = max(0, limit - len(tail_text) - error_room)
     middle_end = len(lines) - len(tail_lines)
@@ -23098,7 +23110,12 @@ def _output_digest(text: str, limit: int, *, numbered: bool = True) -> str:
 
     def _render(kept: "list[tuple[int, str]]") -> str:
         head = (
-            ("\n\n[error lines from the cut part, line: text]\n" if numbered else "\n\n[error lines from the cut part]\n") + "\n".join(e for _, e in kept)
+            (
+                "\n\n[error lines from the cut part, line: text]\n"
+                if numbered
+                else "\n\n[error lines from the cut part]\n"
+            )
+            + "\n".join(e for _, e in kept)
             if kept
             else ""
         )
@@ -24095,7 +24112,8 @@ _DRAIN_BUSY_CAP_S = 10.0
 _BACKGROUND_STOPPED_NOTE = (
     "[Background processes still writing to this output were stopped when the command exited. "
     "To keep one running (a dev server, a watcher), start it with terminal run_in_background: true "
-    "and read it with terminal_output.]\n"
+    "and read it with terminal_output (a lone `nohup cmd > out.log 2>&1 &` also becomes a "
+    "background job).]\n"
 )
 
 
@@ -24946,7 +24964,12 @@ def _python_exec(
         result = _defuse_sentinels(result)
         result = (
             _truncate(
-                result, workdir = spill_dir, scope = spill_scope, hint = hint, omitted = omitted, digest = True
+                result,
+                workdir = spill_dir,
+                scope = spill_scope,
+                hint = hint,
+                omitted = omitted,
+                digest = True,
             )
             if result.strip()
             else "(no output)" + hint
@@ -25223,7 +25246,12 @@ def _bash_exec(
         result = _defuse_sentinels(result)  # before the fit; see _python_exec
         result = (
             _truncate(
-                result, workdir = spill_dir, scope = spill_scope, hint = hint, omitted = omitted, digest = True
+                result,
+                workdir = spill_dir,
+                scope = spill_scope,
+                hint = hint,
+                omitted = omitted,
+                digest = True,
             )
             if result.strip()
             else "(no output)" + hint

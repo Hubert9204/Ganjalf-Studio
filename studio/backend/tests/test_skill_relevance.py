@@ -31,7 +31,10 @@ OPENGL_BUG = "fix the OpenGL rendering bug in src/render.c, the program shows on
 GAME_REQUEST = "creami un gioco in stile tekken 3. lavora nella cartella di lavoro del progetto"
 SKILLS = [
     rec("coding-agent", CODING),
-    rec("deep-research", "Conduct multi-source web research and write a long cited report on a topic."),
+    rec(
+        "deep-research",
+        "Conduct multi-source web research and write a long cited report on a topic.",
+    ),
     rec(
         "morning",
         "Render the user's morning brief as a styled HTML artifact, or set it up as a recurring weekday task.",

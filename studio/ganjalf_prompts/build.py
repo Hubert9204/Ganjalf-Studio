@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Assemble the copy-paste system prompts from sections/: core.md plus one model addendum each.
 
-    python3 studio/ganjalf_prompts/build.py          # rewrite agentic-*.md
-    python3 studio/ganjalf_prompts/build.py --check  # exit 1 if a file is out of date
+python3 studio/ganjalf_prompts/build.py          # rewrite agentic-*.md
+python3 studio/ganjalf_prompts/build.py --check  # exit 1 if a file is out of date
 """
 
 import sys

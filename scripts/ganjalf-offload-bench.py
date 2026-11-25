@@ -27,9 +27,13 @@ GIB = 1024**3
 
 
 def _args(argv = None):
-    p = argparse.ArgumentParser(description = __doc__, formatter_class = argparse.RawDescriptionHelpFormatter)
+    p = argparse.ArgumentParser(
+        description = __doc__, formatter_class = argparse.RawDescriptionHelpFormatter
+    )
     p.add_argument("--model", required = True, help = "Hugging Face id or local folder (safetensors)")
-    p.add_argument("--budgets", default = "full,16,12", help = "comma list of GiB, or 'full' for the whole card")
+    p.add_argument(
+        "--budgets", default = "full,16,12", help = "comma list of GiB, or 'full' for the whole card"
+    )
     p.add_argument("--seq-len", type = int, default = 2048)
     p.add_argument("--batch", type = int, default = 1)
     p.add_argument("--rank", type = int, default = 16)
@@ -69,7 +73,15 @@ def _one_run(a) -> dict:
         model,
         r = a.rank,
         lora_alpha = a.rank,
-        target_modules = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+        target_modules = [
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ],
         use_gradient_checkpointing = "unsloth",
         offload_layers = "auto",
         prefetch_depth = prefetch,
@@ -80,7 +92,9 @@ def _one_run(a) -> dict:
     optim = torch.optim.AdamW(params, lr = 1e-5)
     vocab = getattr(model.config, "vocab_size", None) or len(tokenizer)
     gen = torch.Generator().manual_seed(3407)
-    ids = torch.randint(100, min(vocab, 32000), (a.batch, a.seq_len), generator = gen).to(f"cuda:{a.gpu}")
+    ids = torch.randint(100, min(vocab, 32000), (a.batch, a.seq_len), generator = gen).to(
+        f"cuda:{a.gpu}"
+    )
     swapper = getattr(model, "_unsloth_block_swap", None) or getattr(
         getattr(model, "base_model", None), "_unsloth_block_swap", None
     )
@@ -131,7 +145,9 @@ def main() -> int:
 
     rows = []
     for budget in [b.strip() for b in a.budgets.split(",") if b.strip()]:
-        print(f"--- budget {budget} GiB ---" if budget != "full" else "--- whole card ---", flush = True)
+        print(
+            f"--- budget {budget} GiB ---" if budget != "full" else "--- whole card ---", flush = True
+        )
         cmd = [sys.executable, os.path.abspath(__file__), *sys.argv[1:], "--one", budget]
         proc = subprocess.run(cmd, capture_output = True, text = True)
         line = next((l for l in proc.stdout.splitlines() if l.startswith("BENCH ")), None)
@@ -156,7 +172,9 @@ def main() -> int:
             f"{r['layers_on_host']}/{r['total_layers'] or '?':<10} {r['copy_gib_per_step']:<14} "
             f"{r['stall_ms_per_step']}{slow}"
         )
-    print("\nstall ms/step is the time the GPU waited for PCIe; near 0 means the copies were hidden.")
+    print(
+        "\nstall ms/step is the time the GPU waited for PCIe; near 0 means the copies were hidden."
+    )
     return 0
 
 

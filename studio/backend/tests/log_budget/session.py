@@ -39,6 +39,8 @@ IDLE_POLLS: dict[str, tuple[float, str]] = {
     "/api/inference/images/queue": (5.0, "declared"),
     # Cross-device chat sync: every 4s while the page is visible (REMOTE_HISTORY_POLL_MS, remote-history-sync.ts).
     "/api/chat/revision": (4.0, "declared"),
+    # Ganjalf: the chat header's background-jobs menu, every 5s (background-jobs-menu.tsx).
+    "/api/inference/background-jobs": (5.0, "declared"),
 }
 
 # Polls only while an operation is in flight; separate so the idle envelope is not averaged.

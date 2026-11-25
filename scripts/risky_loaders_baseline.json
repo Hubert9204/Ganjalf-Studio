@@ -283,6 +283,22 @@
       "reason": "Prefix-bounded to core.inference.<gallery>; the name comes from the fixed _GALLERIES table."
     },
     {
+      "file": "studio/backend/core/plugins/fetch.py",
+      "rule": "unpinned-code-fetch",
+      "sink": "git-clone-unpinned",
+      "digest": "35ac8c96c0288c15",
+      "count": 1,
+      "reason": "Ganjalf plugin install: the owner pastes a repository to install and reviews the preview (files, hooks, MCP servers) before anything is written; the installed commit is recorded and a 40-char ref pins it. Fetched files are data, never imported."
+    },
+    {
+      "file": "studio/backend/core/plugins/fetch.py",
+      "rule": "unpinned-code-fetch",
+      "sink": "git-clone-unpinned",
+      "digest": "3ce2ba1ee168c1c6",
+      "count": 1,
+      "reason": "Ganjalf plugin install: the owner pastes a repository to install and reviews the preview (files, hooks, MCP servers) before anything is written; the installed commit is recorded and a 40-char ref pins it. Fetched files are data, never imported."
+    },
+    {
       "file": "studio/backend/core/rag/embeddings.py",
       "rule": "dynamic-import",
       "sink": "import_from_string",

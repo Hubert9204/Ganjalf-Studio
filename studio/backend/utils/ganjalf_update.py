@@ -54,7 +54,9 @@ def update_source() -> str:
 def update_repo() -> str:
     """owner/name, from GANJALF_UPDATE_REPO (a github.com URL is accepted too)."""
     # The Docker image keeps the repo it was built from in UNSLOTH_STUDIO_REPO.
-    raw = (os.environ.get("GANJALF_UPDATE_REPO") or os.environ.get("UNSLOTH_STUDIO_REPO") or "").strip()
+    raw = (
+        os.environ.get("GANJALF_UPDATE_REPO") or os.environ.get("UNSLOTH_STUDIO_REPO") or ""
+    ).strip()
     raw = re.sub(r"^(?:https?://)?(?:www\.)?github\.com/", "", raw).removesuffix(".git").strip("/")
     return raw if _REPO_RE.match(raw) else DEFAULT_REPO
 
@@ -97,6 +99,8 @@ def local_revision(root: Optional[Path] = None) -> Optional[str]:
             ["git", "-C", str(base), "rev-parse", "HEAD"],
             capture_output = True,
             text = True,
+            encoding = "utf-8",
+            errors = "replace",
             timeout = 3,
             check = False,
         )
@@ -176,9 +180,13 @@ def _fetch_comparison(repo: str, branch: str, local: str) -> GanjalfComparison:
     except urllib.error.HTTPError as exc:
         # 404: the commit is not on GitHub (a local, unpushed one) or the repo/branch is wrong.
         reason = "unknown_revision" if exc.code == 404 else "offline"
-        return GanjalfComparison(head = None, ahead_by = None, reason = reason, error = f"GitHub answered {exc.code}.")
+        return GanjalfComparison(
+            head = None, ahead_by = None, reason = reason, error = f"GitHub answered {exc.code}."
+        )
     if len(body) > RESPONSE_MAX_BYTES:
-        return GanjalfComparison(head = None, ahead_by = None, reason = "offline", error = "GitHub answer too large.")
+        return GanjalfComparison(
+            head = None, ahead_by = None, reason = "offline", error = "GitHub answer too large."
+        )
     payload = json.loads(body.decode("utf-8"))
     ahead = payload.get("ahead_by") if isinstance(payload, dict) else None
     commits = payload.get("commits") if isinstance(payload, dict) else None
@@ -186,5 +194,7 @@ def _fetch_comparison(repo: str, branch: str, local: str) -> GanjalfComparison:
     if isinstance(commits, list) and commits and isinstance(commits[-1], dict):
         head = commits[-1].get("sha")
     if not isinstance(ahead, int) or ahead < 0:
-        return GanjalfComparison(head = None, ahead_by = None, reason = "offline", error = "Unexpected GitHub answer.")
+        return GanjalfComparison(
+            head = None, ahead_by = None, reason = "offline", error = "Unexpected GitHub answer."
+        )
     return GanjalfComparison(head = head if isinstance(head, str) else None, ahead_by = ahead)

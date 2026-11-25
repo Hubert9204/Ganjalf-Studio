@@ -46,7 +46,6 @@ Validate = Callable[[str], str]
 
 def plugins_root() -> Path:
     from utils.paths.storage_roots import studio_root
-
     override = (os.environ.get("GANJALF_PLUGINS_HOME") or "").strip()
     return Path(override).expanduser() if override else studio_root() / "plugins"
 
@@ -93,7 +92,11 @@ def data_dir(name: str) -> Path:
     return path
 
 
-def expand(value: str, name: str, missing: Optional[set] = None) -> str:
+def expand(
+    value: str,
+    name: str,
+    missing: Optional[set] = None,
+) -> str:
     """${CLAUDE_PLUGIN_ROOT}, ${CLAUDE_PLUGIN_DATA} and ${VAR} / ${VAR:-default} from the environment."""
 
     def replace(match: re.Match) -> str:
@@ -159,7 +162,9 @@ def _staged(token: str) -> Path:
 
 
 def _write_meta(token: str, meta: dict) -> None:
-    (plugins_root() / "staging" / token / "meta.json").write_text(json.dumps(meta), encoding = "utf-8")
+    (plugins_root() / "staging" / token / "meta.json").write_text(
+        json.dumps(meta), encoding = "utf-8"
+    )
 
 
 def _marketplace_entry_source(market: dict, entry_source: Any) -> tuple[Source, Optional[Path]]:
@@ -191,7 +196,9 @@ def _marketplace_entry_source(market: dict, entry_source: Any) -> tuple[Source, 
             if entry_source.get("path"):
                 source.path = str(entry_source["path"]).strip("/")
             return source, None
-        raise PluginError(f"Marketplace source type {kind!r} is not supported (npm and pip sources are not).")
+        raise PluginError(
+            f"Marketplace source type {kind!r} is not supported (npm and pip sources are not)."
+        )
     raise PluginError("The marketplace entry has no source.")
 
 
@@ -201,25 +208,36 @@ def preview(source_text: str) -> dict:
     with _LOCK:
         text = (source_text or "").strip()
         registry = load_registry()
-        if "@" in text and "/" not in text.split("@", 1)[0] and text.split("@", 1)[1] in registry["marketplaces"]:
+        if (
+            "@" in text
+            and "/" not in text.split("@", 1)[0]
+            and text.split("@", 1)[1] in registry["marketplaces"]
+        ):
             plugin_name, market_name = text.split("@", 1)
-            return _preview_from_marketplace(registry["marketplaces"][market_name], slug(plugin_name))
+            return _preview_from_marketplace(
+                registry["marketplaces"][market_name], slug(plugin_name)
+            )
         source = parse_source(text)
         token, content, result = _stage(source)
         market = read_marketplace(content)
         manifest_present = (content / ".claude-plugin" / "plugin.json").is_file()
         if market and not manifest_present:
             shutil.rmtree(plugins_root() / "staging" / token, ignore_errors = True)
-            return {"kind": "marketplace", "source": source.to_dict(), "marketplace": _market_view(market)}
+            return {
+                "kind": "marketplace",
+                "source": source.to_dict(),
+                "marketplace": _market_view(market),
+            }
         summary = inspect_plugin(content)
-        _write_meta(token, {"source": source.to_dict(), "commit": result.get("commit"), "marketplace": None})
+        _write_meta(
+            token, {"source": source.to_dict(), "commit": result.get("commit"), "marketplace": None}
+        )
         return {"kind": "plugin", "token": token, "plugin": _with_install_state(summary)}
 
 
 def preview_archive(data: bytes) -> dict:
     """A plugin (or marketplace) uploaded as a zip or tar archive."""
     from .fetch import _single_top_folder, unpack
-
     with _LOCK:
         _cleanup_staging()
         token = uuid.uuid4().hex
@@ -246,7 +264,9 @@ def _preview_from_marketplace(market: dict, plugin_name: str) -> dict:
     dest = plugins_root() / "staging" / token
     if folder is not None:
         if not folder.is_dir():
-            raise PluginError(f"The marketplace folder for {plugin_name} is missing; refresh the marketplace.")
+            raise PluginError(
+                f"The marketplace folder for {plugin_name} is missing; refresh the marketplace."
+            )
         copy_tree(folder, dest / "content")
         result = {"commit": market.get("commit")}
     else:
@@ -267,7 +287,11 @@ def _preview_from_marketplace(market: dict, plugin_name: str) -> dict:
 
 def _with_install_state(summary: dict) -> dict:
     installed = load_registry()["plugins"].get(summary["name"])
-    return {**summary, "installed_version": installed.get("version") if installed else None, "installed": bool(installed)}
+    return {
+        **summary,
+        "installed_version": installed.get("version") if installed else None,
+        "installed": bool(installed),
+    }
 
 
 # ---------------------------------------------------------------- install, update, remove
@@ -284,19 +308,23 @@ def _skill_name(plugin: str, part: str) -> Optional[str]:
     return name
 
 
-def _clean_frontmatter(frontmatter: dict, name: str, description: str, extra_metadata: dict) -> dict:
+def _clean_frontmatter(
+    frontmatter: dict, name: str, description: str, extra_metadata: dict
+) -> dict:
     keep = {"name": name, "description": description[:1024]}
     for key in ("license", "compatibility"):
         value = frontmatter.get(key)
         if isinstance(value, str) and value.strip():
-            keep[key] = value[:500 if key == "compatibility" else 1024]
+            keep[key] = value[: 500 if key == "compatibility" else 1024]
     tools = frontmatter.get("allowed-tools")
     if isinstance(tools, list):
         tools = " ".join(str(tool) for tool in tools)
     if isinstance(tools, str) and tools.strip():
         keep["allowed-tools"] = tools[:1024]
     metadata = frontmatter.get("metadata")
-    merged = {str(k): str(v)[:500] for k, v in metadata.items()} if isinstance(metadata, dict) else {}
+    merged = (
+        {str(k): str(v)[:500] for k, v in metadata.items()} if isinstance(metadata, dict) else {}
+    )
     merged.update(extra_metadata)
     keep["metadata"] = merged
     return keep
@@ -308,7 +336,11 @@ def _write_skill(dest: Path, frontmatter: dict, body: str) -> None:
     (dest / "SKILL.md").write_text(f"---\n{head}\n---\n\n{body.strip()}\n", encoding = "utf-8")
 
 
-def _substitute_body(body: str, plugin: str, skill_dir: Optional[Path] = None) -> str:
+def _substitute_body(
+    body: str,
+    plugin: str,
+    skill_dir: Optional[Path] = None,
+) -> str:
     body = body.replace("${CLAUDE_PLUGIN_ROOT}", str(plugin_dir(plugin)))
     body = body.replace("${CLAUDE_PLUGIN_DATA}", str(plugins_root() / "data" / plugin))
     if skill_dir is not None:
@@ -348,7 +380,9 @@ def _materialize(name: str, summary: dict, warnings: list[str]) -> tuple[list[st
         description = str(frontmatter.get("description") or skill.get("description") or generated)
         _write_skill(
             dest,
-            _clean_frontmatter(frontmatter, generated, description, {"plugin": name, "plugin-skill": skill["name"]}),
+            _clean_frontmatter(
+                frontmatter, generated, description, {"plugin": name, "plugin-skill": skill["name"]}
+            ),
             _substitute_body(body, name, dest),
         )
         taken.add(generated)
@@ -367,7 +401,9 @@ def _materialize(name: str, summary: dict, warnings: list[str]) -> tuple[list[st
             warnings.append(str(exc))
             continue
         hint = f" Arguments: {command['argument_hint']}." if command.get("argument_hint") else ""
-        description = (command.get("description") or f"The {command['name']} command") + f" (command /{generated}).{hint}"
+        description = (
+            command.get("description") or f"The {command['name']} command"
+        ) + f" (command /{generated}).{hint}"
         preface = (
             f"This is the `/{generated}` command of the {name} plugin. The user called it; follow it now. "
             "`$ARGUMENTS` (and `$1`, `$2`, ...) stand for what the user wrote after the command name. "
@@ -376,7 +412,12 @@ def _materialize(name: str, summary: dict, warnings: list[str]) -> tuple[list[st
         )
         _write_skill(
             out / generated,
-            _clean_frontmatter(frontmatter, generated, description, {"plugin": name, "plugin-command": command["name"]}),
+            _clean_frontmatter(
+                frontmatter,
+                generated,
+                description,
+                {"plugin": name, "plugin-command": command["name"]},
+            ),
             preface + _substitute_body(body, name),
         )
         taken.add(generated)
@@ -384,7 +425,9 @@ def _materialize(name: str, summary: dict, warnings: list[str]) -> tuple[list[st
     return skills, commands
 
 
-def _mcp_rows(name: str, summary: dict, enabled: bool, validate: Optional[Validate], warnings: list[str]) -> dict:
+def _mcp_rows(
+    name: str, summary: dict, enabled: bool, validate: Optional[Validate], warnings: list[str]
+) -> dict:
     from core.inference.mcp_config_import import parse_mcp_config
     from storage import mcp_servers_db
 
@@ -425,15 +468,17 @@ def _mcp_rows(name: str, summary: dict, enabled: bool, validate: Optional[Valida
 
 def _drop_mcp_rows(record: dict) -> None:
     from storage import mcp_servers_db
-
     for server_id in (record.get("mcp_server_ids") or {}).values():
         old = mcp_servers_db.get_server(server_id)
         if not old:
             continue
         mcp_servers_db.delete_server(server_id)
         try:
-            from core.inference.mcp_client import close_mcp_sessions, invalidate_tool_cache, parse_server_headers
-
+            from core.inference.mcp_client import (
+                close_mcp_sessions,
+                invalidate_tool_cache,
+                parse_server_headers,
+            )
             invalidate_tool_cache(server_id)
             close_mcp_sessions(old["url"], parse_server_headers(old))
         except Exception:
@@ -442,18 +487,21 @@ def _drop_mcp_rows(record: dict) -> None:
 
 def _set_mcp_enabled(record: dict, enabled: bool) -> None:
     from storage import mcp_servers_db
-
     for server_id in (record.get("mcp_server_ids") or {}).values():
         mcp_servers_db.update_server(server_id, {"is_enabled": enabled})
         try:
             from core.inference.mcp_client import invalidate_tool_cache
-
             invalidate_tool_cache(server_id)
         except Exception:
             pass
 
 
-def install(token: str, *, validate: Optional[Validate] = None, enable_hooks: bool = False) -> dict:
+def install(
+    token: str,
+    *,
+    validate: Optional[Validate] = None,
+    enable_hooks: bool = False,
+) -> dict:
     """Moves a previewed plugin into place and adds its parts to Studio. Replaces an installed
     plugin of the same name (an update), keeping its on/off choices and its data folder."""
     with _LOCK:
@@ -490,7 +538,9 @@ def install(token: str, *, validate: Optional[Validate] = None, enable_hooks: bo
             "installed_at": previous.get("installed_at") if previous else _now(),
             "updated_at": _now(),
             "enabled": enabled,
-            "hooks_enabled": bool(previous.get("hooks_enabled")) if previous else bool(enable_hooks),
+            "hooks_enabled": bool(previous.get("hooks_enabled"))
+            if previous
+            else bool(enable_hooks),
             "skills": skills,
             "commands": commands,
             "agents": [agent["name"] for agent in summary.get("agents", [])],
@@ -560,11 +610,15 @@ def update(name: str, *, validate: Optional[Validate] = None) -> dict:
         record = _record(load_registry(), name)
         if record.get("marketplace"):
             refresh_marketplace(record["marketplace"])
-            result = preview(f"{record.get('marketplace_plugin') or record['name']}@{record['marketplace']}")
+            result = preview(
+                f"{record.get('marketplace_plugin') or record['name']}@{record['marketplace']}"
+            )
         elif record.get("source"):
             source = Source.from_dict(record["source"])
             if source.kind == "local":
-                raise PluginError("A plugin installed from a folder is updated by installing that folder again.")
+                raise PluginError(
+                    "A plugin installed from a folder is updated by installing that folder again."
+                )
             result = preview(source.label() if source.kind == "github" else source.url)
         else:
             raise PluginError("This plugin does not record where it came from; install it again.")
@@ -604,10 +658,7 @@ def _market_view(market: dict) -> dict:
         "source": market.get("source"),
         "commit": market.get("commit"),
         "plugins": [
-            {
-                key: item[key]
-                for key in ("name", "description", "version", "category")
-            }
+            {key: item[key] for key in ("name", "description", "version", "category")}
             | {"installed": item["name"] in installed}
             for item in market.get("plugins", [])
         ],
@@ -621,7 +672,9 @@ def add_marketplace(source_text: str) -> dict:
         listing = read_marketplace(content)
         if listing is None:
             shutil.rmtree(plugins_root() / "staging" / token, ignore_errors = True)
-            raise PluginError("No .claude-plugin/marketplace.json there. To install a single plugin, use Install.")
+            raise PluginError(
+                "No .claude-plugin/marketplace.json there. To install a single plugin, use Install."
+            )
         folder = plugins_root() / "marketplaces" / listing["name"]
         if folder.exists():
             shutil.rmtree(folder)
@@ -672,7 +725,10 @@ def plugin_view(record: dict) -> dict:
 
 
 def list_plugins() -> list[dict]:
-    return [plugin_view(record) for record in sorted(load_registry()["plugins"].values(), key = lambda r: r["name"])]
+    return [
+        plugin_view(record)
+        for record in sorted(load_registry()["plugins"].values(), key = lambda r: r["name"])
+    ]
 
 
 def plugin_details(name: str) -> dict:

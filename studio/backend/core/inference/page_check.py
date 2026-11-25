@@ -96,8 +96,8 @@ CHECK_PAGE_TOOL = {
                     "type": "array",
                     "items": {"type": "string"},
                     "description": (
-                        "Keys to press after the wait, in order (e.g. [\"Enter\", \"ArrowUp\", "
-                        "\"Space\", \"w\"]). The screenshot is taken after them."
+                        'Keys to press after the wait, in order (e.g. ["Enter", "ArrowUp", '
+                        '"Space", "w"]). The screenshot is taken after them.'
                     ),
                 },
             },
@@ -166,7 +166,6 @@ def check_page_available(refresh: bool = False) -> bool:
             return _available[0]
         try:
             import playwright.sync_api  # noqa: F401
-
             ok = bool(_bundled_browser() or _system_browser())
         except Exception:
             ok = False
@@ -226,7 +225,9 @@ def _content_type(path: str) -> str:
     return mimetypes.guess_type(path)[0] or "application/octet-stream"
 
 
-def _host_refusal(url: str, website_policy: Optional[dict], resolved: dict[str, Optional[str]]) -> Optional[str]:
+def _host_refusal(
+    url: str, website_policy: Optional[dict], resolved: dict[str, Optional[str]]
+) -> Optional[str]:
     """Why the page may not load ``url``, or None."""
     from .browser_agent import _host_problem, _is_loopback, _studio_port_problem
 
@@ -239,7 +240,6 @@ def _host_refusal(url: str, website_policy: Optional[dict], resolved: dict[str, 
         return problem
     if website_policy:
         from .web_access_policy import check_url_access
-
         allowed, _reason, blocked_host = check_url_access(url, website_policy)
         if not allowed:
             return f"{blocked_host or host} is not allowed by the website access policy"
@@ -259,7 +259,9 @@ def _host_refusal(url: str, website_policy: Optional[dict], resolved: dict[str, 
     return resolved[host]
 
 
-def _target_url(path: str, root: str, website_policy: Optional[dict]) -> tuple[Optional[str], Optional[str]]:
+def _target_url(
+    path: str, root: str, website_policy: Optional[dict]
+) -> tuple[Optional[str], Optional[str]]:
     """(URL to open, error)."""
     text = path.strip()
     if text.lower().startswith(("http://", "https://")):
@@ -278,7 +280,10 @@ def _target_url(path: str, root: str, website_policy: Optional[dict]) -> tuple[O
     except ValueError:
         inside = False
     if not inside:
-        return None, "Error: the page must be inside this conversation's working directory, or an http(s) URL."
+        return (
+            None,
+            "Error: the page must be inside this conversation's working directory, or an http(s) URL.",
+        )
     if os.path.isdir(target):
         target = os.path.join(target, "index.html")
     if not os.path.isfile(target):
@@ -311,7 +316,6 @@ def _blank_note(png: bytes) -> Optional[str]:
         import io
 
         from PIL import Image
-
         with Image.open(io.BytesIO(png)) as image:
             small = image.convert("RGB").resize((64, 36))
             extrema = small.getextrema()
@@ -326,7 +330,14 @@ def _blank_note(png: bytes) -> Optional[str]:
     return None
 
 
-def _run(url: str, root: str, wait_s: float, keys: list[str], website_policy: Optional[dict], cancel_event) -> dict:
+def _run(
+    url: str,
+    root: str,
+    wait_s: float,
+    keys: list[str],
+    website_policy: Optional[dict],
+    cancel_event,
+) -> dict:
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
     from playwright.sync_api import sync_playwright
@@ -364,7 +375,9 @@ def _run(url: str, root: str, wait_s: float, keys: list[str], website_policy: Op
             path = _workspace_file(root, parts.path)
             if path is None and page_root != root and _inside(root, page_root):
                 path = _workspace_file(page_root, parts.path)
-            if path is not None and path.lower().endswith((".ts", ".tsx", ".jsx", ".vue", ".svelte")):
+            if path is not None and path.lower().endswith(
+                (".ts", ".tsx", ".jsx", ".vue", ".svelte")
+            ):
                 add(
                     notes,
                     f"The page loads source that browsers cannot run ({parts.path}): it needs its "
@@ -407,7 +420,10 @@ def _run(url: str, root: str, wait_s: float, keys: list[str], website_policy: Op
             page = context.new_page()
             page.on(
                 "pageerror",
-                lambda error: add(errors, f"Uncaught {getattr(error, 'name', '') or 'Error'}: {getattr(error, 'message', error)}"),
+                lambda error: add(
+                    errors,
+                    f"Uncaught {getattr(error, 'name', '') or 'Error'}: {getattr(error, 'message', error)}",
+                ),
             )
 
             def on_console(message) -> None:
@@ -417,7 +433,11 @@ def _run(url: str, root: str, wait_s: float, keys: list[str], website_policy: Op
                 where = ""
                 if location.get("lineNumber"):
                     source = str(location.get("url") or "").replace(WORKSPACE_ORIGIN + "/", "")
-                    where = f" ({source}:{location.get('lineNumber')})" if source else f" (line {location.get('lineNumber')})"
+                    where = (
+                        f" ({source}:{location.get('lineNumber')})"
+                        if source
+                        else f" (line {location.get('lineNumber')})"
+                    )
                 add(errors, f"console.error: {message.text}{where}")
 
             page.on("console", on_console)
@@ -425,11 +445,17 @@ def _run(url: str, root: str, wait_s: float, keys: list[str], website_policy: Op
                 "requestfailed",
                 lambda request: None
                 if (request.failure or "").endswith("ERR_BLOCKED_BY_CLIENT")
-                else add(requests, f"Failed {request.url.replace(WORKSPACE_ORIGIN + '/', '')} ({request.failure})"),
+                else add(
+                    requests,
+                    f"Failed {request.url.replace(WORKSPACE_ORIGIN + '/', '')} ({request.failure})",
+                ),
             )
             page.on(
                 "response",
-                lambda response: add(requests, f"HTTP {response.status} {response.url.replace(WORKSPACE_ORIGIN + '/', '')}")
+                lambda response: add(
+                    requests,
+                    f"HTTP {response.status} {response.url.replace(WORKSPACE_ORIGIN + '/', '')}",
+                )
                 if response.status >= 400 and urlsplit(response.url).hostname != _WORKSPACE_HOST
                 else None,
             )
@@ -451,7 +477,9 @@ def _run(url: str, root: str, wait_s: float, keys: list[str], website_policy: Op
                         page.keyboard.press(name, delay = 80)
                         pressed.append(name)
                     except PlaywrightError:
-                        notes.append(f"Unknown key {key!r}; use names like Enter, ArrowUp, Space or a letter.")
+                        notes.append(
+                            f"Unknown key {key!r}; use names like Enter, ArrowUp, Space or a letter."
+                        )
                     page.wait_for_timeout(150)
                 page.wait_for_timeout(500)
             title = page.title()
@@ -484,7 +512,9 @@ def _format(outcome: dict, wait_s: float) -> str:
     from .mcp_images import SENTINEL, _png_data_url
 
     shown_url = _clip(str(outcome.get("url") or "").replace(WORKSPACE_ORIGIN + "/", ""), 300)
-    head = [f"Ran {shown_url} in a headless browser ({VIEWPORT['width']}x{VIEWPORT['height']}) for {wait_s:g} s."]
+    head = [
+        f"Ran {shown_url} in a headless browser ({VIEWPORT['width']}x{VIEWPORT['height']}) for {wait_s:g} s."
+    ]
     if outcome.get("pressed"):
         head.append("Pressed: " + ", ".join(outcome["pressed"]) + ".")
     # Everything below comes from the page, so it stays inside the untrusted-content fence.
@@ -513,7 +543,10 @@ def _format(outcome: dict, wait_s: float) -> str:
     else:
         lines.append("Visible text: (none)")
     png = outcome.get("png") or b""
-    body = "\n".join(head) + f"\n<{_FENCE}>\n{_fenced(chr(10).join(lines))}\n</{_FENCE}>\n{_UNTRUSTED_NOTE}"
+    body = (
+        "\n".join(head)
+        + f"\n<{_FENCE}>\n{_fenced(chr(10).join(lines))}\n</{_FENCE}>\n{_UNTRUSTED_NOTE}"
+    )
     blank = _blank_note(png) if png else None
     if blank:
         body += "\n" + blank
@@ -524,12 +557,22 @@ def _format(outcome: dict, wait_s: float) -> str:
     url = _png_data_url(base64.b64encode(png).decode("ascii"))
     if url is None:
         return body + "\nThe screenshot could not be read."
-    return body + "\n" + SENTINEL + json.dumps([{"data": url.split(",", 1)[1], "mimeType": "image/png"}])
+    return (
+        body
+        + "\n"
+        + SENTINEL
+        + json.dumps([{"data": url.split(",", 1)[1], "mimeType": "image/png"}])
+    )
 
 
-def check_page(arguments: Any, workdir: str, cancel_event = None, website_policy: Optional[dict] = None) -> str:
+def check_page(
+    arguments: Any,
+    workdir: str,
+    cancel_event = None,
+    website_policy: Optional[dict] = None,
+) -> str:
     if not isinstance(arguments, dict):
-        return "Error: check_page takes {\"path\": ...}."
+        return 'Error: check_page takes {"path": ...}.'
     path = arguments.get("path")
     if not isinstance(path, str) or not path.strip():
         return "Error: 'path' must be an HTML file in the working directory or an http(s) URL."
@@ -573,10 +616,14 @@ def check_page(arguments: Any, workdir: str, cancel_event = None, website_policy
             return "Error: check_page was cancelled."
         worker.join(0.25)
     if worker.is_alive():
-        return "Error: the headless browser did not finish in time; the page may be stuck in a loop."
+        return (
+            "Error: the headless browser did not finish in time; the page may be stuck in a loop."
+        )
     if failure:
         logger.warning("check_page failed: %s", failure[0])
-        message = _clip(str(failure[0]).splitlines()[0] if str(failure[0]) else type(failure[0]).__name__, 300)
+        message = _clip(
+            str(failure[0]).splitlines()[0] if str(failure[0]) else type(failure[0]).__name__, 300
+        )
         return f"Error: the headless browser failed: {message}"
     if outcome.get("cancelled"):
         return "Error: check_page was cancelled."

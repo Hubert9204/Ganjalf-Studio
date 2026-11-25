@@ -60,24 +60,41 @@ def _demo(tmp_path, name = "demo"):
                 {
                     "hooks": {
                         "PreToolUse": [
-                            {"matcher": "Bash", "hooks": [{"type": "command", "command": f'"{PY}" "${{CLAUDE_PLUGIN_ROOT}}/hooks/guard.py"'}]}
+                            {
+                                "matcher": "Bash",
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": f'"{PY}" "${{CLAUDE_PLUGIN_ROOT}}/hooks/guard.py"',
+                                    }
+                                ],
+                            }
                         ],
                         "PostToolUse": [
                             {
                                 "matcher": "Edit|Write",
                                 "hooks": [
-                                    {"type": "command", "command": "echo '{\"hookSpecificOutput\": {\"additionalContext\": \"Run the tests.\"}}'"},
-                                    {"type": "command", "command": "echo later", "asyncRewake": True},
+                                    {
+                                        "type": "command",
+                                        "command": 'echo \'{"hookSpecificOutput": {"additionalContext": "Run the tests."}}\'',
+                                    },
+                                    {
+                                        "type": "command",
+                                        "command": "echo later",
+                                        "asyncRewake": True,
+                                    },
                                 ],
                             }
                         ],
-                        "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo Use tabs."}]}],
+                        "UserPromptSubmit": [
+                            {"hooks": [{"type": "command", "command": "echo Use tabs."}]}
+                        ],
                         "Stop": [
                             {
                                 "hooks": [
                                     {
                                         "type": "command",
-                                        "command": f'"{PY}" -c "import json,sys; d=json.load(sys.stdin); print(\'\' if d[\'stop_hook_active\'] else json.dumps({{\'decision\': \'block\', \'reason\': \'Add a summary.\'}}))"',
+                                        "command": f"\"{PY}\" -c \"import json,sys; d=json.load(sys.stdin); print('' if d['stop_hook_active'] else json.dumps({{'decision': 'block', 'reason': 'Add a summary.'}}))\"",
                                     }
                                 ]
                             }
@@ -86,7 +103,9 @@ def _demo(tmp_path, name = "demo"):
                 }
             ),
             "hooks/guard.py": "import json, sys\nd = json.load(sys.stdin)\nif 'rm -rf' in d['tool_input'].get('command', ''):\n    print('No rm -rf.', file=sys.stderr); sys.exit(2)\n",
-            ".mcp.json": json.dumps({"mcpServers": {"docs": {"type": "http", "url": "https://example.com/mcp"}}}),
+            ".mcp.json": json.dumps(
+                {"mcpServers": {"docs": {"type": "http", "url": "https://example.com/mcp"}}}
+            ),
             ".lsp.json": "{}",
             "bin/tool": "#!/bin/sh\n",
         },
@@ -95,7 +114,9 @@ def _demo(tmp_path, name = "demo"):
 
 def test_inspect_lists_every_part_and_what_is_not_used(tmp_path):
     summary = inspect_plugin(_demo(tmp_path))
-    assert summary["name"] == "demo" and summary["version"] == "1.2.0" and summary["author"] == "Ann"
+    assert (
+        summary["name"] == "demo" and summary["version"] == "1.2.0" and summary["author"] == "Ann"
+    )
     assert {skill["name"] for skill in summary["skills"]} == {"lint", "demo"}
     assert {command["name"] for command in summary["commands"]} == {"hello", "git:sync"}
     assert summary["commands"][0]["argument_hint"] == "[name]"
@@ -109,7 +130,10 @@ def test_inspect_lists_every_part_and_what_is_not_used(tmp_path):
     assert len(summary["hooks"]["PostToolUse"][0]["hooks"]) == 1
     assert any("background" in warning for warning in summary["warnings"])
     assert list(summary["mcp_servers"]) == ["docs"]
-    assert "LSP servers" in summary["unsupported"] and "bin/ (executables on the PATH)" in summary["unsupported"]
+    assert (
+        "LSP servers" in summary["unsupported"]
+        and "bin/ (executables on the PATH)" in summary["unsupported"]
+    )
 
 
 def test_a_folder_with_nothing_usable_is_refused(tmp_path):
@@ -122,7 +146,9 @@ def test_paths_outside_the_plugin_are_ignored(tmp_path):
     root = _write(
         tmp_path / "p",
         {
-            ".claude-plugin/plugin.json": json.dumps({"name": "p", "skills": ["../outside"], "agents": ["/etc/passwd"]}),
+            ".claude-plugin/plugin.json": json.dumps(
+                {"name": "p", "skills": ["../outside"], "agents": ["/etc/passwd"]}
+            ),
             "commands/a.md": "A",
         },
     )
@@ -133,8 +159,18 @@ def test_paths_outside_the_plugin_are_ignored(tmp_path):
 
 
 def test_sources_parse():
-    assert parse_source("anthropics/claude-code").to_dict() == {"kind": "github", "owner": "anthropics", "repo": "claude-code"}
-    assert parse_source("o/r/plugins/x@v2").to_dict() == {"kind": "github", "owner": "o", "repo": "r", "ref": "v2", "path": "plugins/x"}
+    assert parse_source("anthropics/claude-code").to_dict() == {
+        "kind": "github",
+        "owner": "anthropics",
+        "repo": "claude-code",
+    }
+    assert parse_source("o/r/plugins/x@v2").to_dict() == {
+        "kind": "github",
+        "owner": "o",
+        "repo": "r",
+        "ref": "v2",
+        "path": "plugins/x",
+    }
     assert parse_source("https://github.com/o/r/tree/main/a/b").to_dict() == {
         "kind": "github",
         "owner": "o",
@@ -214,13 +250,21 @@ def test_marketplace_with_a_relative_plugin(studio, tmp_path):
         tmp_path / "market",
         {
             ".claude-plugin/marketplace.json": json.dumps(
-                {"name": "team-tools", "owner": {"name": "Team"}, "plugins": [{"name": "greeter", "source": "./plugins/greeter", "description": "Greets"}]}
+                {
+                    "name": "team-tools",
+                    "owner": {"name": "Team"},
+                    "plugins": [
+                        {"name": "greeter", "source": "./plugins/greeter", "description": "Greets"}
+                    ],
+                }
             ),
             "plugins/greeter/commands/hi.md": "Say hi.",
         },
     )
     found = manager.preview(str(market))
-    assert found["kind"] == "marketplace" and found["marketplace"]["plugins"][0]["name"] == "greeter"
+    assert (
+        found["kind"] == "marketplace" and found["marketplace"]["plugins"][0]["name"] == "greeter"
+    )
     manager.add_marketplace(str(market))
     preview = manager.preview("greeter@team-tools")
     record = manager.install(preview["token"])
@@ -239,31 +283,60 @@ def test_slash_command_loads_like_a_mention():
 def test_hooks_run_only_when_switched_on(studio, tmp_path):
     manager.install(manager.preview(str(_demo(tmp_path)))["token"])
     workdir = str(tmp_path)
-    assert plugin_hooks.before_tool("terminal", {"command": "rm -rf /"}, session_id = "s", workdir = workdir) is None
+    assert (
+        plugin_hooks.before_tool(
+            "terminal", {"command": "rm -rf /"}, session_id = "s", workdir = workdir
+        )
+        is None
+    )
     manager.set_hooks_enabled("demo", True)
-    blocked = plugin_hooks.before_tool("terminal", {"command": "rm -rf /"}, session_id = "s", workdir = workdir)
+    blocked = plugin_hooks.before_tool(
+        "terminal", {"command": "rm -rf /"}, session_id = "s", workdir = workdir
+    )
     assert blocked.startswith("Error: a plugin hook blocked this call.") and "No rm -rf." in blocked
-    assert plugin_hooks.before_tool("terminal", {"command": "ls"}, session_id = "s", workdir = workdir) is None
-    assert plugin_hooks.before_tool("python", {"code": "rm -rf"}, session_id = "s", workdir = workdir) is None
+    assert (
+        plugin_hooks.before_tool("terminal", {"command": "ls"}, session_id = "s", workdir = workdir)
+        is None
+    )
+    assert (
+        plugin_hooks.before_tool("python", {"code": "rm -rf"}, session_id = "s", workdir = workdir)
+        is None
+    )
     edited = plugin_hooks.after_tool(
-        "edit_file", {"path": "a.py", "edits": [{"old_string": "a", "new_string": "b"}]}, "Edited a.py", session_id = "s", workdir = workdir
+        "edit_file",
+        {"path": "a.py", "edits": [{"old_string": "a", "new_string": "b"}]},
+        "Edited a.py",
+        session_id = "s",
+        workdir = workdir,
     )
     assert edited == "Edited a.py\n\nPlugin hook feedback:\n[demo] Run the tests."
-    context = plugin_hooks.prompt_context([{"role": "user", "content": "hi"}], session_id = "s", workdir = workdir)
+    context = plugin_hooks.prompt_context(
+        [{"role": "user", "content": "hi"}], session_id = "s", workdir = workdir
+    )
     assert context == "Plugin hooks:\n[demo] Use tabs."
-    assert plugin_hooks.stop_check("done", session_id = "s", workdir = workdir, rounds = 0).endswith("[demo] Add a summary.")
+    assert plugin_hooks.stop_check("done", session_id = "s", workdir = workdir, rounds = 0).endswith(
+        "[demo] Add a summary."
+    )
     assert plugin_hooks.stop_check("done", session_id = "s", workdir = workdir, rounds = 1) is None
     manager.set_enabled("demo", False)
     assert not plugin_hooks.has_hooks()
 
 
 def test_claude_names_for_studio_tools():
-    assert plugin_hooks.claude_tool("terminal", {"command": "ls"}, "/w") == ("Bash", {"command": "ls", "description": ""})
-    assert plugin_hooks.claude_tool("edit_file", {"path": "x.py", "edits": [{"old_string": "", "new_string": "hi"}]}, "/w") == (
+    assert plugin_hooks.claude_tool("terminal", {"command": "ls"}, "/w") == (
+        "Bash",
+        {"command": "ls", "description": ""},
+    )
+    assert plugin_hooks.claude_tool(
+        "edit_file", {"path": "x.py", "edits": [{"old_string": "", "new_string": "hi"}]}, "/w"
+    ) == (
         "Write",
         {"file_path": "/w/x.py", "content": "hi"},
     )
-    assert plugin_hooks.claude_tool("view_image", {"path": "/a.png"}, "/w") == ("Read", {"file_path": "/a.png"})
+    assert plugin_hooks.claude_tool("view_image", {"path": "/a.png"}, "/w") == (
+        "Read",
+        {"file_path": "/a.png"},
+    )
     assert plugin_hooks._if_matches("Bash(git*commit*)", "Bash", {"command": "git commit -m x"})
     assert not plugin_hooks._if_matches("Bash(git*push*)", "Bash", {"command": "git commit"})
     assert plugin_hooks._matches("Edit|Write", ("Write", "edit_file"))
@@ -276,9 +349,15 @@ def test_execute_tool_runs_between_hooks(studio, tmp_path, monkeypatch):
     manager.install(manager.preview(str(_demo(tmp_path)))["token"])
     manager.set_hooks_enabled("demo", True)
     calls = []
-    monkeypatch.setattr(tools, "_execute_tool_unhooked", lambda name, arguments, *a, **k: calls.append(name) or "ran")
+    monkeypatch.setattr(
+        tools,
+        "_execute_tool_unhooked",
+        lambda name, arguments, *a, **k: calls.append(name) or "ran",
+    )
     monkeypatch.setattr(plugin_hooks, "workdir_for", lambda session_id: str(tmp_path))
-    assert tools.execute_tool("terminal", {"command": "rm -rf x"}, session_id = "s").startswith("Error: a plugin hook")
+    assert tools.execute_tool("terminal", {"command": "rm -rf x"}, session_id = "s").startswith(
+        "Error: a plugin hook"
+    )
     assert calls == []
     assert tools.execute_tool("terminal", {"command": "ls"}, session_id = "s") == "ran"
     assert calls == ["terminal"]
@@ -292,12 +371,26 @@ def _sse_chunks(message):
         deltas += [{"content": text[: len(text) // 2]}, {"content": text[len(text) // 2 :]}]
     for index, call in enumerate(message.get("tool_calls") or []):
         arguments = call["function"]["arguments"]
-        deltas.append({"tool_calls": [{"index": index, "id": call["id"], "type": "function", "function": {"name": call["function"]["name"], "arguments": ""}}]})
+        deltas.append(
+            {
+                "tool_calls": [
+                    {
+                        "index": index,
+                        "id": call["id"],
+                        "type": "function",
+                        "function": {"name": call["function"]["name"], "arguments": ""},
+                    }
+                ]
+            }
+        )
         deltas += [
             {"tool_calls": [{"index": index, "function": {"arguments": arguments[:5]}}]},
             {"tool_calls": [{"index": index, "function": {"arguments": arguments[5:]}}]},
         ]
-    lines = [f"data: {json.dumps({'choices': [{'index': 0, 'delta': delta}]})}\n\n".encode() for delta in deltas]
+    lines = [
+        f"data: {json.dumps({'choices': [{'index': 0, 'delta': delta}]})}\n\n".encode()
+        for delta in deltas
+    ]
     return lines + [b"data: [DONE]\n\n"]
 
 
@@ -306,7 +399,10 @@ def test_run_agent_works_in_its_own_conversation(studio, tmp_path, monkeypatch):
 
     manager.install(manager.preview(str(_demo(tmp_path)))["token"])
     definition = plugin_agents.tool_definition()
-    assert definition["function"]["name"] == "run_agent" and "demo:tester: Runs tests." in definition["function"]["description"]
+    assert (
+        definition["function"]["name"] == "run_agent"
+        and "demo:tester: Runs tests." in definition["function"]["description"]
+    )
     seen = []
 
     class Handler(BaseHTTPRequestHandler):
@@ -320,10 +416,22 @@ def test_run_agent_works_in_its_own_conversation(studio, tmp_path, monkeypatch):
                 message = {
                     "role": "assistant",
                     "content": "",
-                    "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "terminal", "arguments": json.dumps({"command": "pytest"})}}],
+                    "tool_calls": [
+                        {
+                            "id": "c1",
+                            "type": "function",
+                            "function": {
+                                "name": "terminal",
+                                "arguments": json.dumps({"command": "pytest"}),
+                            },
+                        }
+                    ],
                 }
             else:
-                message = {"role": "assistant", "content": "2 passed; " + body["messages"][-1]["content"]}
+                message = {
+                    "role": "assistant",
+                    "content": "2 passed; " + body["messages"][-1]["content"],
+                }
             assert body["stream"] is True
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
@@ -334,7 +442,11 @@ def test_run_agent_works_in_its_own_conversation(studio, tmp_path, monkeypatch):
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target = server.serve_forever, daemon = True).start()
-    monkeypatch.setattr(tools, "execute_tool", lambda name, arguments, **kwargs: f"ran {name}: {arguments['command']}")
+    monkeypatch.setattr(
+        tools,
+        "execute_tool",
+        lambda name, arguments, **kwargs: f"ran {name}: {arguments['command']}",
+    )
     monkeypatch.setattr(tools, "_get_workdir", lambda session_id = None: str(tmp_path))
     try:
         report = plugin_agents.run_agent(
@@ -344,11 +456,20 @@ def test_run_agent_works_in_its_own_conversation(studio, tmp_path, monkeypatch):
         )
     finally:
         server.shutdown()
-    assert report == "Agent demo:tester finished (1 tool call).\n\nIts report:\n2 passed; ran terminal: pytest"
-    assert [tool["function"]["name"] for tool in seen[0]["tools"]] == ["terminal", "python", "edit_file"]
+    assert (
+        report
+        == "Agent demo:tester finished (1 tool call).\n\nIts report:\n2 passed; ran terminal: pytest"
+    )
+    assert [tool["function"]["name"] for tool in seen[0]["tools"]] == [
+        "terminal",
+        "python",
+        "edit_file",
+    ]
     assert seen[0]["messages"][0]["content"].startswith("You run tests.")
     assert "run_agent" not in json.dumps(seen[0]["tools"])
-    assert plugin_agents.run_agent({"agent": "nope", "task": "x"}, session_id = "s").startswith("Error: no agent 'nope'")
+    assert plugin_agents.run_agent({"agent": "nope", "task": "x"}, session_id = "s").startswith(
+        "Error: no agent 'nope'"
+    )
 
 
 def test_routes_refuse_api_keys_and_install_for_the_owner(studio, tmp_path):
@@ -370,7 +491,10 @@ def test_routes_refuse_api_keys_and_install_for_the_owner(studio, tmp_path):
     installed = client.post("/api/plugins/install", json = {"token": preview.json()["token"]})
     assert installed.status_code == 200, installed.text
     assert client.get("/api/plugins").json()["plugins"][0]["name"] == "demo"
-    assert client.put("/api/plugins/demo/hooks", json = {"enabled": True}).json()["hooks_enabled"] is True
+    assert (
+        client.put("/api/plugins/demo/hooks", json = {"enabled": True}).json()["hooks_enabled"]
+        is True
+    )
     assert client.post("/api/plugins/install", json = {"token": "0" * 32}).status_code == 400
     assert client.delete("/api/plugins/demo").status_code == 204
     assert client.get("/api/plugins/demo").status_code == 400
@@ -395,7 +519,6 @@ def test_a_run_of_failed_calls_is_counted_from_the_end(monkeypatch):
     assert "8 tool calls all failed" in tool_call_parser.FAILURE_STREAK_NUDGE.format(count = 8)
 
 
-
 def test_a_stop_ends_a_hook_and_skips_the_rest(studio, tmp_path):
     import time
 
@@ -404,7 +527,20 @@ def test_a_stop_ends_a_hook_and_skips_the_rest(studio, tmp_path):
         {
             ".claude-plugin/plugin.json": json.dumps({"name": "slow"}),
             "hooks/hooks.json": json.dumps(
-                {"hooks": {"PreToolUse": [{"hooks": [{"type": "command", "command": f'"{PY}" -c "import time; time.sleep(30)"'}]}]}}
+                {
+                    "hooks": {
+                        "PreToolUse": [
+                            {
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": f'"{PY}" -c "import time; time.sleep(30)"',
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
             ),
         },
     )
@@ -413,7 +549,9 @@ def test_a_stop_ends_a_hook_and_skips_the_rest(studio, tmp_path):
     cancel = threading.Event()
     threading.Timer(0.5, cancel.set).start()
     started = time.monotonic()
-    result = plugin_hooks.before_tool("terminal", {"command": "ls"}, session_id = "s", workdir = str(tmp_path), cancel_event = cancel)
+    result = plugin_hooks.before_tool(
+        "terminal", {"command": "ls"}, session_id = "s", workdir = str(tmp_path), cancel_event = cancel
+    )
     assert time.monotonic() - started < 5
     assert result == "Error: the run was stopped before this call."
 
@@ -436,7 +574,9 @@ def test_a_stop_ends_a_sub_agent_mid_reply(studio, tmp_path, monkeypatch):
             self.end_headers()
             try:
                 for _ in range(200):
-                    self.wfile.write(b'data: {"choices": [{"index": 0, "delta": {"content": "."}}]}\n\n')
+                    self.wfile.write(
+                        b'data: {"choices": [{"index": 0, "delta": {"content": "."}}]}\n\n'
+                    )
                     self.wfile.flush()
                     time.sleep(0.1)
             except (BrokenPipeError, ConnectionResetError):
@@ -472,7 +612,9 @@ def test_run_agent_context_budget_and_clipping(monkeypatch):
 
     log = "start\n" + "x" * 20_000 + "\nFAILED test_a"
     clipped = plugin_agents._clip_result(log)
-    assert clipped.startswith("start") and clipped.endswith("FAILED test_a") and "chars cut" in clipped
+    assert (
+        clipped.startswith("start") and clipped.endswith("FAILED test_a") and "chars cut" in clipped
+    )
     assert len(clipped) < plugin_agents.MAX_TOOL_RESULT_CHARS + 100
 
     messages = [{"role": "system", "content": "s"}, {"role": "user", "content": "task"}]
@@ -505,7 +647,13 @@ def test_run_agent_keeps_its_conversation_under_the_budget(studio, tmp_path, mon
                 message = {
                     "role": "assistant",
                     "content": "",
-                    "tool_calls": [{"id": f"c{len(sizes)}", "type": "function", "function": {"name": "terminal", "arguments": json.dumps(call)}}],
+                    "tool_calls": [
+                        {
+                            "id": f"c{len(sizes)}",
+                            "type": "function",
+                            "function": {"name": "terminal", "arguments": json.dumps(call)},
+                        }
+                    ],
                 }
             else:
                 message = {"role": "assistant", "content": "done"}
@@ -540,10 +688,14 @@ def test_built_in_agents_are_always_listed_and_explore_is_read_only(studio, tmp_
     agents = {agent["id"]: agent for agent in plugin_agents.available_agents()}
     assert {"explore", "general-purpose"} <= set(agents)
     definition = plugin_agents.tool_definition()
-    assert definition is not None and "explore:" in definition["function"]["description"].replace("- explore", "explore")
+    assert definition is not None and "explore:" in definition["function"]["description"].replace(
+        "- explore", "explore"
+    )
     # explore runs without approval in Auto; general-purpose asks like any writer.
     assert tools.is_high_risk_tool_call("run_agent", {"agent": "explore", "task": "x"}) is False
-    assert tools.is_high_risk_tool_call("run_agent", {"agent": "general-purpose", "task": "x"}) is True
+    assert (
+        tools.is_high_risk_tool_call("run_agent", {"agent": "general-purpose", "task": "x"}) is True
+    )
 
     (tmp_path / "app.py").write_text("def answer():\n    return 42\n")
     seen_tools = []
@@ -560,7 +712,13 @@ def test_built_in_agents_are_always_listed_and_explore_is_read_only(studio, tmp_
                 message = {
                     "role": "assistant",
                     "content": "",
-                    "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "grep", "arguments": json.dumps(call)}}],
+                    "tool_calls": [
+                        {
+                            "id": "c1",
+                            "type": "function",
+                            "function": {"name": "grep", "arguments": json.dumps(call)},
+                        }
+                    ],
                 }
             else:
                 tool_text = body["messages"][-1]["content"]

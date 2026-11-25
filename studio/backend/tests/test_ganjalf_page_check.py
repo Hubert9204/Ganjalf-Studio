@@ -20,7 +20,11 @@ def test_panel_page_errors_reach_the_model_inside_the_fence():
             "ok": True,
             "file": "index.html",
             "text": "Score 0",
-            "console": ["Uncaught ReferenceError: player is not defined (line 12:5)", 42, "x" * 5000],
+            "console": [
+                "Uncaught ReferenceError: player is not defined (line 12:5)",
+                42,
+                "x" * 5000,
+            ],
         },
         None,
     )
@@ -32,7 +36,9 @@ def test_panel_page_errors_reach_the_model_inside_the_fence():
 
 
 def test_no_errors_no_section():
-    text = format_result("browser_snapshot", {"ok": True, "file": "a.html", "text": "hi", "console": []}, None)
+    text = format_result(
+        "browser_snapshot", {"ok": True, "file": "a.html", "text": "hi", "console": []}, None
+    )
     assert "Page errors" not in text
 
 
@@ -55,10 +61,15 @@ def test_target_urls(tmp_path):
     url, error = page_check._target_url("my game", root, None)
     assert error is None and url == "http://workspace.ganjalf/my%20game/index.html"
     assert page_check._target_url("../outside.html", root, None)[0] is None
-    assert page_check._target_url("nope.html", root, None)[1].startswith("Error: nope.html does not exist")
+    assert page_check._target_url("nope.html", root, None)[1].startswith(
+        "Error: nope.html does not exist"
+    )
     assert "not a public address" in page_check._target_url("http://10.0.0.2/", root, None)[1]
     assert "own address" in page_check._target_url("http://localhost:8888/", root, None)[1]
-    assert page_check._target_url("http://localhost:8080/", root, None) == ("http://localhost:8080/", None)
+    assert page_check._target_url("http://localhost:8080/", root, None) == (
+        "http://localhost:8080/",
+        None,
+    )
 
 
 def test_module_types():
@@ -70,13 +81,14 @@ def test_module_types():
 def test_switched_off(monkeypatch):
     monkeypatch.setenv("GANJALF_PAGE_CHECK", "0")
     assert page_check.check_page_available(refresh = True) is False
-    assert page_check.check_page({"path": "index.html"}, "/tmp").startswith("Error: check_page needs Playwright")
+    assert page_check.check_page({"path": "index.html"}, "/tmp").startswith(
+        "Error: check_page needs Playwright"
+    )
 
 
 def test_screenshot_travels_like_view_image():
     assert is_image_tool("check_page")
     from core.inference.tools import ALL_TOOLS
-
     assert "check_page" in {tool["function"]["name"] for tool in ALL_TOOLS}
 
 
@@ -118,7 +130,8 @@ def test_report_fences_the_page_and_flags_a_blank_screen():
 
 
 @pytest.mark.skipif(
-    os.environ.get("GANJALF_PAGE_CHECK_LIVE") != "1" or not page_check.check_page_available(refresh = True),
+    os.environ.get("GANJALF_PAGE_CHECK_LIVE") != "1"
+    or not page_check.check_page_available(refresh = True),
     reason = "set GANJALF_PAGE_CHECK_LIVE=1 with Playwright and Chromium installed",
 )
 def test_live_module_game(tmp_path):
@@ -132,12 +145,13 @@ def test_live_module_game(tmp_path):
         "const gl = c.getContext('webgl'); (function f(){ gl.clearColor(0.2,0.6,0.9,1); gl.clear(gl.COLOR_BUFFER_BIT); requestAnimationFrame(f); })();"
         "setTimeout(() => player.update(), 50);</script>"
     )
-    text = page_check.check_page({"path": "index.html", "wait_seconds": 0.5, "keys": ["Enter"]}, str(tmp_path))
+    text = page_check.check_page(
+        {"path": "index.html", "wait_seconds": 0.5, "keys": ["Enter"]}, str(tmp_path)
+    )
     head = text.split(SENTINEL, 1)[0]
     assert "Uncaught ReferenceError: player is not defined" in head
     assert "Visible text: Score 1" in head
     assert "one flat color" not in head
-
 
 
 def test_a_stop_does_not_wait_for_the_browser(monkeypatch, tmp_path):
@@ -150,18 +164,24 @@ def test_a_stop_does_not_wait_for_the_browser(monkeypatch, tmp_path):
     cancel = threading.Event()
     threading.Timer(0.3, cancel.set).start()
     started = time.monotonic()
-    assert page_check.check_page({"path": "index.html"}, str(tmp_path), cancel) == "Error: check_page was cancelled."
+    assert (
+        page_check.check_page({"path": "index.html"}, str(tmp_path), cancel)
+        == "Error: check_page was cancelled."
+    )
     assert time.monotonic() - started < 3
 
 
 @pytest.mark.skipif(
-    os.environ.get("GANJALF_PAGE_CHECK_LIVE") != "1" or not page_check.check_page_available(refresh = True),
+    os.environ.get("GANJALF_PAGE_CHECK_LIVE") != "1"
+    or not page_check.check_page_available(refresh = True),
     reason = "set GANJALF_PAGE_CHECK_LIVE=1 with Playwright and Chromium installed",
 )
 def test_live_built_page_in_dist_and_unbuilt_source(tmp_path):
     # Vite's dist/index.html asks for /assets/... from the site root, which is dist/ here.
     (tmp_path / "dist" / "assets").mkdir(parents = True)
-    (tmp_path / "dist" / "assets" / "index-abc.js").write_text("document.body.textContent = 'Built OK';")
+    (tmp_path / "dist" / "assets" / "index-abc.js").write_text(
+        "document.body.textContent = 'Built OK';"
+    )
     (tmp_path / "dist" / "index.html").write_text(
         '<!doctype html><title>B</title><script type="module" crossorigin src="/assets/index-abc.js"></script>'
     )
@@ -172,6 +192,10 @@ def test_live_built_page_in_dist_and_unbuilt_source(tmp_path):
     # The dev index.html loads TypeScript source: the model is told to build or use the dev server.
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "main.ts").write_text("const x: number = 1; console.log(x);")
-    (tmp_path / "index.html").write_text('<!doctype html><script type="module" src="/src/main.ts"></script>')
-    head = page_check.check_page({"path": "index.html", "wait_seconds": 0.3}, str(tmp_path)).split(SENTINEL, 1)[0]
+    (tmp_path / "index.html").write_text(
+        '<!doctype html><script type="module" src="/src/main.ts"></script>'
+    )
+    head = page_check.check_page({"path": "index.html", "wait_seconds": 0.3}, str(tmp_path)).split(
+        SENTINEL, 1
+    )[0]
     assert "needs its bundler" in head and "dist/index.html" in head

@@ -109,7 +109,11 @@ def test_page_reminder_fires_once_and_any_check_clears_it(tmp_path):
     ledger.note_call(*_edit("index.html"), failed = False)
     ledger.note_call(*_edit("style.css"), failed = False)
     reminder = ledger.check_page_reminder(offered = True, workdir = str(tmp_path))
-    assert reminder and "index.html, style.css" in reminder and "say so in one line and finish" in reminder
+    assert (
+        reminder
+        and "index.html, style.css" in reminder
+        and "say so in one line and finish" in reminder
+    )
     # Once per response, whatever the model does next.
     assert ledger.check_page_reminder(offered = True, workdir = str(tmp_path)) is None
 
@@ -147,7 +151,12 @@ def test_controller_puts_the_note_only_in_the_model_copy(monkeypatch):
 
     monkeypatch.setenv("GANJALF_VERIFY_AFTER_WRITES", "1")
     controller = ToolLoopController(
-        tools = [{"type": "function", "function": {"name": "edit_file", "parameters": {"type": "object"}}}],
+        tools = [
+            {
+                "type": "function",
+                "function": {"name": "edit_file", "parameters": {"type": "object"}},
+            }
+        ],
     )
     decision = controller.prepare_call(
         {"id": "c1", "function": {"name": "edit_file", "arguments": {"path": "a.py", "edits": []}}}
@@ -162,7 +171,10 @@ def test_controller_puts_the_note_only_in_the_model_copy(monkeypatch):
 
 def _tools(*names):
     return [
-        {"type": "function", "function": {"name": n, "parameters": {"type": "object", "properties": {}}}}
+        {
+            "type": "function",
+            "function": {"name": n, "parameters": {"type": "object", "properties": {}}},
+        }
         for n in names
     ]
 
@@ -186,19 +198,19 @@ def _run(monkeypatch, tmp_path, streams, tool_names):
 
 def _stream_call(name, args, cid):
     from test_llama_cpp_tool_loop import _structured_tool_call
-
     return _structured_tool_call(name, args, cid)
 
 
 def _stream_text(text):
     from test_llama_cpp_tool_loop import _done, _sse
-
     return [_sse({"content": text}), _done()]
 
 
 def _gate_messages(payloads):
     return [
-        m for p in payloads for m in p.get("messages", [])
+        m
+        for p in payloads
+        for m in p.get("messages", [])
         if m.get("role") == "user" and "did not run check_page" in str(m.get("content"))
     ]
 
@@ -214,7 +226,9 @@ def test_loop_sends_the_agent_back_once_then_lets_it_finish(monkeypatch, tmp_pat
     assert [c[0] for c in calls] == ["edit_file"]
     assert len(payloads) == 3  # edit, first answer, one more turn after the reminder: no loop
     assert len(_gate_messages(payloads[2:])) == 1
-    assert any(e.get("type") == "status" and "Checking the page" in str(e.get("text")) for e in events)
+    assert any(
+        e.get("type") == "status" and "Checking the page" in str(e.get("text")) for e in events
+    )
 
 
 def test_loop_skips_the_gate_without_check_page_or_after_a_check(monkeypatch, tmp_path):
@@ -279,7 +293,13 @@ def test_sandbox_env_quiets_npm():
     from core.inference import tools
 
     source = inspect.getsource(tools)
-    for key in ("NO_COLOR", "npm_config_progress", "npm_config_fund", "npm_config_audit", "npm_config_update_notifier"):
+    for key in (
+        "NO_COLOR",
+        "npm_config_progress",
+        "npm_config_fund",
+        "npm_config_audit",
+        "npm_config_update_notifier",
+    ):
         assert source.count(f'"{key}"') >= 2, key
 
 
@@ -287,8 +307,16 @@ def test_build_output_note_once_per_response():
     ledger = WorkLedger()
     note = ledger.note_call("python", {"code": "open('dist/bundle.js','w').write(x)"}, failed = False)
     assert "dist/bundle.js is build output" in note
-    assert ledger.note_call("terminal", {"command": "sed -i 's/a/b/' dist/bundle.js"}, failed = False) == ""
-    assert "build output" in WorkLedger().note_call(*_edit("public/vendor/three.min.js"), failed = False)
+    assert (
+        ledger.note_call("terminal", {"command": "sed -i 's/a/b/' dist/bundle.js"}, failed = False)
+        == ""
+    )
+    assert "build output" in WorkLedger().note_call(
+        *_edit("public/vendor/three.min.js"), failed = False
+    )
     assert WorkLedger().note_call(*_edit("src/dist_utils.ts"), failed = False) == ""
     # A build command that writes into dist/ is how dist/ should change: no note.
-    assert WorkLedger().note_call("terminal", {"command": "npx vite build > /dev/null"}, failed = False) == ""
+    assert (
+        WorkLedger().note_call("terminal", {"command": "npx vite build > /dev/null"}, failed = False)
+        == ""
+    )

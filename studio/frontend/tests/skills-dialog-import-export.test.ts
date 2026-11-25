@@ -10,7 +10,8 @@ const DIALOG = readSrc("features/chat/components/chat-skills-dialog.tsx");
 
 const IMPORT = /export async function importSkills\([^]*?\n\}\n/.exec(API)?.[0] ?? "";
 const EXPORT = /export async function exportSkill\([^]*?\n\}\n/.exec(API)?.[0] ?? "";
-const IMPORT_FILE = /async function importFile\([^]*?\n {2}\}\n/.exec(DIALOG)?.[0] ?? "";
+// Ganjalf: the file picker and drag-and-drop share showImportResult, which owns the view change.
+const IMPORT_FILE = /function showImportResult\([^]*?\n {2}\}\n/.exec(DIALOG)?.[0] ?? "";
 const RESULT_LIST = /function ImportResultList\([^]*?\n\}\n/.exec(DIALOG)?.[0] ?? "";
 
 test("import posts multipart without a hand-set Content-Type and re-reads the folders", () => {

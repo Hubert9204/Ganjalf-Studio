@@ -216,4 +216,22 @@ FACTORIES = {
     ),
 }
 
-SKIPPED: dict = {}
+_GANJALF_PLUGINS = (
+    "Ganjalf plugins live in the installation's own plugin folder, not in an account: every "
+    "route calls _owner_ui, so a managed account or an API key stops at 403 before any name is read"
+)
+
+SKIPPED: dict = {
+    "routes.plugins:GET:/{name}": _GANJALF_PLUGINS,
+    "routes.plugins:DELETE:/{name}": _GANJALF_PLUGINS,
+    "routes.plugins:POST:/{name}/update": _GANJALF_PLUGINS,
+    "routes.plugins:PUT:/{name}/enabled": _GANJALF_PLUGINS,
+    "routes.plugins:PUT:/{name}/hooks": _GANJALF_PLUGINS,
+    "routes.plugins:DELETE:/marketplaces/{name}": _GANJALF_PLUGINS,
+    "routes.plugins:POST:/marketplaces/{name}/refresh": _GANJALF_PLUGINS,
+    "routes.inference:POST:/background-jobs/{job_id}/stop": (
+        "a background job is an in-memory process, not a stored object, so there is nothing to "
+        "seed; the route looks the id up among the caller's own jobs and answers 404 for any "
+        "other (test_ganjalf_agent_tools::test_job_panel_lists_addresses_and_stops_only_own_jobs)"
+    ),
+}

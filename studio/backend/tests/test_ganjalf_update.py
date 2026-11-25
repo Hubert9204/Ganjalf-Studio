@@ -38,7 +38,12 @@ def _clean(monkeypatch):
     gu.reset_cache()
 
 
-def _github(monkeypatch, ahead_by, head = HEAD, calls = None):
+def _github(
+    monkeypatch,
+    ahead_by,
+    head = HEAD,
+    calls = None,
+):
     def fake(repo, branch, local):
         if calls is not None:
             calls.append((repo, branch, local))
@@ -87,7 +92,10 @@ def test_an_install_behind_its_branch_offers_the_ganjalf_update(monkeypatch):
     assert (status["current_version"], status["latest_version"]) == (LOCAL[:7], HEAD[:7])
     assert status["commits_behind"] == 3
     assert status["update_repo"] == "https://github.com/Hubert9204/Ganjalf-Studio"
-    assert status["release_notes_url"] == f"https://github.com/Hubert9204/Ganjalf-Studio/compare/{LOCAL[:12]}...main"
+    assert (
+        status["release_notes_url"]
+        == f"https://github.com/Hubert9204/Ganjalf-Studio/compare/{LOCAL[:12]}...main"
+    )
     assert "unsloth.ai" not in json.dumps(status["update_command"])
 
 

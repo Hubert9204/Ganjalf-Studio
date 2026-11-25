@@ -61,7 +61,7 @@ export function BackgroundJobsMenu() {
       <PopoverTrigger asChild={true}>
         <button type="button" className={`${CHAT_MENU_TRIGGER} relative`} aria-label={title} title={title}>
           <TerminalIcon className="size-icon" strokeWidth={1.75} />
-          <span className="absolute -right-0.5 -top-0.5 flex size-3.5 items-center justify-center rounded-full bg-primary text-[9px] font-semibold text-primary-foreground">
+          <span className="absolute -right-0.5 -top-0.5 flex size-3.5 items-center justify-center rounded-full bg-primary text-ui-9 font-semibold text-primary-foreground">
             {running.length}
           </span>
         </button>

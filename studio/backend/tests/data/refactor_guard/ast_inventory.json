@@ -1256,6 +1256,9 @@
       "BUDGET_EXHAUSTED_NUDGE": {
         "kind": "assign"
       },
+      "FAILURE_STREAK_NUDGE": {
+        "kind": "assign"
+      },
       "INTENT_SIGNAL": {
         "kind": "assign"
       },
@@ -2263,6 +2266,11 @@
         "signature": "text: str, start: int, enabled_tool_names"
       },
       "continue_after_length_message": {
+        "decorators": [],
+        "kind": "def",
+        "signature": ""
+      },
+      "failure_streak_limit": {
         "decorators": [],
         "kind": "def",
         "signature": ""

@@ -133,7 +133,11 @@ def _skills(root: Path, manifest: dict, warnings: list[str]) -> list[dict]:
         folders.append(root)
     found: dict[str, dict] = {}
     for folder in folders:
-        candidates = [folder] if (folder / "SKILL.md").is_file() else sorted(p for p in folder.iterdir() if p.is_dir())
+        candidates = (
+            [folder]
+            if (folder / "SKILL.md").is_file()
+            else sorted(p for p in folder.iterdir() if p.is_dir())
+        )
         for skill_dir in candidates:
             manifest_path = skill_dir / "SKILL.md"
             if not manifest_path.is_file() or _inside(root, manifest_path) is None:
@@ -178,7 +182,11 @@ def _commands(root: Path, manifest: dict, warnings: list[str]) -> list[dict]:
             else:
                 warnings.append(f"command {name!r} has no readable source")
     else:
-        sources = _paths(spec) if spec is not None else (["./commands"] if (root / "commands").is_dir() else [])
+        sources = (
+            _paths(spec)
+            if spec is not None
+            else (["./commands"] if (root / "commands").is_dir() else [])
+        )
         for value in sources:
             resolved = _rel(root, value)
             if resolved is None or not resolved.exists():
@@ -225,7 +233,10 @@ def _agents(root: Path, manifest: dict, warnings: list[str]) -> list[dict]:
     else:
         folder = root / "agents"
         files = (
-            [(path, ":".join(path.relative_to(folder).with_suffix("").parts)) for path in _markdown_files(root, folder)]
+            [
+                (path, ":".join(path.relative_to(folder).with_suffix("").parts))
+                for path in _markdown_files(root, folder)
+            ]
             if folder.is_dir()
             else []
         )
@@ -244,7 +255,9 @@ def _agents(root: Path, manifest: dict, warnings: list[str]) -> list[dict]:
                 "name": str(frontmatter.get("name") or default_name),
                 "path": path.relative_to(root.resolve()).as_posix(),
                 "description": _description(frontmatter, body),
-                **({"tools": [str(tool) for tool in tools][:50]} if isinstance(tools, list) else {}),
+                **(
+                    {"tools": [str(tool) for tool in tools][:50]} if isinstance(tools, list) else {}
+                ),
                 **({"model": str(frontmatter["model"])[:100]} if frontmatter.get("model") else {}),
             }
         )
@@ -268,7 +281,11 @@ def _merge_hooks(target: dict, config: Any, origin: str, warnings: list[str]) ->
                 {
                     "type": "command",
                     "command": hook["command"],
-                    **({"timeout": hook["timeout"]} if isinstance(hook.get("timeout"), (int, float)) else {}),
+                    **(
+                        {"timeout": hook["timeout"]}
+                        if isinstance(hook.get("timeout"), (int, float))
+                        else {}
+                    ),
                     **({"if": hook["if"]} if isinstance(hook.get("if"), str) else {}),
                 }
                 for hook in group["hooks"]
@@ -386,7 +403,9 @@ def inspect_plugin(root: Path, entry: Optional[dict] = None) -> dict:
         "name": name,
         "display_name": str(manifest.get("displayName") or raw_name)[:100],
         "version": str(manifest.get("version") or "")[:50],
-        "description": " ".join(str(manifest.get("description") or (entry or {}).get("description") or "").split())[:1000],
+        "description": " ".join(
+            str(manifest.get("description") or (entry or {}).get("description") or "").split()
+        )[:1000],
         "author": str(author.get("name") if isinstance(author, dict) else author or "")[:200],
         "homepage": str(manifest.get("homepage") or "")[:500],
         "license": str(manifest.get("license") or "")[:100],
@@ -399,7 +418,9 @@ def inspect_plugin(root: Path, entry: Optional[dict] = None) -> dict:
         "warnings": warnings[:50],
     }
     if not any(summary[key] for key in ("skills", "commands", "agents", "hooks", "mcp_servers")):
-        raise PluginError("This folder has no skills, commands, agents, hooks or MCP servers Ganjalf can use.")
+        raise PluginError(
+            "This folder has no skills, commands, agents, hooks or MCP servers Ganjalf can use."
+        )
     return summary
 
 
@@ -412,7 +433,11 @@ def read_marketplace(root: Path) -> Optional[dict]:
     if not isinstance(data, dict) or not isinstance(data.get("plugins"), list):
         raise PluginError("marketplace.json needs a plugins list.")
     owner = data.get("owner")
-    plugin_root = str((data.get("metadata") or {}).get("pluginRoot") or "") if isinstance(data.get("metadata"), dict) else ""
+    plugin_root = (
+        str((data.get("metadata") or {}).get("pluginRoot") or "")
+        if isinstance(data.get("metadata"), dict)
+        else ""
+    )
     plugins = []
     for item in data["plugins"][:MAX_COMPONENTS]:
         if not isinstance(item, dict) or not item.get("name"):
@@ -433,7 +458,9 @@ def read_marketplace(root: Path) -> Optional[dict]:
     return {
         "name": slug(data.get("name") or root.name) or "marketplace",
         "owner": str(owner.get("name") if isinstance(owner, dict) else owner or "")[:200],
-        "description": str((data.get("metadata") or {}).get("description") or data.get("description") or "")[:500]
+        "description": str(
+            (data.get("metadata") or {}).get("description") or data.get("description") or ""
+        )[:500]
         if isinstance(data.get("metadata"), dict) or data.get("description")
         else "",
         "plugins": plugins,

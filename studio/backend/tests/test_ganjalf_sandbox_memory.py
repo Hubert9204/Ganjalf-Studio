@@ -55,7 +55,10 @@ def test_node_can_instantiate_webassembly_under_the_default_limit():
     """What `vite build` does first; under a strict 8 GiB address-space cap it dies with
     'Cannot allocate Wasm memory'."""
     out = tools._bash_exec(
-        """node -e "new WebAssembly.Memory({initial: 1}); console.log('WASM OK')" """, None, 60, _SESSION
+        """node -e "new WebAssembly.Memory({initial: 1}); console.log('WASM OK')" """,
+        None,
+        60,
+        _SESSION,
     )
     assert "WASM OK" in out, out
 
@@ -63,6 +66,9 @@ def test_node_can_instantiate_webassembly_under_the_default_limit():
 @pytest.mark.skipif(shutil.which("node") is None, reason = "needs node")
 def test_node_writes_no_compile_cache_into_the_project(tmp_path):
     out = tools._bash_exec(
-        """node -e "console.log(require('module').enableCompileCache().status)" """, None, 60, _SESSION
+        """node -e "console.log(require('module').enableCompileCache().status)" """,
+        None,
+        60,
+        _SESSION,
     )
     assert "3" in out.split(), out  # 3 = disabled by NODE_DISABLE_COMPILE_CACHE

@@ -831,10 +831,14 @@ def _draft_files(files) -> list:
         if b"\x00" in data:
             raise SkillError(f"Skill file '{shown}' must be text, not binary data.")
         if len(data) > MAX_CREATED_SKILL_FILE_BYTES:
-            raise SkillError(f"Skill file '{shown}' exceeds {MAX_CREATED_SKILL_FILE_BYTES // 1024} KB.")
+            raise SkillError(
+                f"Skill file '{shown}' exceeds {MAX_CREATED_SKILL_FILE_BYTES // 1024} KB."
+            )
         total += len(data)
         if total > MAX_CREATED_SKILL_TOTAL_BYTES:
-            raise SkillError(f"A skill's files exceed {MAX_CREATED_SKILL_TOTAL_BYTES // 1024} KB in all.")
+            raise SkillError(
+                f"A skill's files exceed {MAX_CREATED_SKILL_TOTAL_BYTES // 1024} KB in all."
+            )
         drafted.append((path, data, path.parts[0] == "scripts"))
     return drafted
 
@@ -855,7 +859,9 @@ def create_skill(
     manifest = _render_manifest({"name": normalized, "description": description}, instructions)
     metadata = _parse_skill_markdown(manifest, normalized)
     if model_made:
-        extra.append((PurePosixPath(MODEL_SKILL_MARKER), b"Written by the model with create_skill.\n", False))
+        extra.append(
+            (PurePosixPath(MODEL_SKILL_MARKER), b"Written by the model with create_skill.\n", False)
+        )
     if replace:
         return _replace_model_skill(normalized, manifest, metadata, extra, home = home)
     return _install_new_skill(normalized, manifest, metadata, files = extra, home = home)
@@ -908,7 +914,11 @@ def _replace_model_skill(normalized: str, manifest: bytes, metadata: dict, files
             raise
         if backup is not None:
             old = sorted(
-                (entry for entry in backup.parent.iterdir() if entry.name.startswith(f"{normalized}-")),
+                (
+                    entry
+                    for entry in backup.parent.iterdir()
+                    if entry.name.startswith(f"{normalized}-")
+                ),
                 key = lambda entry: entry.name,
             )
             for stale in old[:-SKILL_HISTORY_KEEP]:
@@ -1457,7 +1467,9 @@ def read_skill_resource(
     if isinstance(page_chars, bool) or not isinstance(page_chars, int) or page_chars <= 0:
         raise SkillError("Skill resource page size must be a positive integer.")
     files: list = []
-    record, normalized, content = _read_enabled_skill_text(name, resource, home = home, files_out = files)
+    record, normalized, content = _read_enabled_skill_text(
+        name, resource, home = home, files_out = files
+    )
     if offset > len(content):
         raise SkillError("Skill resource offset is past the end of the file.")
     end = min(offset + min(page_chars, MAX_SKILL_PAGE_CHARS), len(content))

@@ -24,9 +24,13 @@ def project(tmp_path, monkeypatch):
     root = tmp_path / "project"
     (root / "src").mkdir(parents = True)
     (root / "node_modules" / "three").mkdir(parents = True)
-    (root / "src" / "main.ts").write_text("import { Engine } from './engine';\nnew Engine().start();\n")
+    (root / "src" / "main.ts").write_text(
+        "import { Engine } from './engine';\nnew Engine().start();\n"
+    )
     (root / "src" / "engine.ts").write_text(
-        "export class Engine {\n" + "".join(f"  line{i}() {{}}\n" for i in range(1, 600)) + "  start() {}\n}\n"
+        "export class Engine {\n"
+        + "".join(f"  line{i}() {{}}\n" for i in range(1, 600))
+        + "  start() {}\n}\n"
     )
     (root / "index.html").write_text("<script type=module src=/src/main.ts></script>\n")
     (root / "node_modules" / "three" / "index.js").write_text("export class Engine {}\n")
@@ -40,18 +44,38 @@ def run(name, arguments):
 
 
 def test_todo_write_keeps_the_list_and_coaches():
-    reply = run("todo_write", {"todos": [
-        {"content": "Scene and player", "status": "completed"},
-        {"content": "Camera", "status": "in_progress", "activeForm": "Adding the camera"},
-        {"content": "HUD", "status": "pending"},
-    ]})
-    assert reply.startswith("Task list updated (1/3 done)") and "[>] Camera" in reply and "[x] Scene" in reply
+    reply = run(
+        "todo_write",
+        {
+            "todos": [
+                {"content": "Scene and player", "status": "completed"},
+                {"content": "Camera", "status": "in_progress", "activeForm": "Adding the camera"},
+                {"content": "HUD", "status": "pending"},
+            ]
+        },
+    )
+    assert (
+        reply.startswith("Task list updated (1/3 done)")
+        and "[>] Camera" in reply
+        and "[x] Scene" in reply
+    )
     assert agent_tools.current_todos("s1")[1]["activeForm"] == "Adding the camera"
-    assert "exactly one" in run("todo_write", {"todos": [
-        {"content": "a", "status": "in_progress"}, {"content": "b", "status": "in_progress"}]})
-    assert "verify the result" in run("todo_write", {"todos": [{"content": "a", "status": "completed"}]})
+    assert "exactly one" in run(
+        "todo_write",
+        {
+            "todos": [
+                {"content": "a", "status": "in_progress"},
+                {"content": "b", "status": "in_progress"},
+            ]
+        },
+    )
+    assert "verify the result" in run(
+        "todo_write", {"todos": [{"content": "a", "status": "completed"}]}
+    )
     assert run("todo_write", {"todos": [{"content": "a", "status": "doing"}]}).startswith("Error")
-    assert run("todo_write", {"todos": '[{"content": "a", "status": "pending"}]'}).startswith("Task list")
+    assert run("todo_write", {"todos": '[{"content": "a", "status": "pending"}]'}).startswith(
+        "Task list"
+    )
 
 
 def test_read_file_numbers_lines_and_pages(project):
@@ -69,9 +93,13 @@ def test_read_file_numbers_lines_and_pages(project):
 def test_grep_finds_code_and_skips_dependencies(project):
     hits = run("grep", {"pattern": r"class Engine"})
     assert "src/engine.ts:1:export class Engine {" in hits and "node_modules" not in hits
-    assert "node_modules/three/index.js" in run("grep", {"pattern": "class Engine", "path": "node_modules"})
+    assert "node_modules/three/index.js" in run(
+        "grep", {"pattern": "class Engine", "path": "node_modules"}
+    )
     assert run("grep", {"pattern": "start", "glob": "*.html"}).startswith("No matches")
-    assert "src/main.ts" in run("grep", {"pattern": "ENGINE", "ignore_case": True, "files_only": True})
+    assert "src/main.ts" in run(
+        "grep", {"pattern": "ENGINE", "ignore_case": True, "files_only": True}
+    )
     context = run("grep", {"pattern": "line300", "context": 1})
     assert "src/engine.ts-300-" in context and "src/engine.ts:301:" in context
     assert "invalid regular expression" in run("grep", {"pattern": "start("})
@@ -115,7 +143,9 @@ def test_background_job_lifecycle():
     assert "http://localhost:5173/" in reply and "terminal_output" in reply
     status = background_jobs.output({"id": job_id}, "s2")
     assert "Status: running" in status and "No new output." in status
-    assert background_jobs.output({"id": job_id}, "other-chat").startswith("Error: no background job")
+    assert background_jobs.output({"id": job_id}, "other-chat").startswith(
+        "Error: no background job"
+    )
     stopped = background_jobs.kill({"id": job_id}, "s2")
     assert stopped.startswith(f"Stopped background job {job_id}")
     final = background_jobs.output({"id": job_id}, "s2")
@@ -124,7 +154,11 @@ def test_background_job_lifecycle():
 
 
 def test_background_job_that_fails_at_once_reports_its_exit():
-    reply = background_jobs.start("npm run nope", "s3", lambda c, a, t: (a("missing script\n"), "Exit code 1:\nmissing script")[1])
+    reply = background_jobs.start(
+        "npm run nope",
+        "s3",
+        lambda c, a, t: (a("missing script\n"), "Exit code 1:\nmissing script")[1],
+    )
     assert "already ended" in reply and "Exit code 1" in reply and "missing script" in reply
 
 
@@ -183,9 +217,15 @@ def test_job_routes(monkeypatch):
     from routes import inference as routes
 
     monkeypatch.setattr(background_jobs, "account_jobs", lambda: [{"id": "bg9"}])
-    monkeypatch.setattr(background_jobs, "stop_for_account", lambda job_id: "Stopped background job bg9." if job_id == "bg9" else None)
+    monkeypatch.setattr(
+        background_jobs,
+        "stop_for_account",
+        lambda job_id: "Stopped background job bg9." if job_id == "bg9" else None,
+    )
     assert asyncio.run(routes.get_background_jobs(current_subject = "u")) == {"jobs": [{"id": "bg9"}]}
-    assert asyncio.run(routes.stop_background_job("bg9", current_subject = "u"))["message"].startswith("Stopped")
+    assert asyncio.run(routes.stop_background_job("bg9", current_subject = "u"))[
+        "message"
+    ].startswith("Stopped")
     with pytest.raises(Exception):
         asyncio.run(routes.stop_background_job("bg1", current_subject = "u"))
 
@@ -203,7 +243,10 @@ def test_plan_mode_offers_only_reading_and_the_plan_tool():
         enabled_tools = ["terminal", "python", "edit_file", "web_search"],
         plan_mode = True,
     )
-    names = [t["function"]["name"] for t in asyncio.run(_select_request_tools(chat, tools_on = True, mcp_allowed = False))]
+    names = [
+        t["function"]["name"]
+        for t in asyncio.run(_select_request_tools(chat, tools_on = True, mcp_allowed = False))
+    ]
     assert set(names) == {"web_search", "read_file", "grep", "glob", "todo_write", "exit_plan_mode"}
     assert names[-1] == "exit_plan_mode"
     assert tools.is_always_safe_tool("exit_plan_mode")
@@ -212,8 +255,12 @@ def test_plan_mode_offers_only_reading_and_the_plan_tool():
 def test_exit_plan_mode_ends_the_tool_rounds():
     from core.inference.tool_loop_controller import ToolLoopController
 
-    controller = ToolLoopController(tools = [agent_tools.EXIT_PLAN_MODE_TOOL, agent_tools.READ_FILE_TOOL])
-    decision = controller.prepare_call({"id": "p1", "function": {"name": "exit_plan_mode", "arguments": {"plan": "1. Scene"}}})
+    controller = ToolLoopController(
+        tools = [agent_tools.EXIT_PLAN_MODE_TOOL, agent_tools.READ_FILE_TOOL]
+    )
+    decision = controller.prepare_call(
+        {"id": "p1", "function": {"name": "exit_plan_mode", "arguments": {"plan": "1. Scene"}}}
+    )
     reply = tools.execute_tool("exit_plan_mode", {"plan": "1. Scene"}, session_id = "s")
     assert reply.startswith(agent_tools.PLAN_APPROVAL_TAG) and "1. Scene" in reply
     controller.record_result(decision, reply)
@@ -230,10 +277,19 @@ from core.inference import command_shapes as shapes
 @pytest.mark.parametrize(
     "command, expected",
     [
-        ("nohup npx vite --port 5173 > vite.log 2>&1 & echo $! > vite.pid", "npx vite --port 5173 2>&1 | tee vite.log"),
-        ("cd /home/u/Test\\ Game && nohup npx vite --port 5173 > vite.log 2>&1 &", "cd /home/u/Test\\ Game && npx vite --port 5173 2>&1 | tee vite.log"),
+        (
+            "nohup npx vite --port 5173 > vite.log 2>&1 & echo $! > vite.pid",
+            "npx vite --port 5173 2>&1 | tee vite.log",
+        ),
+        (
+            "cd /home/u/Test\\ Game && nohup npx vite --port 5173 > vite.log 2>&1 &",
+            "cd /home/u/Test\\ Game && npx vite --port 5173 2>&1 | tee vite.log",
+        ),
         ("npm run dev &", "npm run dev"),
-        ("python -m http.server 8000 >> s.log 2>&1 & sleep 2", "python -m http.server 8000 2>&1 | tee -a s.log"),
+        (
+            "python -m http.server 8000 >> s.log 2>&1 & sleep 2",
+            "python -m http.server 8000 2>&1 | tee -a s.log",
+        ),
         ("node server.js > /dev/null 2>&1 & disown", "node server.js"),
         ("npm run dev &>dev.log &", "npm run dev 2>&1 | tee dev.log"),
     ],
@@ -300,6 +356,23 @@ def test_an_edit_that_drops_methods_says_so():
 
 
 def test_edit_file_reports_removed_definitions(project):
-    run("edit_file", {"path": "m.py", "edits": [{"old_string": "", "new_string": "def a():\n    return 1\n\n\ndef b():\n    return a()\n"}]})
-    reply = run("edit_file", {"path": "m.py", "edits": [{"old_string": "def a():\n    return 1\n\n\n", "new_string": ""}]})
+    run(
+        "edit_file",
+        {
+            "path": "m.py",
+            "edits": [
+                {
+                    "old_string": "",
+                    "new_string": "def a():\n    return 1\n\n\ndef b():\n    return a()\n",
+                }
+            ],
+        },
+    )
+    reply = run(
+        "edit_file",
+        {
+            "path": "m.py",
+            "edits": [{"old_string": "def a():\n    return 1\n\n\n", "new_string": ""}],
+        },
+    )
     assert "This edit removed: a. Still called in this file: a." in reply

@@ -33,19 +33,30 @@ def _server(monkeypatch, frames, payloads):
     real._supports_preserve_thinking = False
 
     @contextlib.contextmanager
-    def fake_stream(_client, _url, payload, _cancel, headers = None, first_token_deadline = None):
+    def fake_stream(
+        _client,
+        _url,
+        payload,
+        _cancel,
+        headers = None,
+        first_token_deadline = None,
+    ):
         payloads.append(payload)
         yield type("R", (), {"status_code": 200, "chunks": frames, "close": lambda self: None})()
 
     monkeypatch.setattr(real, "_stream_with_retry", fake_stream)
     monkeypatch.setattr(
-        real, "_iter_text_cancellable", lambda response, _c, first_token_deadline = None: iter(response.chunks)
+        real,
+        "_iter_text_cancellable",
+        lambda response, _c, first_token_deadline = None: iter(response.chunks),
     )
     monkeypatch.setattr(real, "_maybe_recover_from_mtp_crash", lambda *_a, **_k: False)
     monkeypatch.setattr(
         real,
         "_llama_post_json",
-        lambda path, body: {"tokens": list(range(len(body["content"].split())))} if path == "/tokenize" else None,
+        lambda path, body: {"tokens": list(range(len(body["content"].split())))}
+        if path == "/tokenize"
+        else None,
     )
     return real
 
@@ -57,7 +68,11 @@ def _frames(*pieces, reasoning = None):
     return frames
 
 
-def _drain(backend, stop_report, stop = (STOP,)):
+def _drain(
+    backend,
+    stop_report,
+    stop = (STOP,),
+):
     return list(
         backend.generate_chat_completion(
             messages = [{"role": "user", "content": "hi"}],
@@ -108,7 +123,9 @@ def test_reasoning_is_not_cut(monkeypatch):
 def test_without_a_report_llama_server_still_gets_the_stops(monkeypatch):
     payloads: list = []
     backend = _server(monkeypatch, _frames("Hello"), payloads)
-    list(backend.generate_chat_completion(messages = [{"role": "user", "content": "hi"}], stop = [STOP]))
+    list(
+        backend.generate_chat_completion(messages = [{"role": "user", "content": "hi"}], stop = [STOP])
+    )
     assert payloads[0]["stop"] == [STOP]
 
 
@@ -163,7 +180,7 @@ def test_messages_stream_names_the_stop_sequence(monkeypatch):
     for line in response.text.splitlines():
         if not line.startswith("data: {"):
             continue
-        data = json.loads(line[len("data: "):])
+        data = json.loads(line[len("data: ") :])
         if data.get("type") == "message_delta":
             deltas.append(data["delta"])
         if data.get("type") == "content_block_delta" and data["delta"].get("type") == "text_delta":

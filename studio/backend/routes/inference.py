@@ -6487,7 +6487,9 @@ async def _select_request_tools(
         from core.inference.agent_tools import code_agent_tools
 
         _have = {tool["function"]["name"] for tool in tools}
-        tools = tools + [tool for tool in code_agent_tools() if tool["function"]["name"] not in _have]
+        tools = tools + [
+            tool for tool in code_agent_tools() if tool["function"]["name"] not in _have
+        ]
     # Inline on purpose: an await here escapes the api_monitor cancel handling; the cache bounds it.
     enabled_skills = _enabled_agent_skills() if tools_on else []
     if enabled_skills:
@@ -6553,7 +6555,6 @@ async def _select_request_tools(
     if tools_on and getattr(payload, "plan_mode", None) is True:
         # Ganjalf plan mode: explore read-only, then present the plan with exit_plan_mode.
         from core.inference.agent_tools import apply_plan_mode
-
         tools = apply_plan_mode(tools)
     return tools
 
@@ -33166,7 +33167,6 @@ def _plugin_agent_tool() -> Optional[dict]:
     """run_agent (built-in explore and general-purpose agents, plus plugin agents) when a llama.cpp model is loaded."""
     try:
         from core.plugins.agents import tool_definition
-
         if not get_llama_cpp_backend().is_loaded:
             return None
         return tool_definition()
@@ -39920,8 +39920,9 @@ async def openai_list_models(
         data = await _openai_catalog_with_aliases(quant_pins = True)
     else:
         from routes.systemone import decision_model_objects
-
-        data = [] if wanted == {"decisions"} else await _openai_catalog_with_aliases(quant_pins = True)
+        data = (
+            [] if wanted == {"decisions"} else await _openai_catalog_with_aliases(quant_pins = True)
+        )
         data += await asyncio.to_thread(decision_model_objects)
     return _with_anthropic_model_list({"object": "list", "data": data}, request)
 
@@ -40024,7 +40025,9 @@ def _quant_pin_object(listed: dict, variant: str, resident_quants) -> dict:
 
 @router.get("/models/{model_id:path}")
 async def openai_retrieve_model(
-    model_id: str, current_subject: str = Depends(get_current_subject), request: Request = None
+    model_id: str,
+    current_subject: str = Depends(get_current_subject),
+    request: Request = None,
 ):
     """
     OpenAI-compatible single-model retrieval endpoint (``GET /v1/models/{id}``).
@@ -40076,7 +40079,9 @@ async def openai_retrieve_model(
                 (llama_backend.model_identifier, _llama_public_model_id(llama_backend))
             )
         if backend.active_model_name:
-            raw_to_public.append((backend.active_model_name, _orchestrator_public_model_id(backend)))
+            raw_to_public.append(
+                (backend.active_model_name, _orchestrator_public_model_id(backend))
+            )
         for raw, clean in raw_to_public:
             if model_id_matches(model_id, raw):
                 for entry in _loaded:
@@ -40095,14 +40100,17 @@ async def openai_retrieve_model(
             ),
         )
 
-
     # =====================================================================
 
     # OpenAI-Compatible Completions Proxy  (/completions → /v1/completions)
     # =====================================================================
 
     found = await _find()
-    return _anthropic_model_fields(found) if _wants_anthropic_shape(request) and isinstance(found, dict) else found
+    return (
+        _anthropic_model_fields(found)
+        if _wants_anthropic_shape(request) and isinstance(found, dict)
+        else found
+    )
 
 
 def _flatten_monitor_prompt(value) -> str:
@@ -44631,7 +44639,8 @@ def _select_anthropic_server_tools(
     available = [
         tool
         for tool in all_tools
-        if (supports_vision or tool["function"]["name"] != "view_image") and _check_page_offered(tool)
+        if (supports_vision or tool["function"]["name"] != "view_image")
+        and _check_page_offered(tool)
     ]
     if _enabled_agent_skills():
         from core.inference.tools import READ_SKILL_TOOL
@@ -48351,7 +48360,9 @@ async def _anthropic_plain_stream(
             )
             for line in emitter.finish(
                 stop_reason = stop_reason,
-                stop_sequence = (stop_report or {}).get("hit") if stop_reason == "stop_sequence" else None,
+                stop_sequence = (stop_report or {}).get("hit")
+                if stop_reason == "stop_sequence"
+                else None,
             ):
                 yield line
         finally:
@@ -48402,7 +48413,12 @@ def _collect_anthropic_events(run_gen, think_provenance = None) -> list:
 
 
 def _anthropic_message_json_response(
-    message_id, model_name, content_blocks, stop_reason, usage, stop_sequence = None
+    message_id,
+    model_name,
+    content_blocks,
+    stop_reason,
+    usage,
+    stop_sequence = None,
 ) -> Response:
     """Assemble the terminal Anthropic non-streaming JSON response shared by the
     tool / plain / passthrough paths."""

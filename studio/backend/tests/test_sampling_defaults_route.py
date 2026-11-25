@@ -95,7 +95,7 @@ def test_a_kept_model_resolves_against_its_own_slot(monkeypatch):
 
     monkeypatch.setattr(inference_routes, "_llama_cpp_backend", _Unloaded())
 
-    async def route(requested):
+    async def route(requested, touch = True):
         inference_routes.routed_slot.set(SimpleNamespace(llama = _LoadedQwen()))
 
     monkeypatch.setattr(inference_routes, "_route_to_extra_slot", route)

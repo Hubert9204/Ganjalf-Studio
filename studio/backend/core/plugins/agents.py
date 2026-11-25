@@ -103,7 +103,9 @@ def available_agents() -> list[dict]:
         except (PluginError, OSError):
             continue
         for agent in summary.get("agents", []):
-            agents.append({**agent, "plugin": record["name"], "id": f"{record['name']}:{agent['name']}"})
+            agents.append(
+                {**agent, "plugin": record["name"], "id": f"{record['name']}:{agent['name']}"}
+            )
     return agents
 
 
@@ -112,7 +114,8 @@ def tool_definition(agents: Optional[list[dict]] = None) -> Optional[dict]:
     if not agents:
         return None
     listing = "\n".join(
-        f"- {agent['id']}: {agent.get('description') or 'no description'}"[:300] for agent in agents[:MAX_LISTED_AGENTS]
+        f"- {agent['id']}: {agent.get('description') or 'no description'}"[:300]
+        for agent in agents[:MAX_LISTED_AGENTS]
     )
     return {
         "type": "function",
@@ -128,8 +131,14 @@ def tool_definition(agents: Optional[list[dict]] = None) -> Optional[dict]:
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "agent": {"type": "string", "description": "The agent's id, e.g. plugin:agent."},
-                    "task": {"type": "string", "description": "The complete task, with paths, goals and constraints."},
+                    "agent": {
+                        "type": "string",
+                        "description": "The agent's id, e.g. plugin:agent.",
+                    },
+                    "task": {
+                        "type": "string",
+                        "description": "The complete task, with paths, goals and constraints.",
+                    },
                 },
                 "required": ["agent", "task"],
             },
@@ -167,7 +176,13 @@ class _Stopped(Exception):
     pass
 
 
-def _post(base_url: str, headers: Optional[dict], payload: dict, timeout: float, cancel_event = None) -> dict:
+def _post(
+    base_url: str,
+    headers: Optional[dict],
+    payload: dict,
+    timeout: float,
+    cancel_event = None,
+) -> dict:
     """One model turn, streamed so a stop closes the connection (llama-server then ends the
     generation) instead of waiting for the whole reply. Returns {"content", "tool_calls"}."""
     import httpx
@@ -175,11 +190,17 @@ def _post(base_url: str, headers: Optional[dict], payload: dict, timeout: float,
     content: list[str] = []
     calls: dict[int, dict] = {}
     started = time.monotonic()
-    with httpx.Client(timeout = httpx.Timeout(timeout, read = 60.0), headers = headers, trust_env = False) as client:
-        with client.stream("POST", f"{base_url}/v1/chat/completions", json = {**payload, "stream": True}) as response:
+    with httpx.Client(
+        timeout = httpx.Timeout(timeout, read = 60.0), headers = headers, trust_env = False
+    ) as client:
+        with client.stream(
+            "POST", f"{base_url}/v1/chat/completions", json = {**payload, "stream": True}
+        ) as response:
             if response.status_code >= 400:
                 response.read()
-                raise RuntimeError(f"the model server answered {response.status_code}: {response.text[:300]}")
+                raise RuntimeError(
+                    f"the model server answered {response.status_code}: {response.text[:300]}"
+                )
             for line in response.iter_lines():
                 if cancel_event is not None and cancel_event.is_set():
                     raise _Stopped()
@@ -199,7 +220,9 @@ def _post(base_url: str, headers: Optional[dict], payload: dict, timeout: float,
                     if isinstance(delta.get("content"), str):
                         content.append(delta["content"])
                     for call in delta.get("tool_calls") or []:
-                        slot = calls.setdefault(int(call.get("index") or 0), {"id": "", "name": "", "arguments": ""})
+                        slot = calls.setdefault(
+                            int(call.get("index") or 0), {"id": "", "name": "", "arguments": ""}
+                        )
                         slot["id"] = call.get("id") or slot["id"]
                         function = call.get("function") or {}
                         slot["name"] += function.get("name") or ""
@@ -207,7 +230,11 @@ def _post(base_url: str, headers: Optional[dict], payload: dict, timeout: float,
     return {
         "content": "".join(content),
         "tool_calls": [
-            {"id": slot["id"], "type": "function", "function": {"name": slot["name"], "arguments": slot["arguments"]}}
+            {
+                "id": slot["id"],
+                "type": "function",
+                "function": {"name": slot["name"], "arguments": slot["arguments"]},
+            }
             for _, slot in sorted(calls.items())
         ],
     }
@@ -269,7 +296,6 @@ def _clip_result(text: str) -> str:
 
 def _strip_images(result: str) -> str:
     from core.inference.mcp_images import SENTINEL
-
     if isinstance(result, str) and SENTINEL in result:
         return result.split(SENTINEL, 1)[0].rstrip() + "\n(image omitted)"
     return result if isinstance(result, str) else json.dumps(result)[:MAX_TOOL_RESULT_CHARS]
@@ -296,7 +322,11 @@ def run_agent(
         return "Error: give both 'agent' (an id from the list) and 'task'."
     agents = available_agents()
     agent = next(
-        (item for item in agents if wanted in (item["id"], item["name"], item["id"].replace(":", "-"))),
+        (
+            item
+            for item in agents
+            if wanted in (item["id"], item["name"], item["id"].replace(":", "-"))
+        ),
         None,
     )
     if agent is None:
@@ -310,7 +340,6 @@ def run_agent(
         except (PluginError, OSError) as exc:
             return f"Error: the agent's file could not be read: {exc}"
         from .manager import expand
-
         body = expand(body, agent["plugin"]) if "${" in body else body
 
     if server is None:
@@ -347,7 +376,9 @@ def run_agent(
         if cancel_event is not None and cancel_event.is_set():
             return "Error: run_agent was cancelled."
         if time.monotonic() - started > MAX_SECONDS:
-            return _report(agent, steps, "", f"stopped after {MAX_SECONDS // 60} minutes without finishing")
+            return _report(
+                agent, steps, "", f"stopped after {MAX_SECONDS // 60} minutes without finishing"
+            )
         trim_history(messages, budget)
         payload: dict = {
             "model": "ganjalf",
@@ -398,17 +429,29 @@ def run_agent(
                 return "Error: run_agent was cancelled."
             text = _clip_result(_strip_images(result))
             messages.append(
-                {"role": "tool", "tool_call_id": str(call.get("id") or f"call_{round_number}_{index}"), "content": text}
+                {
+                    "role": "tool",
+                    "tool_call_id": str(call.get("id") or f"call_{round_number}_{index}"),
+                    "content": text,
+                }
             )
     return _report(agent, steps, "", f"stopped after {MAX_ROUNDS} rounds without a final report")
 
 
 def _report(agent: dict, steps: list[str], text: str, problem: Optional[str]) -> str:
     used = f"{len(steps)} tool call{'s' if len(steps) != 1 else ''}"
-    head = f"Agent {agent['id']} finished ({used})." if not problem else f"Agent {agent['id']} {problem} ({used})."
+    head = (
+        f"Agent {agent['id']} finished ({used})."
+        if not problem
+        else f"Agent {agent['id']} {problem} ({used})."
+    )
     text = (text or "").strip()
     if len(text) > MAX_REPORT_CHARS:
         text = text[:MAX_REPORT_CHARS] + "\n... (cut)"
     if not text:
-        return head + (" It gave no report; do the task yourself or ask it again more narrowly." if not problem else "")
+        return head + (
+            " It gave no report; do the task yourself or ask it again more narrowly."
+            if not problem
+            else ""
+        )
     return f"{head}\n\nIts report:\n{text}"

@@ -146,7 +146,6 @@ FAILURE_STREAK_NUDGE = (
 def failure_streak_limit() -> int:
     """GANJALF_TOOL_FAILURE_STREAK (default 8; 0 turns the stop off)."""
     import os
-
     try:
         return max(0, int(os.environ.get("GANJALF_TOOL_FAILURE_STREAK", "8")))
     except ValueError:

@@ -116,7 +116,12 @@ def _fresh_new_mapper_cache():
 def pytest_collection_modifyitems(config, items):
     """After xdist tags grouped tests; see tests/_shared/xdist_group_check.py."""
     from xdist_group_check import check
+
     check(config, items)
+    # Ganjalf: tests that pin Unsloth's own README.
+    from ganjalf_readme_skips import skip_upstream_readme_tests
+
+    skip_upstream_readme_tests(config, items)
 
 
 def _has_real_accelerator() -> bool:

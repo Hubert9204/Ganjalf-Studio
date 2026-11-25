@@ -8232,7 +8232,9 @@ def _earliest_stop(text: str, stops: list) -> "Optional[tuple[int, str]]":
     best = None
     for stop in stops:
         index = text.find(stop)
-        if index >= 0 and (best is None or index < best[0] or (index == best[0] and len(stop) > len(best[1]))):
+        if index >= 0 and (
+            best is None or index < best[0] or (index == best[0] and len(stop) > len(best[1]))
+        ):
             best = (index, stop)
     return best
 
@@ -40733,7 +40735,9 @@ class LlamaCppBackend:
                     _made = self._llama_post_json(
                         "/tokenize",
                         {
-                            "content": reasoning_text + answer_text + (stop_report.get("hit") or ""),
+                            "content": reasoning_text
+                            + answer_text
+                            + (stop_report.get("hit") or ""),
                             "add_special": False,
                         },
                     )
@@ -42994,7 +42998,6 @@ class LlamaCppBackend:
                         ):
                             try:
                                 from core.inference.tools import _get_workdir as _gate_workdir
-
                                 _page_gate_reason = tool_controller.work_ledger.check_page_reminder(
                                     offered = any(
                                         isinstance(tool, dict)
@@ -43006,7 +43009,9 @@ class LlamaCppBackend:
                             except Exception as _gate_exc:
                                 logger.debug(f"check_page gate skipped: {_gate_exc}")
                         if _page_gate_reason:
-                            logger.info("check_page gate: sending the agent back once to check the page")
+                            logger.info(
+                                "check_page gate: sending the agent back once to check the page"
+                            )
                             append_assistant_turn(
                                 conversation,
                                 {"role": "assistant", "content": _stripped},
@@ -43027,7 +43032,6 @@ class LlamaCppBackend:
                         if active_tools and not tool_controller.awaiting_user:
                             try:
                                 from core.plugins import hooks as _plugin_hooks
-
                                 if _plugin_hooks.has_hooks("Stop"):
                                     _stop_hook_reason = _plugin_hooks.stop_check(
                                         _stripped,

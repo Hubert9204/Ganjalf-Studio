@@ -43,7 +43,6 @@ def background_timeout() -> int:
 def _account() -> str:
     try:
         from utils.account_context import current_account_id
-
         return current_account_id() or ""
     except Exception:
         return ""
@@ -131,7 +130,7 @@ def start(
     head = (
         f"Started background job {job.id}: {command}\n"
         "It keeps running after this call (a chat Stop does not end it). Read its new output with "
-        f"terminal_output id=\"{job.id}\", stop it with terminal_kill id=\"{job.id}\"."
+        f'terminal_output id="{job.id}", stop it with terminal_kill id="{job.id}".'
     )
     if not job.running:
         head = f"Background job {job.id} already ended: {command}\n{_ended(job)}"
@@ -169,7 +168,10 @@ def _find(arguments: dict, session_id: Optional[str]) -> "Job | str":
         live = [job for job in mine if job.running]
         if len(live) == 1:
             return live[0]
-        listing = ", ".join(f"{job.id} ({'running' if job.running else 'ended'}: {job.command[:60]})" for job in mine)
+        listing = ", ".join(
+            f"{job.id} ({'running' if job.running else 'ended'}: {job.command[:60]})"
+            for job in mine
+        )
         return f"Error: pass id. Background jobs in this chat: {listing or 'none'}."
     for job in mine:
         if job.id == wanted:
@@ -254,7 +256,9 @@ def account_jobs() -> list[dict]:
             "running": job.running,
             "seconds": int(now - job.started),
             "addresses": addresses(job),
-            "status": "running" if job.running else _ended(job).removeprefix("Status: ").rstrip("."),
+            "status": "running"
+            if job.running
+            else _ended(job).removeprefix("Status: ").rstrip("."),
         }
         for job in sorted(mine, key = lambda item: -item.started)
     ]
@@ -282,7 +286,11 @@ def _stop(job: Job) -> str:
 def forget_ended(max_age_s: float = 3600) -> None:
     """Drop jobs that ended long ago so the registry does not grow forever."""
     with _lock:
-        for key in [k for k, job in _jobs.items() if not job.running and time.monotonic() - job.started > max_age_s]:
+        for key in [
+            k
+            for k, job in _jobs.items()
+            if not job.running and time.monotonic() - job.started > max_age_s
+        ]:
             _jobs.pop(key, None)
 
 

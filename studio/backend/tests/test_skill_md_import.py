@@ -3,6 +3,8 @@
 
 """Importing a bare SKILL.md, several loose files, or a folder of skills."""
 
+from pathlib import Path
+
 import pytest
 
 from core.inference import skills
@@ -22,6 +24,8 @@ def skills_root(tmp_path, monkeypatch):
     root = tmp_path / "skills"
     root.mkdir()
     monkeypatch.setattr(skills, "_skill_roots", lambda home = None: (("agents", root),))
+    # Imports write through _agents_base (base / root / name), not _skill_roots.
+    monkeypatch.setattr(skills, "_agents_base", lambda home = None: (tmp_path, Path("skills")))
     monkeypatch.setattr(skills, "studio_root", lambda: tmp_path / "studio")
     return root
 

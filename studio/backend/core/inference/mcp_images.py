@@ -59,9 +59,13 @@ def stepped_keep(
 
 def is_image_tool(name: str) -> bool:
     # "Read": Claude Code's file reader, whose images the frontend replays only for imported chats.
-    return name in ("view_image", "check_page", "browser_screenshot", "computer", "Read") or name.startswith(
-        MCP_TOOL_PREFIX
-    )
+    return name in (
+        "view_image",
+        "check_page",
+        "browser_screenshot",
+        "computer",
+        "Read",
+    ) or name.startswith(MCP_TOOL_PREFIX)
 
 
 # The tool loop's own notes, which results saved before #11367 carry after the array (#11358).
