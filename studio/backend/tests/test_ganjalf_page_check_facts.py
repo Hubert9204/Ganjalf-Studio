@@ -50,3 +50,34 @@ def test_screenshot_numbers_for_a_model_that_cannot_see():
 def test_text_only_note_forbids_describing_the_page():
     assert "cannot see images" in page_check.TEXT_ONLY_NOTE
     assert "not verified" in page_check.TEXT_ONLY_NOTE
+
+
+def test_evaluate_reports_what_the_page_holds(tmp_path):
+    import pytest
+
+    if not page_check.check_page_available():
+        pytest.skip("needs Playwright and Chromium")
+    (tmp_path / "index.html").write_text(
+        "<script>window.game={x:0};const d=new Set();"
+        "addEventListener('keydown',e=>d.add(e.key));addEventListener('keyup',e=>d.delete(e.key));"
+        "setInterval(()=>{if(d.has('w'))window.game.x+=1},16);</script>"
+    )
+    held = page_check.check_page(
+        {
+            "path": "index.html",
+            "wait_seconds": 0.3,
+            "keys": ["w"],
+            "hold_ms": 600,
+            "evaluate": "window.game.x",
+        },
+        str(tmp_path),
+    )
+    moved = int(next(line for line in held.splitlines() if line.startswith("evaluate: "))[10:])
+    assert moved > 10  # the key was held long enough for the game loop to see it
+    broken = page_check.check_page(
+        {"path": "index.html", "wait_seconds": 0.1, "evaluate": "window.nope.x"}, str(tmp_path)
+    )
+    assert "evaluate: failed: TypeError: Cannot read properties of undefined" in broken
+    assert page_check.check_page({"path": "index.html", "evaluate": 5}, str(tmp_path)).startswith(
+        "Error"
+    )

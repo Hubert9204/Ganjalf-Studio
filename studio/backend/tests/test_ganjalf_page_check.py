@@ -160,7 +160,7 @@ def test_a_stop_does_not_wait_for_the_browser(monkeypatch, tmp_path):
 
     (tmp_path / "index.html").write_text("<title>x</title>")
     monkeypatch.setattr(page_check, "check_page_available", lambda refresh = False: True)
-    monkeypatch.setattr(page_check, "_run", lambda *args: time.sleep(20) or {})
+    monkeypatch.setattr(page_check, "_run", lambda *args, **kwargs: time.sleep(20) or {})
     cancel = threading.Event()
     threading.Timer(0.3, cancel.set).start()
     started = time.monotonic()

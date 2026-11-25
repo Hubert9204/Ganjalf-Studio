@@ -39,6 +39,9 @@ DEFAULT_WAIT_S = 2.0
 MAX_WAIT_S = 20.0
 LOAD_TIMEOUT_MS = 15_000
 MAX_KEYS = 20
+MAX_HOLD_MS = 3000
+MAX_EVALUATE_CHARS = 2000
+MAX_EVALUATED_CHARS = 1500
 MAX_REPORTS = 25
 MAX_REPORT_CHARS = 400
 MAX_TEXT_CHARS = 2_000
@@ -99,6 +102,23 @@ CHECK_PAGE_TOOL = {
                     "description": (
                         'Keys to press after the wait, in order (e.g. ["Enter", "ArrowUp", '
                         '"Space", "w"]). The screenshot is taken after them.'
+                    ),
+                },
+                "hold_ms": {
+                    "type": "number",
+                    "description": (
+                        "How long each key is held down, in ms (default 80, at most "
+                        f"{MAX_HOLD_MS}). A game that moves while a key is down needs ~500-1000."
+                    ),
+                },
+                "evaluate": {
+                    "type": "string",
+                    "description": (
+                        "A JavaScript expression run in the page after the keys, whose JSON value "
+                        "is returned, to check what happened instead of guessing from the "
+                        "screenshot: e.g. `window.game.player.position` (expose what you need on "
+                        "window first) or `document.querySelectorAll('.mob').length`. Run "
+                        "check_page twice (before and after keys) to compare."
                     ),
                 },
             },
@@ -406,6 +426,8 @@ def _run(
     keys: list[str],
     website_policy: Optional[dict],
     cancel_event,
+    hold_ms: int = 80,
+    expression: str = "",
 ) -> dict:
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -544,7 +566,7 @@ def _run(
                 for key in keys:
                     name = _KEY_ALIASES.get(key.strip().lower(), key.strip())
                     try:
-                        page.keyboard.press(name, delay = 80)
+                        page.keyboard.press(name, delay = hold_ms)
                         pressed.append(name)
                     except PlaywrightError:
                         notes.append(
@@ -552,6 +574,9 @@ def _run(
                         )
                     page.wait_for_timeout(150)
                 page.wait_for_timeout(500)
+            evaluated = None
+            if expression:
+                evaluated = _evaluate(page, expression)
             title = page.title()
             try:
                 text = page.inner_text("body", timeout = 2_000)
@@ -571,10 +596,28 @@ def _run(
                 "notes": notes,
                 "pressed": pressed,
                 "canvases": canvases if isinstance(canvases, list) else [],
+                "evaluated": evaluated,
                 "png": png,
             }
         finally:
             browser.close()
+
+
+def _evaluate(page, expression: str) -> str:
+    """Ganjalf: the value of the model's expression, as JSON text, or why it failed."""
+    try:
+        value = page.evaluate(
+            "(source) => { const v = (0, eval)(source); "
+            "try { return JSON.stringify(v, null, 0) ?? String(v); } catch (e) { return String(v); } }",
+            expression,
+        )
+    except Exception as exc:  # noqa: BLE001 -- the page's own error goes back to the model
+        first = str(exc).splitlines()[0] if str(exc) else type(exc).__name__
+        return "failed: " + _clip(first.replace("Page.evaluate: ", "", 1), 300)
+    text = str(value)
+    if len(text) > MAX_EVALUATED_CHARS:
+        text = text[:MAX_EVALUATED_CHARS] + " … (cut)"
+    return text
 
 
 def _format(outcome: dict, wait_s: float) -> str:
@@ -600,6 +643,8 @@ def _format(outcome: dict, wait_s: float) -> str:
     if outcome.get("requests"):
         lines.append("Failed or blocked requests:")
         lines.extend(f"- {line}" for line in outcome["requests"])
+    if outcome.get("evaluated") is not None:
+        lines.append(f"evaluate: {outcome['evaluated']}")
     canvases = outcome.get("canvases") or []
     if canvases:
         sizes = ", ".join(f"{w}x{h}" for w, h in canvases[:6])
@@ -661,6 +706,17 @@ def check_page(
     if not isinstance(raw_keys, list):
         return "Error: 'keys' must be a list of key names."
     keys = [key for key in raw_keys if isinstance(key, str) and 0 < len(key) <= 30][:MAX_KEYS]
+    try:
+        hold_ms = int(float(arguments.get("hold_ms", 80)))
+    except (TypeError, ValueError):
+        hold_ms = 80
+    hold_ms = min(MAX_HOLD_MS, max(10, hold_ms))
+    expression = arguments.get("evaluate") or ""
+    if not isinstance(expression, str):
+        return "Error: 'evaluate' must be a JavaScript expression as a string."
+    expression = expression.strip()
+    if len(expression) > MAX_EVALUATE_CHARS:
+        return f"Error: 'evaluate' is limited to {MAX_EVALUATE_CHARS} characters; check one thing at a time."
     if not check_page_available():
         return (
             "Error: check_page needs Playwright and Chromium on the server, which are not installed. "
@@ -676,14 +732,25 @@ def check_page(
 
     def work() -> None:
         try:
-            outcome.update(_run(url, root, wait_s, keys, website_policy, cancel_event))
+            outcome.update(
+                _run(
+                    url,
+                    root,
+                    wait_s,
+                    keys,
+                    website_policy,
+                    cancel_event,
+                    hold_ms = hold_ms,
+                    expression = expression,
+                )
+            )
         except BaseException as exc:  # reported to the model below
             failure.append(exc)
 
     # Playwright's sync API refuses a thread with a running event loop: run in a fresh one.
     worker = threading.Thread(target = work, name = "check-page", daemon = True)
     worker.start()
-    deadline = time.monotonic() + wait_s + len(keys) * 0.5 + 90
+    deadline = time.monotonic() + wait_s + len(keys) * (0.5 + hold_ms / 1000) + 90
     while worker.is_alive() and time.monotonic() < deadline:
         # A stop does not wait for the browser: the worker notices the same event and closes it.
         if cancel_event is not None and cancel_event.is_set():

@@ -13201,7 +13201,7 @@ def _edit_file_create(
         finally:
             if dir_fd is not None:
                 os.close(dir_fd)
-        return f"Created {name} ({new.count(chr(10)) + 1 if new else 0} lines)"
+        return _created_receipt(name, new)
     try:
         st = os.stat(target)
     except OSError:
@@ -13217,7 +13217,14 @@ def _edit_file_create(
     error = _edit_file_write(target, new, newline, "", expect = b"", workdir = workdir)
     if error:
         return error
-    return f"Created {name} ({new.count(chr(10)) + 1 if new else 0} lines)"
+    return _created_receipt(name, new)
+
+
+def _created_receipt(name: str, new: str) -> str:
+    from .command_shapes import literal_newline_note
+    return f"Created {name} ({new.count(chr(10)) + 1 if new else 0} lines)" + literal_newline_note(
+        name, new
+    )
 
 
 # Each entry is a full scan of up to 16 MiB; bounds a model-generated batch.
@@ -13479,16 +13486,20 @@ def _edit_file_apply(
     if error:
         return error
     # Windowed around the first replacement, rather than diffing the whole file.
-    from .command_shapes import removed_definitions_note
+    from .command_shapes import literal_newline_note, removed_definitions_note
 
-    return _edit_file_receipt(
-        before,
-        first_old,
-        first_new,
-        name,
-        total,
-        change_at = change_at,
-    ) + removed_definitions_note(name, before, after)
+    return (
+        _edit_file_receipt(
+            before,
+            first_old,
+            first_new,
+            name,
+            total,
+            change_at = change_at,
+        )
+        + removed_definitions_note(name, before, after)
+        + literal_newline_note(name, first_new)
+    )
 
 
 WEB_SEARCH_TOOL = {

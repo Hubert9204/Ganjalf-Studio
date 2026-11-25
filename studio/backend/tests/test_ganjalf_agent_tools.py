@@ -547,3 +547,22 @@ def test_searching_the_whole_disk_or_home_is_refused(project, monkeypatch, tmp_p
     # A named folder, a narrow pattern, and the project itself are fine.
     assert "a.md" in full("glob", {"pattern": "notes/*.md", "path": str(home)})
     assert "main.ts" in full("glob", {"pattern": "**/*"})
+
+
+def test_a_newline_escaped_twice_is_pointed_out_when_the_file_is_written(project):
+    code = (
+        "export class Camera {\n"
+        "  private distance: number = 14;\\n  private isDragging = false;\n"
+        "  label = 'a\\nb';\n"
+        "}\n"
+    )
+    receipt = run(
+        "edit_file", {"path": "src/camera.ts", "edits": [{"old_string": "", "new_string": code}]}
+    )
+    assert receipt.startswith("Created camera.ts") and "Line 2 holds a literal \\n" in receipt
+    clean = run(
+        "edit_file",
+        {"path": "src/ok.ts", "edits": [{"old_string": "", "new_string": "const s = 'a\\nb';\n"}]},
+    )
+    assert "literal" not in clean
+    assert shapes.literal_newline_note("notes.md", "a;\\n  b") == ""

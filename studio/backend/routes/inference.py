@@ -5923,7 +5923,8 @@ def _project_folder_tip(tool_names) -> str:
         'user chose for it, so "my project" and "my files" mean the files there. When asked '
         f"about the project or its files, list and read them with the {reader} first{web}. "
         "Read them rather than asking the user to upload or paste them, and if a read fails or "
-        "is denied, say what failed instead of saying you have no access. Use relative paths."
+        "is denied, say what failed instead of saying you have no access. Use relative paths: "
+        "commands already start in that folder, so never cd to a guessed path such as /home/user."
     )
 
 

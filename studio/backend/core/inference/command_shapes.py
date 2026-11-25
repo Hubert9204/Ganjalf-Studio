@@ -205,3 +205,34 @@ def removed_definitions_note(path: str, before: str, after: str) -> str:
     if still_used:
         note += f" Still called in this file: {', '.join(still_used[:8])}."
     return note + " If that was not intended, put them back now.]"
+
+
+# --- a newline escaped twice -----------------------------------------------------------------
+
+# `;\n  private x` in code: a model that writes a file as JSON sometimes escapes a newline twice,
+# leaving a literal backslash-n between two statements (tsc: "Invalid character").
+_LITERAL_NEWLINE_RE = re.compile(r"[;{},)]\s*\\n\s+[A-Za-z_$@/]")
+
+
+def _outside_quotes(line: str, index: int) -> bool:
+    head = line[:index]
+    return all(head.count(quote) % 2 == 0 for quote in ("'", '"', "`"))
+
+
+def literal_newline_note(path: str, text: str) -> str:
+    if not isinstance(path, str) or not path.lower().endswith(_CODE_EXTENSIONS):
+        return ""
+    if not isinstance(text, str) or "\\n" not in text:
+        return ""
+    found = [
+        number
+        for number, line in enumerate(text.split("\n"), start = 1)
+        if any(_outside_quotes(line, m.start()) for m in _LITERAL_NEWLINE_RE.finditer(line))
+    ]
+    if not found:
+        return ""
+    lines = ", ".join(str(n) for n in found[:8]) + (" ..." if len(found) > 8 else "")
+    return (
+        f"\n[Line {lines} holds a literal \\n between two statements: the newline was escaped "
+        "twice. Fix every one now with real line breaks, before running anything.]"
+    )
