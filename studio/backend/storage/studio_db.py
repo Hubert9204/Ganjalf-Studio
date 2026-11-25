@@ -3586,13 +3586,28 @@ def _working_folder_state(project: Optional[dict]) -> tuple[Optional[str], Optio
     if not stat.S_ISDIR(st.st_mode):
         return "replaced", None
     identity = (project or {}).get("workingFolderIdentity")
-    if identity and identity != f"{st.st_dev}:{st.st_ino}":
+    if (
+        identity
+        and identity != f"{st.st_dev}:{st.st_ino}"
+        and not _same_folder_new_device(identity, st)
+    ):
         return "replaced", None
     real = os.path.realpath(path)
     # Reached through a new ancestor link, the same inode sits somewhere else: not the folder picked.
     if os.path.normcase(real) != os.path.normcase(path):
         return "replaced", None
     return "ok", real
+
+
+def _same_folder_new_device(identity: str, st) -> bool:
+    """Ganjalf: the device number of a btrfs subvolume, or of a folder seen through a container's
+    bind mount, can change after a reboot or a restart while the folder stays the same. The inode
+    still tells a recreated folder from the picked one; only the device part may differ."""
+    try:
+        _device, inode = identity.split(":", 1)
+        return int(inode) == st.st_ino
+    except (ValueError, AttributeError):
+        return False
 
 
 def available_project_working_folder(project: Optional[dict]) -> Optional[str]:

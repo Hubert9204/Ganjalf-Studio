@@ -54,3 +54,25 @@ def test_the_prompt_carries_it_for_code_tools(monkeypatch, tmp_path):
     text = routes._build_tool_action_nudge(tools = [terminal], model_name = "m", session_id = "project-p")
     assert str(app) in text
     assert str(app) not in routes._build_tool_action_nudge(tools = [terminal], model_name = "m")
+
+
+def test_an_unavailable_project_folder_is_said_not_hidden(monkeypatch, tmp_path):
+    import storage.studio_db as db
+
+    chosen = tmp_path / "Sun-Loops-Studio-main"
+    chosen.mkdir()
+    st = chosen.stat()
+    project = {"workingFolder": str(chosen), "workingFolderIdentity": f"{st.st_dev}:{st.st_ino}"}
+    monkeypatch.setattr(db, "get_chat_project", lambda pid: project)
+    assert project_places.missing_folder_note("project-x") == ""
+    # The device number moved (btrfs subvolume after a reboot, a container restart): same folder.
+    project["workingFolderIdentity"] = f"{st.st_dev + 7}:{st.st_ino}"
+    assert db.project_working_folder_status(project) == "ok"
+    assert project_places.missing_folder_note("project-x") == ""
+    # A different folder at the same path, or none at all: the model is told to stop.
+    project["workingFolderIdentity"] = f"{st.st_dev}:{st.st_ino + 1}"
+    note = project_places.missing_folder_note("project-x")
+    assert "is not the same folder" in note and "do not work on any other copy" in note
+    chosen.rmdir()
+    assert "no longer exists" in project_places.missing_folder_note("project-x")
+    assert project_places.missing_folder_note("chat-1") == ""

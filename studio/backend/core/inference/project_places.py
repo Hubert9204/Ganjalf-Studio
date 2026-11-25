@@ -92,3 +92,31 @@ def places_note(session_id: Optional[str]) -> str:
         f'in: {listed}. When the user talks about "the code", "the app" or earlier work and the '
         "project folder does not have it, look there first (with absolute paths) before asking."
     )
+
+
+def missing_folder_note(session_id: Optional[str]) -> str:
+    """When the folder the user chose for the project cannot be used, the chat runs in the project's
+    own sandbox. Said to the model, so it stops instead of hunting for another copy of the project
+    (one chat then edited, rebuilt and wiped the build folder of a different checkout)."""
+    from .tools import _PROJECT_SESSION_PREFIX
+
+    if not session_id or not str(session_id).startswith(_PROJECT_SESSION_PREFIX):
+        return ""
+    try:
+        from storage.studio_db import get_chat_project, project_working_folder_status
+        project = get_chat_project(str(session_id)[len(_PROJECT_SESSION_PREFIX) :])
+    except Exception:  # noqa: BLE001 -- no project row: nothing to say
+        return ""
+    folder = (project or {}).get("workingFolder")
+    if not folder:
+        return ""
+    status = project_working_folder_status(project)
+    if status == "ok":
+        return ""
+    why = "no longer exists" if status == "missing" else "is not the same folder that was chosen"
+    return (
+        f"IMPORTANT: the folder the user chose for this project, {folder}, {why}, so your tools run "
+        "in an empty temporary folder instead. Do not search the disk for the project and do not "
+        "work on any other copy of it. Tell the user the project folder is unavailable and ask "
+        "them to choose it again in the project settings, then stop."
+    )

@@ -6063,8 +6063,8 @@ def _build_tool_action_nudge(
         for tool in tools or ()
     ):
         try:
-            from core.inference.project_places import places_note
-            places = places_note(session_id)
+            from core.inference.project_places import missing_folder_note, places_note
+            places = missing_folder_note(session_id) or places_note(session_id)
         except Exception:  # noqa: BLE001 -- a hint must never break a chat
             places = ""
         if places:

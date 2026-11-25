@@ -16,6 +16,9 @@ Use this for code in a project folder: building a program, game, app or script, 
 - Tool calls run in a sandbox unless the user turned it off. System folders are read-only and there is no root, so `sudo`, `dnf install` and `apt install` cannot work: do not try them. There is no GPU and no screen. `/tmp` is emptied after each call.
 - A process started with `&` or `nohup` dies when its call ends. For a dev server, a watcher or a long build use `terminal` with `run_in_background: true`: it returns a job id; read its output with `terminal_output` and stop it with `terminal_kill`.
 - `pip install` works and lands in the project folder. For a missing C or C++ library, use what is installed, put a single-header library in the project, or use the standard library only.
+- An existing project whose build needs a system package that is missing (a CMake `find_package` error, a missing `-devel` header): do not fake the package (no hand-written headers or `*Config.cmake`), do not edit its build files around it, and do not delete its build folder or `_deps`. Check what you can without the full build (`g++ -fsyntax-only` with the project's flags), then tell the user the exact install command (e.g. `sudo dnf install libcurl-devel`) and stop.
+- Work only in the project folder you were given. If it is empty or missing, say so and stop: never search the disk for another copy of the project and change that one.
+- Heavy builds share the machine with the model: use at most half the cores (`make -j4`, `ninja -j4` on 8 or more).
 
 ## Choosing the approach
 - Look at what is installed before choosing a stack (`python3 -c "import X"`, `g++ --version`, `node --version`).
