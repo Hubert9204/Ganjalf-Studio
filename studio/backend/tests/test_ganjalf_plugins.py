@@ -742,3 +742,50 @@ def test_built_in_agents_are_always_listed_and_explore_is_read_only(studio, tmp_
     assert seen_tools[0] == ["glob", "grep", "read_file"]
     assert report.startswith("Agent explore finished (1 tool call).")
     assert "app.py:1:def answer():" in report
+
+
+def test_a_silent_sub_agent_is_asked_for_its_report(studio, tmp_path, monkeypatch):
+    """Its thinking used the turn and it said nothing: one more pass, no tools, no thinking."""
+    from core.inference import tools
+
+    seen = []
+
+    def fake_post(
+        base_url,
+        headers,
+        payload,
+        timeout,
+        cancel_event = None,
+    ):
+        seen.append(payload)
+        if len(seen) == 1:
+            return {
+                "content": "",
+                "reasoning": "The bug is in Enemy.ts createHealthBar.",
+                "tool_calls": [],
+            }
+        return {"content": "createHealthBar in src/Enemy.ts:530 gets a Group.", "tool_calls": []}
+
+    monkeypatch.setattr(plugin_agents, "_post", fake_post)
+    monkeypatch.setattr(tools, "_get_workdir", lambda session_id = None: str(tmp_path))
+    report = plugin_agents.run_agent(
+        {"agent": "explore", "task": "Why is the canvas black?"},
+        session_id = "s",
+        server = ("http://127.0.0.1:1", None),
+    )
+    assert "createHealthBar in src/Enemy.ts:530" in report
+    assert seen[0]["thinking_budget_tokens"] == plugin_agents.SUBAGENT_THINKING_BUDGET
+    assert "tools" not in seen[1] and seen[1]["chat_template_kwargs"] == {"enable_thinking": False}
+    assert seen[1]["messages"][-1]["content"] == plugin_agents.REPORT_NOW
+
+    # Still nothing: the end of its thought stands in for the report.
+    seen.clear()
+    monkeypatch.setattr(
+        plugin_agents,
+        "_post",
+        lambda *a, **k: {"content": "", "reasoning": "Looked at Game.ts only.", "tool_calls": []},
+    )
+    report = plugin_agents.run_agent(
+        {"agent": "explore", "task": "x"}, session_id = "s", server = ("http://127.0.0.1:1", None)
+    )
+    assert "Looked at Game.ts only." in report

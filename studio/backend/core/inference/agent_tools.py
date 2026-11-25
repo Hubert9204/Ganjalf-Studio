@@ -86,7 +86,11 @@ def todo_write(arguments: dict, session_id: Optional[str]) -> str:
         clean.append(entry)
     key = session_id or "_"
     with _todos_lock:
-        unchanged = _todos.get(key) == clean
+        # No status moved: a reworded item is not progress (models reword to look busy).
+        previous = _todos.get(key)
+        unchanged = previous is not None and [item["status"] for item in previous] == [
+            item["status"] for item in clean
+        ]
         _todo_repeats[key] = _todo_repeats.get(key, 0) + 1 if unchanged else 0
         repeats = _todo_repeats[key]
         _todos[key] = clean
@@ -127,8 +131,9 @@ def _unchanged_note(clean: list[dict], repeats: int) -> str:
             "already done, mark it completed and set the next one in_progress."
         )
     return (
-        f"{TODO_UNCHANGED} this is the same task list you already sent, so nothing was "
-        f"updated.{times} Do not call todo_write again until an item's status changes. {step}"
+        f"{TODO_UNCHANGED} no item changed status since the list you last sent, so this "
+        f"call did nothing useful.{times} Do not call todo_write again until an item's status "
+        f"changes. {step}"
     )
 
 

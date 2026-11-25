@@ -15717,7 +15717,9 @@ def _execute_tool_unhooked(
                 host_access_approved = host_access_approved,
             )
         if isinstance(result, str):
-            result += compile_errors_note(result)
+            result += compile_errors_note(
+                result, session_id = thread_id or session_id, command = arguments.get("command", "")
+            )
             if leaves_background_process(arguments.get("command", "")) and (
                 _BACKGROUND_STOPPED_NOTE.strip() not in result
             ):

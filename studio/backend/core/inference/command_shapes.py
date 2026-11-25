@@ -114,16 +114,47 @@ _ERROR_LINE = re.compile(
 )
 
 
-def compile_errors_note(output: str) -> str:
+# Last full error count per (session, check command), to say when edits made it worse.
+_LAST_ERROR_COUNTS: dict[tuple[str, str], int] = {}
+_MAX_REMEMBERED_CHECKS = 200
+_CUT_OUTPUT_RE = re.compile(r"\|\s*(?:head|tail|grep|less|more)\b")
+
+
+def _check_key(session_id, command: str) -> "tuple[str, str] | None":
+    command = " ".join(str(command or "").split())
+    if not command or _CUT_OUTPUT_RE.search(command):
+        return None  # a cut list cannot be compared with a whole one
+    return (str(session_id or ""), command.replace(" 2>&1", ""))
+
+
+def compile_errors_note(
+    output: str,
+    session_id = None,
+    command: str = "",
+) -> str:
     if not isinstance(output, str):
         return ""
     count = len(_ERROR_LINE.findall(output))
+    key = _check_key(session_id, command) if command else None
+    before = _LAST_ERROR_COUNTS.get(key) if key else None
+    if key:
+        if len(_LAST_ERROR_COUNTS) >= _MAX_REMEMBERED_CHECKS and key not in _LAST_ERROR_COUNTS:
+            _LAST_ERROR_COUNTS.pop(next(iter(_LAST_ERROR_COUNTS)))
+        _LAST_ERROR_COUNTS[key] = count
+    worse = ""
+    if before is not None and count > before:
+        worse = (
+            f" That is MORE than the {before} of the previous run: your edits since then made it "
+            "worse. Undo the change that caused the new errors (they name the file and line) "
+            "instead of patching around it; for missing types, import the real module rather "
+            "than declaring your own."
+        )
     if count < 2:
-        return ""
+        return f"\n[{worse.strip()}]" if worse else ""
     return (
         f"\n[{count} errors listed. Fix all of them in one edit_file call (one entry in 'edits' "
         "per fix, or one call per file) before running the check again; if the list was cut "
-        "short, run the check once without head to see them all.]"
+        f"short, run the check once without head to see them all.{worse}]"
     )
 
 

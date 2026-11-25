@@ -25,6 +25,7 @@ RUN_AGENT = "run_agent"
 MAX_ROUNDS = 25
 MAX_SECONDS = 20 * 60
 MAX_TOKENS_PER_TURN = 4096
+SUBAGENT_THINKING_BUDGET = 2048
 MAX_TOOL_RESULT_CHARS = 6_000
 MAX_REPORT_CHARS = 12_000
 # Ganjalf: the sub-agent's own conversation is kept under a budget of its own (characters, ~3 per
@@ -212,6 +213,7 @@ def _post(
     import httpx
 
     content: list[str] = []
+    reasoning: list[str] = []
     calls: dict[int, dict] = {}
     started = time.monotonic()
     with httpx.Client(
@@ -243,6 +245,8 @@ def _post(
                     delta = choice.get("delta") or {}
                     if isinstance(delta.get("content"), str):
                         content.append(delta["content"])
+                    if isinstance(delta.get("reasoning_content"), str):
+                        reasoning.append(delta["reasoning_content"])
                     for call in delta.get("tool_calls") or []:
                         slot = calls.setdefault(
                             int(call.get("index") or 0), {"id": "", "name": "", "arguments": ""}
@@ -253,6 +257,7 @@ def _post(
                         slot["arguments"] += function.get("arguments") or ""
     return {
         "content": "".join(content),
+        "reasoning": "".join(reasoning),
         "tool_calls": [
             {
                 "id": slot["id"],
@@ -415,6 +420,8 @@ def run_agent(
         if tools:
             payload["tools"] = llama_grammar_tools(tools)
             payload["tool_choice"] = "auto"
+        # Ganjalf: thinking may not eat the whole turn, or the agent ends with nothing to say.
+        payload["thinking_budget_tokens"] = SUBAGENT_THINKING_BUDGET
         try:
             reply = _post(base_url, headers, payload, timeout = 600, cancel_event = cancel_event)
         except _Stopped:
@@ -424,6 +431,13 @@ def run_agent(
         calls = [call for call in reply["tool_calls"] if call["function"]["name"]]
         content = reply["content"]
         if not calls:
+            if not content.strip():
+                try:
+                    content = _ask_for_report(
+                        base_url, headers, payload, messages, reply, cancel_event
+                    )
+                except _Stopped:
+                    return "Error: run_agent was cancelled."
             return _report(agent, steps, content, None)
         messages.append({"role": "assistant", "content": content, "tool_calls": calls})
         for index, call in enumerate(calls):
@@ -460,6 +474,34 @@ def run_agent(
                 }
             )
     return _report(agent, steps, "", f"stopped after {MAX_ROUNDS} rounds without a final report")
+
+
+REPORT_NOW = (
+    "Stop here and write your report now, as plain text with no tool calls: what you found "
+    "(file paths and line numbers), what you checked, and what is still unknown."
+)
+
+
+def _ask_for_report(base_url, headers, payload, messages, reply, cancel_event) -> str:
+    """An agent that stopped without a word (its thinking used the turn) gets one pass, with no
+    tools and no thinking, to say what it found; failing that, the end of its thought stands in."""
+    asked = {key: value for key, value in payload.items() if key not in ("tools", "tool_choice")}
+    asked.pop("thinking_budget_tokens", None)
+    asked["chat_template_kwargs"] = {"enable_thinking": False}
+    asked["messages"] = [*messages, {"role": "user", "content": REPORT_NOW}]
+    try:
+        again = _post(base_url, headers, asked, timeout = 300, cancel_event = cancel_event)
+        text = again["content"].strip()
+    except _Stopped:
+        raise
+    except Exception:  # noqa: BLE001 -- the fallback below still gives the caller something
+        text = ""
+    if text:
+        return text
+    thought = (reply.get("reasoning") or "").strip()
+    if thought:
+        return "(No report; the end of its reasoning:)\n" + thought[-MAX_REPORT_CHARS // 2 :]
+    return ""
 
 
 def requested_tasks(arguments: Any) -> list[dict]:

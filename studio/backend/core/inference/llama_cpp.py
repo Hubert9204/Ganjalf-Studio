@@ -562,6 +562,7 @@ from utils.subprocess_compat import (
 from utils.process_lifetime import child_popen_kwargs as _child_popen_kwargs
 from utils.process_lifetime import is_signalable_pid as _is_signalable_pid
 from utils.process_lifetime import spawn_on_lifetime_thread as _spawn_on_lifetime_thread
+from core.inference import thought_loops as _thought_loops
 from core.inference.tool_call_parser import (
     BUDGET_EXHAUSTED_NUDGE,
     FAILURE_STREAK_NUDGE,
@@ -42059,6 +42060,9 @@ class LlamaCppBackend:
                 _iter_timings = None
                 _iter_finish_reason = None
                 _stream_done = False
+                # Ganjalf: a thought repeating itself is cut like one the window ended.
+                _thought_loop_checked = 0
+                _thought_loop_cut = False
                 _last_emitted = ""
                 # Provisional tool_start cards already shown, keyed by tool_call_id.
                 provisional_started_tool_calls: dict[str, str] = {}
@@ -42389,6 +42393,28 @@ class LlamaCppBackend:
                                     if _reasoning_started_at is None:
                                         _reasoning_started_at = time.monotonic()
                                     reasoning_accum += reasoning
+                                    if (
+                                        active_tools
+                                        and not _thought_loop_cut
+                                        and not content_accum
+                                        and len(reasoning_accum) - _thought_loop_checked
+                                        >= _thought_loops.CHECK_EVERY_CHARS
+                                    ):
+                                        _thought_loop_checked = len(reasoning_accum)
+                                        if _thought_loops.is_looping(
+                                            _resumed_reasoning + reasoning_accum
+                                        ):
+                                            # Ended here as the window would end it: the
+                                            # [DONE] below closes the display and the length
+                                            # path continues with thinking off for one pass.
+                                            _thought_loop_cut = True
+                                            _iter_finish_reason = "length"
+                                            raw_buf = "data: [DONE]\n"
+                                            logger.info(
+                                                "Thought repeating itself after %d chars; "
+                                                "cutting it and asking the model to act",
+                                                len(reasoning_accum),
+                                            )
                                     if detect_state != _S_DRAINING:
                                         if not in_thinking:
                                             # A suppressed pass's wraps are recorded only if the pass is released.
@@ -42911,7 +42937,11 @@ class LlamaCppBackend:
                                 {
                                     "role": "assistant",
                                     # The stream holds only the resumed thought's tail.
-                                    "content": _unfinished_thought_progress(
+                                    "content": _thought_loops.loop_progress(
+                                        _resumed_reasoning + reasoning_accum
+                                    )
+                                    if _thought_loop_cut
+                                    else _unfinished_thought_progress(
                                         _resumed_reasoning + reasoning_accum
                                     ),
                                 },
@@ -42922,7 +42952,9 @@ class LlamaCppBackend:
                             _cand_l.append(
                                 {
                                     "role": "user",
-                                    "content": _continue_after_length_message(),
+                                    "content": _thought_loops.loop_message()
+                                    if _thought_loop_cut
+                                    else _continue_after_length_message(),
                                 }
                             )
                             _fu_l = _backfill_usage_from_timings(_iter_usage, _iter_timings) or {}
@@ -44243,6 +44275,21 @@ class LlamaCppBackend:
                             )
                             _identical_result_runs[0] = 0
                             _last_tool_result_key[0] = None
+                    if (
+                        decision.tool_name == "check_page"
+                        and isinstance(result, str)
+                        and not result.lstrip().startswith("Error")
+                        and not (
+                            getattr(self, "_is_vision", False)
+                            and getattr(self, "_mmproj_accepts_image", False)
+                        )
+                    ):
+                        from core.inference.page_check import TEXT_ONLY_NOTE
+                        result = _note_before_envelopes(
+                            result,
+                            decision.tool_name,
+                            lambda body: f"{body}\n{TEXT_ONLY_NOTE}",
+                        )
                     completion = tool_controller.record_result(decision, result)
                     resolved_provisional_tool_call_ids.add(decision.tool_call_id)
                     # Reset so the post-tool nudge isn't swallowed as a repeat.

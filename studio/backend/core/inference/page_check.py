@@ -70,8 +70,9 @@ CHECK_PAGE_TOOL = {
         "name": CHECK_PAGE,
         "description": (
             "Run a web page in a headless browser on the server and see what it did: uncaught "
-            "JavaScript errors, console errors, failed requests, the visible text and a "
-            "screenshot. Use it after writing or changing an HTML page or browser game, before "
+            "JavaScript errors with the functions and files they came from, console errors, "
+            "failed requests, the visible text, the screenshot's colours in numbers, and the "
+            "screenshot itself if you can read images. Use it after writing or changing an HTML page or browser game, before "
             "you say it works. Takes a file in the working directory (served as from a web "
             "server, so ES modules, import maps and fetch() of sibling files work) or an "
             "http://localhost URL of a server you started. For a Vite/webpack/TypeScript project, "
@@ -311,6 +312,74 @@ def _launch_args() -> list[str]:
     return args
 
 
+# Ganjalf: said to a model that takes no images, after a check_page result. Without it a text-only
+# model "describes" the screenshot it never got (a black canvas, then a player on green grass).
+TEXT_ONLY_NOTE = (
+    "[You cannot see images: the screenshot went to the user only. Do not say what the page "
+    "looks like or that you can see something in it. Judge only from the errors, text and "
+    "screenshot numbers above, and tell the user what is not verified.]"
+)
+
+_STACK_FRAME_RE = None
+
+
+def _where(stack: str, frames: int = 3) -> str:
+    """Ganjalf: the functions and files an uncaught error went through, so the model reads that
+    code instead of guessing (a bare "reading 'add' of undefined" cost one session 8 minutes)."""
+    import re
+
+    global _STACK_FRAME_RE
+    if _STACK_FRAME_RE is None:
+        _STACK_FRAME_RE = re.compile(r"^\s*at (?:(.+?) \()?(\S+?):(\d+):\d+\)?\s*$")
+    found: list[str] = []
+    for line in str(stack or "").splitlines():
+        match = _STACK_FRAME_RE.match(line)
+        if not match:
+            continue
+        function, url, number = match.groups()
+        parts = urlsplit(url)
+        path = parts.path.lstrip("/") if parts.scheme in ("http", "https") else url
+        if not path or "node_modules/.vite/deps" in path:
+            # Inside a bundled library: the caller's frame below is the useful one.
+            continue
+        name = (function or "").replace("Object.", "").strip()
+        found.append(f"{name} ({path}:{number})" if name else f"{path}:{number}")
+        if len(found) >= frames:
+            break
+    if not found:
+        return ""
+    return " - at " + " <- ".join(found)
+
+
+def _screenshot_facts(png: bytes) -> Optional[str]:
+    """What the screenshot holds, in numbers a text-only model can use."""
+    try:
+        import io
+
+        from PIL import Image
+        with Image.open(io.BytesIO(png)) as image:
+            # Nearest: a smoothing resize would invent the in-between colours of every edge.
+            raw = image.convert("RGB").resize((160, 90), Image.NEAREST).tobytes()
+    except Exception:
+        return None
+    if not raw:
+        return None
+    counts: dict[tuple[int, int, int], int] = {}
+    for index in range(0, len(raw) - 2, 3):
+        key = (raw[index] >> 3, raw[index + 1] >> 3, raw[index + 2] >> 3)
+        counts[key] = counts.get(key, 0) + 1
+    pixels = len(raw) // 3
+    if len(counts) <= 1:
+        return None  # one flat color: _blank_note says it
+    top, top_n = max(counts.items(), key = lambda item: item[1])
+    share = round(100 * top_n / pixels)
+    color = "#{:02x}{:02x}{:02x}".format(*(value << 3 for value in top))
+    return (
+        f"Screenshot: {len(counts)} distinct colours; the most common ({color}) covers {share}% "
+        "of the page."
+    )
+
+
 def _blank_note(png: bytes) -> Optional[str]:
     try:
         import io
@@ -422,7 +491,8 @@ def _run(
                 "pageerror",
                 lambda error: add(
                     errors,
-                    f"Uncaught {getattr(error, 'name', '') or 'Error'}: {getattr(error, 'message', error)}",
+                    f"Uncaught {getattr(error, 'name', '') or 'Error'}: {getattr(error, 'message', error)}"
+                    + _where(getattr(error, "stack", "") or ""),
                 ),
             )
 
@@ -550,6 +620,10 @@ def _format(outcome: dict, wait_s: float) -> str:
     blank = _blank_note(png) if png else None
     if blank:
         body += "\n" + blank
+    else:
+        facts = _screenshot_facts(png) if png else None
+        if facts:
+            body += "\n" + facts
     if not png:
         return body + "\nNo screenshot could be taken."
     import base64

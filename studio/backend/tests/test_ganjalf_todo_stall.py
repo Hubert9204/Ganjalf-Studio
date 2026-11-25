@@ -93,3 +93,27 @@ def test_work_between_two_lists_is_not_a_loop():
     controller.record_result(edit, "Wrote a.txt")
     _run(controller, _todo_call(call_id = "c"))
     assert "todo_write" not in controller.retired_tools
+
+
+def test_rewording_an_item_is_not_progress():
+    agent_tools.todo_write({"todos": LIST}, "reword")
+    reworded = [dict(item) for item in LIST]
+    reworded[1]["content"] = "Setup progetto base"
+    assert agent_tools.todo_write({"todos": reworded}, "reword").startswith(
+        agent_tools.TODO_UNCHANGED
+    )
+    # The new wording is still what the checklist shows.
+    assert agent_tools.current_todos("reword")[1]["content"] == "Setup progetto base"
+
+
+def test_presenting_an_approved_plan_again_does_not_end_the_turn():
+    from core.inference.tool_loop_controller import PLAN_ALREADY_APPROVED
+
+    controller = _controller()  # plan mode off: no exit_plan_mode among the tools
+    decision = controller.prepare_call(
+        {"id": "p", "function": {"name": "exit_plan_mode", "arguments": {"plan": "1. Files"}}}
+    )
+    assert not decision.should_execute
+    completion = controller.record_noop(decision)
+    assert completion.result == PLAN_ALREADY_APPROVED
+    assert not controller.force_final_answer and controller.has_active_tools()

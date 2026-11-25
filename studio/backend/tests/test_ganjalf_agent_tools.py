@@ -455,3 +455,25 @@ def test_agent_tools_need_a_real_window(monkeypatch, context, offered):
         for t in asyncio.run(routes._select_request_tools(chat, tools_on = True, mcp_allowed = False))
     ]
     assert "todo_write" in names
+
+
+def test_more_errors_than_last_time_says_the_edits_made_it_worse():
+    def errors(n):
+        return "\n".join(
+            f"src/Types.ts({i},1): error TS2503: Cannot find namespace 'THREE'." for i in range(n)
+        )
+
+    first = shapes.compile_errors_note(errors(20), session_id = "w", command = "npx tsc --noEmit 2>&1")
+    assert "20 errors listed" in first and "worse" not in first
+    second = shapes.compile_errors_note(errors(42), session_id = "w", command = "npx tsc --noEmit")
+    assert "MORE than the 20" in second and "import the real module" in second
+    third = shapes.compile_errors_note(errors(3), session_id = "w", command = "npx tsc --noEmit")
+    assert "worse" not in third
+    # A cut list (| head) is never compared with a whole one.
+    cut = shapes.compile_errors_note(
+        errors(30), session_id = "w", command = "npx tsc --noEmit | head -30"
+    )
+    assert "worse" not in cut
+    assert "worse" not in shapes.compile_errors_note(
+        errors(5), session_id = "other", command = "npx tsc --noEmit"
+    )

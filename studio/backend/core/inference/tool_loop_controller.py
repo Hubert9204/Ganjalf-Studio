@@ -169,6 +169,12 @@ ToolAction = Literal[
 # the rest of the turn; the prompt is re-read once, which is far cheaper than the loop.
 TODO_STALL_LIMIT = 2
 
+PLAN_ALREADY_APPROVED = (
+    "exit_plan_mode was not run: plan mode is off because the user already approved your plan. "
+    "Do not present it again. Start the work now: create the files with edit_file and run them "
+    "with terminal, following the approved plan."
+)
+
 
 @dataclass(frozen = True)
 class CoercedArguments:
@@ -1495,6 +1501,11 @@ class ToolLoopController:
         if tool_name in self._retired_tools:
             action = "retired"
             noop = _noop_result("retired", tool_name)
+        elif tool_name == "exit_plan_mode" and tool_name not in self._allowed_tool_names:
+            # Ganjalf: the plan was approved and plan mode is off; presenting it again is not a
+            # reason to end the turn (that left the user typing "continue").
+            action = "retired"
+            noop = PLAN_ALREADY_APPROVED
         elif tool_name in self._completed_one_shot_tools:
             action = "render_html_repeat"
             noop = _noop_result("render_html_repeat", tool_name)
