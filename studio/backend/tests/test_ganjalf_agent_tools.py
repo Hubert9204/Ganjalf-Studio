@@ -220,3 +220,86 @@ def test_exit_plan_mode_ends_the_tool_rounds():
     assert controller.force_final_answer and controller.active_tools() == []
     assert controller.awaiting_user
     assert tools.execute_tool("exit_plan_mode", {}, session_id = "s").startswith("Error")
+
+
+# --- command shapes: `&` servers, compiler error batches, removed definitions ---------------
+
+from core.inference import command_shapes as shapes
+
+
+@pytest.mark.parametrize(
+    "command, expected",
+    [
+        ("nohup npx vite --port 5173 > vite.log 2>&1 & echo $! > vite.pid", "npx vite --port 5173 2>&1 | tee vite.log"),
+        ("cd /home/u/Test\\ Game && nohup npx vite --port 5173 > vite.log 2>&1 &", "cd /home/u/Test\\ Game && npx vite --port 5173 2>&1 | tee vite.log"),
+        ("npm run dev &", "npm run dev"),
+        ("python -m http.server 8000 >> s.log 2>&1 & sleep 2", "python -m http.server 8000 2>&1 | tee -a s.log"),
+        ("node server.js > /dev/null 2>&1 & disown", "node server.js"),
+        ("npm run dev &>dev.log &", "npm run dev 2>&1 | tee dev.log"),
+    ],
+)
+def test_a_server_left_with_ampersand_becomes_a_background_job(command, expected):
+    assert shapes.promoted_background(command) == expected
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "npm install && npm run build",
+        "npx tsc --noEmit 2>&1 | head -20",
+        "npm run dev & sleep 3 && curl -s localhost:5173",
+        "a & b &",
+        "echo 'a & b'",
+        "ls >&2",
+        "cat <<EOF\n&\nEOF",
+    ],
+)
+def test_other_commands_run_as_written(command):
+    assert shapes.promoted_background(command) is None
+
+
+def test_leftover_ampersand_gets_a_note():
+    assert shapes.leaves_background_process("npm run dev & sleep 3 && curl -s localhost:5173")
+    assert not shapes.leaves_background_process("npm i && npm run build 2>&1")
+
+
+def test_terminal_promotes_an_ampersand_server(project):
+    reply = run("terminal", {"command": "nohup sleep 30 > s.log 2>&1 & echo $! > s.pid"})
+    if "Execution error" in reply or "Blocked" in reply:
+        pytest.skip(f"terminal unavailable here: {reply[:120]}")
+    assert reply.startswith("The command ended with `&`")
+    job_id = reply.split("Started background job ", 1)[1].split(":", 1)[0]
+    assert "Status: running" in run("terminal_output", {"id": job_id})
+    assert run("terminal_kill", {"id": job_id}).startswith("Stopped")
+
+
+def test_compile_errors_ask_for_one_batch():
+    out = (
+        "src/ui/HUD.ts(12,5): error TS2339: Property 'log' does not exist.\n"
+        "src/engine/Audio.ts(80,3): error TS2322: Type 'x' is not assignable.\n"
+    )
+    assert "2 errors listed" in shapes.compile_errors_note(out)
+    assert shapes.compile_errors_note("src/a.ts(1,1): error TS1005: ';' expected.") == ""
+
+
+def test_an_edit_that_drops_methods_says_so():
+    before = (
+        "export class HUD {\n"
+        "  log(msg: string): void {\n    this.lines.push(msg);\n  }\n"
+        "  private addFrag(text: string) {\n    this.frags.push(text);\n  }\n"
+        "  toggleShop() { this.shop = !this.shop; }\n"
+        "  draw() {\n    if (this.shop) {}\n    this.log('x');\n  }\n"
+        "}\n"
+    )
+    after = "export class HUD {\n  draw() {\n    if (this.shop) {}\n    this.log('x');\n  }\n}\n"
+    note = shapes.removed_definitions_note("src/ui/HUD.ts", before, after)
+    assert "removed: log, addFrag, toggleShop" in note
+    assert "Still called in this file: log" in note
+    assert shapes.removed_definitions_note("notes.md", before, after) == ""
+    assert shapes.removed_definitions_note("src/ui/HUD.ts", before, before + "\n") == ""
+
+
+def test_edit_file_reports_removed_definitions(project):
+    run("edit_file", {"path": "m.py", "edits": [{"old_string": "", "new_string": "def a():\n    return 1\n\n\ndef b():\n    return a()\n"}]})
+    reply = run("edit_file", {"path": "m.py", "edits": [{"old_string": "def a():\n    return 1\n\n\n", "new_string": ""}]})
+    assert "This edit removed: a. Still called in this file: a." in reply

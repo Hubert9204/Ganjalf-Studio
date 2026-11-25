@@ -13446,6 +13446,8 @@ def _edit_file_apply(
     if error:
         return error
     # Windowed around the first replacement, rather than diffing the whole file.
+    from .command_shapes import removed_definitions_note
+
     return _edit_file_receipt(
         before,
         first_old,
@@ -13453,7 +13455,7 @@ def _edit_file_apply(
         name,
         total,
         change_at = change_at,
-    )
+    ) + removed_definitions_note(name, before, after)
 
 
 WEB_SEARCH_TOOL = {
@@ -15602,10 +15604,15 @@ def execute_tool(
                 tool_execution_mode = tool_execution_mode,
                 host_access_approved = host_access_approved,
             )
-    if name == "terminal" and arguments.get("run_in_background") is True:
+    promoted = None
+    if name == "terminal" and arguments.get("run_in_background") is not True:
+        from .command_shapes import promoted_background
+
+        promoted = promoted_background(arguments.get("command", ""))
+    if name == "terminal" and (arguments.get("run_in_background") is True or promoted):
         from . import background_jobs
 
-        command = arguments.get("command", "")
+        command = promoted or arguments.get("command", "")
         if not str(command or "").strip():
             return "No command provided."
 
@@ -15623,7 +15630,14 @@ def execute_tool(
                     host_access_approved = host_access_approved,
                 )
 
-        return background_jobs.start(command, session_id, _run_background)
+        started = background_jobs.start(command, session_id, _run_background)
+        if promoted:
+            started = (
+                "The command ended with `&`, which the sandbox stops when a call returns, so it "
+                "runs as a background job instead (next time pass run_in_background: true; any "
+                "`echo $!` pid file was skipped, stop it with terminal_kill).\n" + started
+            )
+        return started
     if name == "exit_plan_mode":
         from . import agent_tools
 
@@ -15644,8 +15658,14 @@ def execute_tool(
         handler = background_jobs.output if name == "terminal_output" else background_jobs.kill
         return handler(arguments, session_id)
     if name == "terminal":
+        from .command_shapes import (
+            BACKGROUND_AMPERSAND_NOTE,
+            compile_errors_note,
+            leaves_background_process,
+        )
+
         with _session_in_flight(session_id):
-            return _bash_exec(
+            result = _bash_exec(
                 arguments.get("command", ""),
                 cancel_event,
                 effective_timeout,
@@ -15656,6 +15676,13 @@ def execute_tool(
                 tool_execution_mode = tool_execution_mode,
                 host_access_approved = host_access_approved,
             )
+        if isinstance(result, str):
+            result += compile_errors_note(result)
+            if leaves_background_process(arguments.get("command", "")) and (
+                _BACKGROUND_STOPPED_NOTE.strip() not in result
+            ):
+                result += BACKGROUND_AMPERSAND_NOTE
+        return result
     if name == "run_agent":
         from core.plugins.agents import run_agent
 
