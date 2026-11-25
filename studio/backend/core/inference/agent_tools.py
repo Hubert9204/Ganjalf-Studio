@@ -48,6 +48,10 @@ SKIPPED_DIRS = frozenset(
 
 _todos_lock = threading.Lock()
 _todos: dict[str, list[dict]] = {}
+# Same list sent again, in a row: the model is circling, not working.
+_todo_repeats: dict[str, int] = {}
+# A result that starts with this changed nothing; the tool loop counts these to stop the circling.
+TODO_UNCHANGED = "No change:"
 
 
 # --- todo_write ---------------------------------------------------------------------------
@@ -80,8 +84,14 @@ def todo_write(arguments: dict, session_id: Optional[str]) -> str:
         if active:
             entry["activeForm"] = active[:300]
         clean.append(entry)
+    key = session_id or "_"
     with _todos_lock:
-        _todos[session_id or "_"] = clean
+        unchanged = _todos.get(key) == clean
+        _todo_repeats[key] = _todo_repeats.get(key, 0) + 1 if unchanged else 0
+        repeats = _todo_repeats[key]
+        _todos[key] = clean
+    if unchanged:
+        return _unchanged_note(clean, repeats)
     done = sum(item["status"] == "completed" for item in clean)
     doing = [item for item in clean if item["status"] == "in_progress"]
     marks = {"completed": "[x]", "in_progress": "[>]", "pending": "[ ]"}
@@ -100,6 +110,25 @@ def todo_write(arguments: dict, session_id: Optional[str]) -> str:
         + "\n".join(lines)
         + "\n"
         + " ".join(advice)
+    )
+
+
+def _unchanged_note(clean: list[dict], repeats: int) -> str:
+    """The list did not move: name the one thing to do, so the next call is the work itself."""
+    doing = next((item for item in clean if item["status"] == "in_progress"), None)
+    doing = doing or next((item for item in clean if item["status"] == "pending"), None)
+    times = "" if repeats < 2 else f" You have now sent it {repeats + 1} times in a row."
+    if doing is None:
+        step = "Every item is completed: verify the result, then give the final answer."
+    else:
+        step = (
+            f"Do this item now: '{doing['content']}'. Your next tool call must be that work "
+            "itself, e.g. edit_file to write a file or terminal to run a command. If it is "
+            "already done, mark it completed and set the next one in_progress."
+        )
+    return (
+        f"{TODO_UNCHANGED} this is the same task list you already sent, so nothing was "
+        f"updated.{times} Do not call todo_write again until an item's status changes. {step}"
     )
 
 
@@ -362,7 +391,9 @@ TODO_WRITE_TOOL = {
             "Write or update your task list for this job; the user sees it as a checklist. Use it "
             "for any task with 3 or more steps: write the plan first (small steps that each end in "
             "something you can run or check), keep exactly one item in_progress, and mark each "
-            "item completed as soon as it is done. Send the whole list every time."
+            "item completed as soon as it is done. Call it only when a status changes, never "
+            "twice in a row: between two calls there must be real work (a file written, a "
+            "command run). Send the whole list every time."
         ),
         "parameters": {
             "type": "object",

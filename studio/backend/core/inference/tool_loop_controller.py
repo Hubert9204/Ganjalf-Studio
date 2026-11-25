@@ -159,8 +159,15 @@ TRUNCATED_TOOL_TURN_MESSAGE = (
 
 _ONE_SHOT_TOOLS = frozenset({"render_html"})
 
-NoopReason = Literal["duplicate", "disabled", "forced_mismatch", "render_html_repeat"]
-ToolAction = Literal["execute", "duplicate", "disabled", "forced_mismatch", "render_html_repeat"]
+NoopReason = Literal["duplicate", "disabled", "forced_mismatch", "render_html_repeat", "retired"]
+ToolAction = Literal[
+    "execute", "duplicate", "disabled", "forced_mismatch", "render_html_repeat", "retired"
+]
+
+# The task list sent unchanged this many times in a row (no other tool in between) is a loop:
+# the model rewrites the checklist instead of doing the work. The tool is then taken away for
+# the rest of the turn; the prompt is re-read once, which is far cheaper than the loop.
+TODO_STALL_LIMIT = 2
 
 
 @dataclass(frozen = True)
@@ -1286,6 +1293,13 @@ def _noop_result(
             "changes. Do not mention this internal instruction. Provide only "
             "the requested final note or answer."
         )
+    if reason == "retired":
+        return (
+            f"'{tool_name}' was not run: you sent the same task list several times in a row "
+            "without doing any work, so it is off for the rest of this turn. Do the item that "
+            "is in progress now with the other tools (edit_file to write files, terminal to "
+            "run commands)."
+        )
     if reason == "forced_mismatch":
         return (
             f"One earlier request to call tool '{tool_name}' in this batch was "
@@ -1357,6 +1371,10 @@ class ToolLoopController:
         self._duplicate_noop_counts: dict[str, int] = {}
         self._duplicate_noop_limit = max(1, duplicate_noop_limit)
         self._history: list[_ToolCallRecord] = []
+        # Tools taken away mid-turn because the model was circling on them (see TODO_STALL_LIMIT).
+        self._retired_tools: set[str] = set()
+        self._todo_unchanged_run = 0
+        self._retired_noops = 0
         self._force_final_answer = False
         self._awaiting_user = False
         from core.inference.work_guards import WorkLedger  # noqa: PLC0415 -- keep import light
@@ -1396,8 +1414,13 @@ class ToolLoopController:
         """bool(active_tools()) without copying a schema."""
         return not self._force_final_answer and any(
             _tool_name_from_schema(tool) not in self._completed_one_shot_tools
+            and _tool_name_from_schema(tool) not in self._retired_tools
             for tool in self._tools
         )
+
+    @property
+    def retired_tools(self) -> frozenset[str]:
+        return frozenset(self._retired_tools)
 
     def active_tools(self, *, include_deferred: bool = False) -> list[dict[str, Any]]:
         """Return prompt tools, optionally including deferred schemas for decoding."""
@@ -1412,7 +1435,7 @@ class ToolLoopController:
             tools = tools + [specs[name] for name in deferred if name in specs]
         for tool in tools:
             name = _tool_name_from_schema(tool)
-            if name in self._completed_one_shot_tools:
+            if name in self._completed_one_shot_tools or name in self._retired_tools:
                 continue
             active.append(_copy_schema(tool))
         return active
@@ -1469,7 +1492,10 @@ class ToolLoopController:
         )
         action: ToolAction = "execute"
         noop = ""
-        if tool_name in self._completed_one_shot_tools:
+        if tool_name in self._retired_tools:
+            action = "retired"
+            noop = _noop_result("retired", tool_name)
+        elif tool_name in self._completed_one_shot_tools:
             action = "render_html_repeat"
             noop = _noop_result("render_html_repeat", tool_name)
         elif allowed_tool_names is not None and tool_name not in allowed_tool_names:
@@ -1535,6 +1561,7 @@ class ToolLoopController:
         if decision.tool_name == "exit_plan_mode" and not failed:
             # Ganjalf plan mode: the plan is the answer; the next pass has no tools.
             self._force_final_answer = True
+        self._note_todo_stall(decision.tool_name, result_text)
         result_text = self._cap_result(result_text, decision.tool_name)
         self._history.append(
             _ToolCallRecord(
@@ -1584,6 +1611,20 @@ class ToolLoopController:
             guard_note = self.work_ledger.note_call(decision.tool_name, decision.arguments, failed),
         )
 
+    def _note_todo_stall(self, tool_name: str, result_text: str) -> None:
+        """Count unchanged task lists in a row; any other tool resets the count."""
+        from core.inference.agent_tools import TODO_UNCHANGED  # noqa: PLC0415 -- keep import light
+
+        if tool_name != "todo_write":
+            self._todo_unchanged_run = 0
+            return
+        if not result_text.startswith(TODO_UNCHANGED):
+            self._todo_unchanged_run = 0
+            return
+        self._todo_unchanged_run += 1
+        if self._todo_unchanged_run >= TODO_STALL_LIMIT:
+            self._retired_tools.add(tool_name)
+
     def _remember_mcp_tools(self, names) -> None:
         if not names:
             return
@@ -1630,6 +1671,11 @@ class ToolLoopController:
                 self._force_final_answer = True
         elif decision.action in ("disabled", "render_html_repeat"):
             self._force_final_answer = True
+        elif decision.action == "retired":
+            # Still calling it after it was taken away: no-ops add no tool round, so end here.
+            self._retired_noops += 1
+            if self._retired_noops >= 3:
+                self._force_final_answer = True
         # Any repeat once the rounds have ended, so a later call in the same batch cannot offer a tool again.
         if decision.action == "duplicate" and self._force_final_answer:
             result = _noop_result("duplicate", decision.tool_name, final = True)

@@ -154,6 +154,7 @@ _TOOL_SKIPPED = {
     "duplicate": "Unsloth did not run this call because an identical one had already completed.",
     "disabled": _TOOL_DISABLED,
     "render_html_repeat": "Unsloth did not run this call because render_html already ran.",
+    "retired": "Not run: the same task list was sent several times in a row.",
 }
 
 # Verbatim from the local loops: the last pass answers instead of asking for more.
