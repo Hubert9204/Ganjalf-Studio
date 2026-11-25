@@ -479,7 +479,7 @@ test("resident-model adoption does not claim a global beside model memory", asyn
     inferenceParams?: { minP?: number; presencePenalty?: number };
     inferenceParamsByModel?: Record<
       string,
-      { presencePenalty?: number }
+      { minP?: number; presencePenalty?: number }
     >;
   };
   assert.equal(persisted.inferenceParams?.minP, 0.01);
