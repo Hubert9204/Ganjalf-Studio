@@ -13220,6 +13220,21 @@ def _edit_file_create(
     return _created_receipt(name, new)
 
 
+def _note_project_place(session_id, arguments, result, disable_sandbox) -> None:
+    """Ganjalf: a project chat that wrote outside the project folder leaves the place for the next."""
+    if not isinstance(result, str) or not result.startswith(("Created ", "Edited ")):
+        return
+    try:
+        from .project_places import note_write
+        target, error = _edit_file_resolve(
+            str((arguments or {}).get("path") or ""), session_id, disable_sandbox
+        )
+        if not error and target:
+            note_write(session_id, target)
+    except Exception:  # noqa: BLE001 -- remembering must never fail an edit
+        logger.debug("project place not noted", exc_info = True)
+
+
 def _created_receipt(name: str, new: str) -> str:
     from .command_shapes import literal_newline_note
     return f"Created {name} ({new.count(chr(10)) + 1 if new else 0} lines)" + literal_newline_note(
@@ -15765,14 +15780,13 @@ def _execute_tool_unhooked(
     # Keep the workdir alive if the chat is deleted during an edit.
     if name == "edit_file":
         with _session_in_flight(session_id):
-            return _fit_result_to_room(
-                _edit_file(
-                    arguments,
-                    session_id = session_id,
-                    disable_sandbox = disable_sandbox,
-                ),
-                name,
+            result = _edit_file(
+                arguments,
+                session_id = session_id,
+                disable_sandbox = disable_sandbox,
             )
+        _note_project_place(session_id, arguments, result, disable_sandbox)
+        return _fit_result_to_room(result, name)
     if name in MEDIA_CHAT_TOOLS:
         if name == "generate_image":
             from .generate_image_tool import run_generate_image as run_media_tool

@@ -6045,6 +6045,7 @@ def _build_tool_action_nudge(
     full_access: bool = False,
     full_access_only: bool = False,
     user_folder: bool = False,
+    session_id: Optional[str] = None,
 ) -> str:
     """full_access_only omits general guidance, keeping environment, skills and memory rules."""
     from core.inference.agent_tools import PLAN_MODE_TIP, plan_mode_on
@@ -6056,6 +6057,18 @@ def _build_tool_action_nudge(
         full_access_only = full_access_only,
         user_folder = user_folder,
     )
+    # Ganjalf: where earlier chats of this project worked outside its folder.
+    if session_id and any(
+        (tool.get("function") or {}).get("name") in ("terminal", "edit_file")
+        for tool in tools or ()
+    ):
+        try:
+            from core.inference.project_places import places_note
+            places = places_note(session_id)
+        except Exception:  # noqa: BLE001 -- a hint must never break a chat
+            places = ""
+        if places:
+            text = f"{text}\n\n{places}".strip()
     # Ganjalf: the output style the user chose from a plugin (Claude Code's /output-style).
     style = _active_output_style_text()
     if style:
@@ -35189,6 +35202,7 @@ async def produce_openai_chat_completions(
                 model_name = model_name,
                 full_access = bool(payload.bypass_permissions),
                 user_folder = await _tools_run_in_user_folder(payload, tools_to_use),
+                session_id = getattr(payload, "session_id", None),
             )
 
             # Nudge the model to ground in attached documents instead of memory.
