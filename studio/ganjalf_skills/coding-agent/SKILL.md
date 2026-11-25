@@ -19,6 +19,7 @@ Use this for code in a project folder: building a program, game, app or script, 
 - An existing project whose build needs a system package that is missing (a CMake `find_package` error, a missing `-devel` header): do not fake the package (no hand-written headers or `*Config.cmake`), do not edit its build files around it, and do not delete its build folder or `_deps`. Check what you can without the full build (`g++ -fsyntax-only` with the project's flags), then tell the user the exact install command (e.g. `sudo dnf install libcurl-devel`) and stop.
 - Work only in the project folder you were given. If it is empty or missing, say so and stop: never search the disk for another copy of the project and change that one.
 - Heavy builds share the machine with the model: use at most half the cores (`make -j4`, `ninja -j4` on 8 or more).
+- C/C++ with a big library (JUCE, Qt, Boost): before using a class method, `grep` its header (e.g. in `build/_deps/juce-src/modules`) for the exact name and signature; do not trust memory. To check one file without the full build, take its flags from `build/compile_commands.json` (configure with `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`) and add `-fsyntax-only`.
 
 ## Choosing the approach
 - Look at what is installed before choosing a stack (`python3 -c "import X"`, `g++ --version`, `node --version`).

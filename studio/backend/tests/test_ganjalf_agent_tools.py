@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 
@@ -566,3 +567,16 @@ def test_a_newline_escaped_twice_is_pointed_out_when_the_file_is_written(project
     )
     assert "literal" not in clean
     assert shapes.literal_newline_note("notes.md", "a;\\n  b") == ""
+
+
+def test_agent_commands_run_below_the_desktop(project, monkeypatch):
+    import sys as _sys
+
+    if _sys.platform == "win32":
+        pytest.skip("POSIX niceness")
+    base = os.nice(0)
+    out = run("terminal", {"command": "sleep 0.5; nice"})
+    assert out.strip().splitlines()[-1].strip() == str(min(19, max(base, 10)))
+    monkeypatch.setenv("GANJALF_TOOL_NICE", "0")
+    out = run("terminal", {"command": "sleep 0.5; nice"})
+    assert out.strip().splitlines()[-1].strip() == str(base)

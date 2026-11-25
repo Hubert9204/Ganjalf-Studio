@@ -25079,6 +25079,29 @@ _CMD_MULTILINE_REFUSED = (
 )
 
 
+def _lower_tool_priority(pgid) -> None:
+    """Ganjalf: the agent's commands (a `make -j`, a test run) run below the desktop and the model
+    (nice 10 by default, GANJALF_TOOL_NICE; 0 leaves them as they are), so a heavy build cannot
+    make the machine unresponsive. The whole process group, so the compiler jobs it forks too."""
+    if not isinstance(pgid, int) or sys.platform == "win32":
+        return
+    try:
+        if pgid == os.getpgrp():
+            return  # the command shares our group: renicing it would slow Studio itself
+    except (OSError, AttributeError):
+        return
+    try:
+        nice = int(os.environ.get("GANJALF_TOOL_NICE", "10"))
+    except ValueError:
+        nice = 10
+    if nice <= 0:
+        return
+    try:
+        os.setpriority(os.PRIO_PGRP, pgid, min(nice, 19))
+    except (OSError, AttributeError):
+        pass  # already lower than that, or not allowed: leave it
+
+
 def _bash_exec(
     command: str,
     cancel_event = None,
@@ -25263,6 +25286,7 @@ def _bash_exec(
 
         # Capture the group before any watcher can poll/reap the leader (see _python_exec); None on Windows.
         pgid = _capture_process_group(proc)
+        _lower_tool_priority(pgid)
         _cap_tool_memory(proc, pgid, not disable_sandbox)
         _adopt_tool_pid(proc.pid)
 
