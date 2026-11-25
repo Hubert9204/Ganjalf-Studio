@@ -17,6 +17,7 @@ UPSTREAM_README_TESTS = frozenset(
         "test_docker_hub_readme.py::test_the_repo_readme_run_command_matches_the_image",
         "test_docker_studio_home_volume.py::test_the_docs_mount_the_studio_home",
         "test_docker_nvidia_toolkit_install.py::test_the_docs_point_at_the_installer",
+        "test_docker_rocm.py::test_the_readme_no_longer_says_native_linux_only",
     }
 )
 
@@ -31,7 +32,9 @@ def _ganjalf_readme(root: Path) -> bool:
 def skip_upstream_readme_tests(config, items) -> None:
     if not _ganjalf_readme(Path(str(config.rootpath))):
         return
-    marker = pytest.mark.skip(reason = "pins Unsloth's README; Ganjalf's README documents its own launcher")
+    marker = pytest.mark.skip(
+        reason = "pins Unsloth's README; Ganjalf's README documents its own launcher"
+    )
     for item in items:
         key = f"{Path(str(item.path)).name}::{item.originalname if hasattr(item, 'originalname') else item.name}"
         if key in UPSTREAM_README_TESTS:
