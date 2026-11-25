@@ -530,3 +530,20 @@ def test_the_message_after_a_plan_builds_it_even_if_plan_mode_is_still_asked():
     )
     assert "exit_plan_mode" in again and "terminal" not in again
     assert not agent_tools.plan_presented_last_turn([{"role": "user", "content": "hi"}])
+
+
+def test_searching_the_whole_disk_or_home_is_refused(project, monkeypatch, tmp_path):
+    home = tmp_path / "home"
+    (home / "notes").mkdir(parents = True)
+    (home / "notes" / "a.md").write_text("x")
+    monkeypatch.setenv("HOME", str(home))
+
+    def full(name, arguments):  # full access: paths outside the project are readable
+        return tools.execute_tool(name, arguments, session_id = "s1", disable_sandbox = True)
+
+    assert full("glob", {"pattern": "*", "path": "/"}).startswith("Error: not searching /")
+    assert full("grep", {"pattern": "node", "path": "/etc"}).startswith("Error: not searching")
+    assert full("glob", {"pattern": "**/*", "path": str(home)}).startswith("Error: not searching")
+    # A named folder, a narrow pattern, and the project itself are fine.
+    assert "a.md" in full("glob", {"pattern": "notes/*.md", "path": str(home)})
+    assert "main.ts" in full("glob", {"pattern": "**/*"})

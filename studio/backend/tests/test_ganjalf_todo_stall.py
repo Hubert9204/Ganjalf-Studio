@@ -117,3 +117,35 @@ def test_presenting_an_approved_plan_again_does_not_end_the_turn():
     completion = controller.record_noop(decision)
     assert completion.result == PLAN_ALREADY_APPROVED
     assert not controller.force_final_answer and controller.has_active_tools()
+
+
+def test_a_list_moved_back_and_forth_is_circling_too():
+    controller = _controller()
+    flip = [dict(item) for item in LIST]
+    flip[1]["status"], flip[2]["status"] = "pending", "in_progress"
+    for call_id, todos in (("a", LIST), ("b", flip), ("c", LIST)):
+        _run(controller, _todo_call(todos, call_id = call_id))
+    assert "todo_write" in controller.retired_tools
+
+
+def test_a_tool_plan_mode_left_out_is_a_slip_not_the_end_of_the_turn():
+    from core.inference.agent_tools import EXIT_PLAN_MODE_TOOL, READ_FILE_TOOL
+
+    controller = ToolLoopController(tools = [READ_FILE_TOOL, EXIT_PLAN_MODE_TOOL])
+    decision = controller.prepare_call(
+        {"id": "t", "function": {"name": "terminal", "arguments": {"command": "node -v"}}}
+    )
+    completion = controller.record_noop(decision)
+    assert not completion.executed and "plan mode is on" in completion.result
+    assert "exit_plan_mode" in completion.result
+    assert not controller.force_final_answer
+    assert {t["function"]["name"] for t in controller.active_tools()} == {
+        "read_file",
+        "exit_plan_mode",
+    }
+    # Outside plan mode an unknown tool still ends the rounds, as before.
+    plain = ToolLoopController(tools = [READ_FILE_TOOL])
+    plain.record_noop(
+        plain.prepare_call({"id": "t", "function": {"name": "terminal", "arguments": {}}})
+    )
+    assert plain.force_final_answer

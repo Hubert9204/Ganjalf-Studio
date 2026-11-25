@@ -281,6 +281,9 @@ def grep(
     if error:
         return error
     include = str(arguments.get("glob") or "")
+    broad = _too_broad(root, include, session_id)
+    if broad:
+        return broad
     context = _int(arguments.get("context"), 0, 0, 5)
     files_only = arguments.get("files_only") is True
     candidates = (
@@ -355,6 +358,9 @@ def glob(
         return error
     if not os.path.isdir(root):
         return f"Error: {arguments.get('path')} is not a folder."
+    broad = _too_broad(root, pattern, session_id)
+    if broad:
+        return broad
     found = []
     for path in _walk(root, include_skipped = any(d in pattern for d in SKIPPED_DIRS)):
         relative = os.path.relpath(path, root).replace(os.sep, "/")
@@ -376,6 +382,43 @@ def glob(
         else ""
     )
     return f"{len(found)} file(s), newest first:\n" + "\n".join(lines) + more
+
+
+_SYSTEM_TREES = ("/dev", "/proc", "/sys", "/run", "/etc", "/usr", "/var", "/boot", "/snap")
+_BROAD_PATTERNS = frozenset({"", "*", "**", "**/*", "*/*", "**/*.*"})
+
+
+def _too_broad(
+    root: str,
+    pattern: str,
+    session_id = None,
+) -> str:
+    """Ganjalf: a search of the whole disk, a system tree or the whole home folder (one session
+    listed ~20,000 files of /, the user's shell history among them) tells the agent nothing
+    about its task. Returns the error to give, or ""."""
+    try:
+        real = os.path.realpath(root)
+        home = os.path.realpath(os.path.expanduser("~"))
+    except OSError:
+        return ""
+    try:
+        from .tools import _get_workdir
+        workdir = os.path.realpath(_get_workdir(session_id))
+        if real == workdir or real.startswith(workdir.rstrip("/") + "/"):
+            return ""  # the project itself, wherever it lives
+    except Exception:  # noqa: BLE001 -- no workdir known: judge the path alone
+        pass
+    drive_root = os.path.dirname(real) == real
+    system = any(real == tree or real.startswith(tree + "/") for tree in _SYSTEM_TREES)
+    whole_home = real == home and pattern.strip() in _BROAD_PATTERNS
+    if not (drive_root or system or whole_home):
+        return ""
+    return (
+        f"Error: not searching {real}: that is the whole disk, a system folder or your whole home "
+        "folder, and says nothing about the task. Work in the project (path '.'), or name the "
+        "exact folder. To see what is installed, run `node -v` / `which python3` with terminal "
+        "(not offered in plan mode: then plan without it)."
+    )
 
 
 def _size(size: int) -> str:

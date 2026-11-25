@@ -168,6 +168,16 @@ ToolAction = Literal[
 # the model rewrites the checklist instead of doing the work. The tool is then taken away for
 # the rest of the turn; the prompt is re-read once, which is far cheaper than the loop.
 TODO_STALL_LIMIT = 2
+# todo_write calls in a row with no other tool between them: a list moved back and forth
+# (item 1 in progress, then item 2, then item 1 again) is circling too.
+TODO_STREAK_LIMIT = 3
+
+PLAN_MODE_TOOL_OFF = (
+    "'{name}' was not run: plan mode is on, so only the reading tools and exit_plan_mode are "
+    "offered (the others come back once the plan is presented). Do not try it again. Plan with "
+    "what you can read (an empty folder is fine: plan from the request), then call "
+    "exit_plan_mode with the plan."
+)
 
 PLAN_ALREADY_APPROVED = (
     "exit_plan_mode was not run: plan mode is off because the user already approved your plan. "
@@ -1301,10 +1311,11 @@ def _noop_result(
         )
     if reason == "retired":
         return (
-            f"'{tool_name}' was not run: you sent the same task list several times in a row "
-            "without doing any work, so it is off for the rest of this turn. Do the item that "
-            "is in progress now with the other tools (edit_file to write files, terminal to "
-            "run commands)."
+            f"'{tool_name}' was not run: you updated the task list several times in a row "
+            "without doing any work in between, so it is off for the rest of this turn. Do the "
+            "item that is in progress now with the other tools (edit_file to write files, "
+            "terminal to run commands; in plan mode, read what you need and call "
+            "exit_plan_mode)."
         )
     if reason == "forced_mismatch":
         return (
@@ -1380,6 +1391,7 @@ class ToolLoopController:
         # Tools taken away mid-turn because the model was circling on them (see TODO_STALL_LIMIT).
         self._retired_tools: set[str] = set()
         self._todo_unchanged_run = 0
+        self._todo_streak = 0
         self._retired_noops = 0
         self._force_final_answer = False
         self._awaiting_user = False
@@ -1512,6 +1524,16 @@ class ToolLoopController:
         elif allowed_tool_names is not None and tool_name not in allowed_tool_names:
             action = "forced_mismatch"
             noop = _noop_result("forced_mismatch", tool_name)
+        elif (
+            self._restrict_to_allowed
+            and tool_name not in self._allowed_tool_names
+            and "exit_plan_mode" in self._allowed_tool_names
+            and tool_name
+        ):
+            # Ganjalf: in plan mode a call to terminal & co. is a slip, not the end of the turn;
+            # ending it there left the plan written as JSON text instead of the plan card.
+            action = "retired"
+            noop = PLAN_MODE_TOOL_OFF.format(name = tool_name)
         elif self._restrict_to_allowed and tool_name not in self._allowed_tool_names:
             action = "disabled"
             noop = _noop_result("disabled", tool_name)
@@ -1628,12 +1650,14 @@ class ToolLoopController:
 
         if tool_name != "todo_write":
             self._todo_unchanged_run = 0
+            self._todo_streak = 0
             return
-        if not result_text.startswith(TODO_UNCHANGED):
+        self._todo_streak += 1
+        if result_text.startswith(TODO_UNCHANGED):
+            self._todo_unchanged_run += 1
+        else:
             self._todo_unchanged_run = 0
-            return
-        self._todo_unchanged_run += 1
-        if self._todo_unchanged_run >= TODO_STALL_LIMIT:
+        if self._todo_unchanged_run >= TODO_STALL_LIMIT or self._todo_streak >= TODO_STREAK_LIMIT:
             self._retired_tools.add(tool_name)
 
     def _remember_mcp_tools(self, names) -> None:
