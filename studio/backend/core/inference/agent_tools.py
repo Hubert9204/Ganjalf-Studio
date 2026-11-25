@@ -510,6 +510,26 @@ PLAN_MODE_TOOL_NAMES = frozenset(
 )
 PLAN_APPROVAL_TAG = "[awaiting_plan_approval]"
 
+# Said in the system prompt, not only in the tool list: a model that sees no terminal or
+# edit_file otherwise concludes it cannot write files and pastes the whole program as text.
+PLAN_MODE_TIP = (
+    "PLAN MODE IS ON (the user switched it on). This turn is for exploring and planning, not "
+    "building: you have only read-only tools on purpose, and terminal, edit_file and the other "
+    "editing tools come back as soon as the user approves the plan. Look at the project with "
+    "glob, grep and read_file (an empty or new folder is fine: then plan from the request), "
+    "then call exit_plan_mode with a concrete plan: the files you will create or change, the "
+    "steps in order, and how you will check the result. Do not write the code or the contents "
+    "of files in your reply and do not ask the user to copy code: after approval you create "
+    "and run everything yourself."
+)
+
+
+def plan_mode_on(tools) -> bool:
+    return any(
+        isinstance(tool, dict) and (tool.get("function") or {}).get("name") == "exit_plan_mode"
+        for tool in tools or ()
+    )
+
 
 def apply_plan_mode(tools: list[dict]) -> list[dict]:
     """Read-only tools plus exit_plan_mode; read/grep/glob are added when terminal was offered."""

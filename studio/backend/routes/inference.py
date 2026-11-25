@@ -6046,6 +6046,29 @@ def _build_tool_action_nudge(
     user_folder: bool = False,
 ) -> str:
     """full_access_only omits general guidance, keeping environment, skills and memory rules."""
+    from core.inference.agent_tools import PLAN_MODE_TIP, plan_mode_on
+
+    text = _tool_action_nudge_text(
+        tools = tools,
+        model_name = model_name,
+        full_access = full_access,
+        full_access_only = full_access_only,
+        user_folder = user_folder,
+    )
+    # Ganjalf: plan mode leads, so the missing editing tools read as a phase, not a limit.
+    if plan_mode_on(tools):
+        return f"{PLAN_MODE_TIP} {text}".strip()
+    return text
+
+
+def _tool_action_nudge_text(
+    *,
+    tools: list[dict],
+    model_name: str,
+    full_access: bool = False,
+    full_access_only: bool = False,
+    user_folder: bool = False,
+) -> str:
     tool_names = {
         (tool.get("function") or {}).get("name")
         for tool in tools
@@ -6073,7 +6096,8 @@ def _build_tool_action_nudge(
     protocol = "" if full_access_only else agentic_protocol(model_name, model_size_b)
     skill_tip = _skill_tool_tip(
         can_create = "create_skill" in tool_names,
-        can_run_scripts = bool({"python", "terminal"} & tool_names),
+        # In plan mode terminal returns after approval: no "scripts cannot run" warning.
+        can_run_scripts = bool({"python", "terminal", "exit_plan_mode"} & tool_names),
         compact = compact,
     )
     folder_tip = _project_folder_tip(tool_names) if user_folder else ""

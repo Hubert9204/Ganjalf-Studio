@@ -376,3 +376,28 @@ def test_edit_file_reports_removed_definitions(project):
         },
     )
     assert "This edit removed: a. Still called in this file: a." in reply
+
+
+def test_plan_mode_is_said_in_the_system_text_not_only_in_the_tool_list(monkeypatch):
+    """Qwen 27B, given only read tools, decided it could not write files and pasted the program."""
+    from routes import inference as routes
+
+    monkeypatch.setattr(
+        routes,
+        "_enabled_agent_skills",
+        lambda: [{"name": "coding-agent", "description": "Build programs.", "valid": True}],
+    )
+    full = [
+        {"type": "function", "function": t["function"]}
+        for t in tools.ALL_TOOLS
+        if t["function"]["name"] in ("terminal", "web_search")
+    ]
+    planned = agent_tools.apply_plan_mode(
+        full + [{"type": "function", "function": {"name": "edit_file"}}]
+    )
+    text = routes._build_tool_action_nudge(tools = planned, model_name = "Qwen3.8-27B-GGUF")
+    assert text.startswith("PLAN MODE IS ON")
+    assert "exit_plan_mode" in text and "do not ask the user to copy code" in text
+    assert "No local python or terminal tool is available" not in text
+    normal = routes._build_tool_action_nudge(tools = full, model_name = "Qwen3.8-27B-GGUF")
+    assert "PLAN MODE" not in normal

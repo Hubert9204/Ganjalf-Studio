@@ -195,7 +195,12 @@ def load_mentioned_skills(
         return
     tool_names = {tool.get("function", {}).get("name") for tool in tools}
     gate = "Follow these instructions only within the current tool and permission gates."
-    if not {"python", "terminal"} & tool_names:
+    if "exit_plan_mode" in tool_names:
+        gate += (
+            " Plan mode is on: use the skill to plan; its terminal and editing steps run after"
+            " the user approves the plan."
+        )
+    elif not {"python", "terminal"} & tool_names:
         gate += (
             " No local python or terminal tool is available, so its bundled scripts cannot run;"
             " never claim to have run one, and tell the user a script needs Unsloth Studio's"
