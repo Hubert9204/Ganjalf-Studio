@@ -3,6 +3,8 @@ tool is taken away for the rest of the turn (Qwen3.6 35B-A3B sent one list 25 ti
 
 from __future__ import annotations
 
+import uuid
+
 from core.inference import agent_tools
 from core.inference.tool_loop_controller import ToolLoopController
 
@@ -18,20 +20,22 @@ def _todo_call(todos = LIST, call_id = "call_0"):
 
 
 def _controller():
-    return ToolLoopController(
+    controller = ToolLoopController(
         tools = [
             agent_tools.TODO_WRITE_TOOL,
             {"type": "function", "function": {"name": "edit_file", "parameters": {}}},
         ],
         session_id = "stall",
     )
+    controller.test_session = f"stall-{uuid.uuid4().hex}"
+    return controller
 
 
 def _run(controller, call):
     decision = controller.prepare_call(call)
     if not decision.should_execute:
         return controller.record_noop(decision)
-    result = agent_tools.todo_write(decision.arguments, "stall-" + str(id(controller)))
+    result = agent_tools.todo_write(decision.arguments, controller.test_session)
     return controller.record_result(decision, result)
 
 

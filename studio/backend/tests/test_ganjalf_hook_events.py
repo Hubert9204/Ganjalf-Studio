@@ -7,9 +7,20 @@ from core.plugins import hooks
 
 
 def _wire(monkeypatch, tmp_path, events):
-    log = tmp_path / "events.jsonl"
+    # One file per hook run: hooks run concurrently, and two `cat >> same-file` interleave.
+    log = tmp_path / "events"
+    log.mkdir()
     registry = {
-        event: [("demo", matcher, {"type": "command", "command": f"cat >> {log}; echo >> {log}"})]
+        event: [
+            (
+                "demo",
+                matcher,
+                {
+                    "type": "command",
+                    "command": f'f=$(mktemp {log}/.ev.XXXXXX); cat > "$f"; mv "$f" "$f.json"',
+                },
+            )
+        ]
         for event, matcher in events.items()
     }
     monkeypatch.setattr(hooks, "_all_hooks", lambda: registry)
@@ -20,25 +31,27 @@ def _wire(monkeypatch, tmp_path, events):
     return log
 
 
-def _events(log, wait = 5.0):
+def _events(
+    log,
+    count = 1,
+    wait = 5.0,
+):
     deadline = time.monotonic() + wait
-    while time.monotonic() < deadline:
-        if log.exists() and log.read_text().strip():
-            break
+    while time.monotonic() < deadline and len(list(log.glob("*.json"))) < count:
         time.sleep(0.05)
-    return (
-        [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
-        if log.exists()
-        else []
-    )
+    return {
+        event["hook_event_name"]: event
+        for event in (json.loads(path.read_text()) for path in log.glob("*.json"))
+    }
 
 
 def test_subagent_stop_and_session_end_run_with_their_payload(monkeypatch, tmp_path):
     log = _wire(monkeypatch, tmp_path, {"SubagentStop": "", "SessionEnd": ""})
     hooks.subagent_stop("s1", "explore", "Agent explore finished (3 tool calls).")
     hooks.session_end("t9", "clear")
-    first, second = _events(log)
-    assert first["hook_event_name"] == "SubagentStop" and first["agent_type"] == "explore"
+    events = _events(log, count = 2)
+    first, second = events["SubagentStop"], events["SessionEnd"]
+    assert first["agent_type"] == "explore"
     assert "finished" in first["last_assistant_message"]
     assert second == {
         "hook_event_name": "SessionEnd",
@@ -54,12 +67,11 @@ def test_pre_compact_and_notification_match_on_their_kind(monkeypatch, tmp_path)
     hooks.notification("s", "done", "idle_prompt")  # matcher is permission_prompt: skipped
     hooks.pre_compact("s", "auto")
     hooks.notification("s", "Ganjalf needs your permission to use terminal", "permission_prompt")
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline and len(_events(log, 0.1)) < 2:
-        time.sleep(0.05)
-    names = sorted(event["hook_event_name"] for event in _events(log))
-    assert names == ["Notification", "PreCompact"]
-    by_name = {event["hook_event_name"]: event for event in _events(log)}
+    _events(log, count = 2)
+    time.sleep(0.3)  # a skipped hook that ran anyway would show up by now
+    assert len(list(log.glob("*.json"))) == 2
+    by_name = _events(log)
+    assert sorted(by_name) == ["Notification", "PreCompact"]
     assert by_name["PreCompact"]["trigger"] == "auto"
     assert by_name["Notification"]["notification_type"] == "permission_prompt"
 

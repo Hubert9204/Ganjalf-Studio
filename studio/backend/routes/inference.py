@@ -6459,6 +6459,27 @@ def _computer_use_tool(
     return computer_tool(mode)
 
 
+def _agent_tools_fit() -> bool:
+    """Ganjalf: the agent tools (task list, read/grep/glob, background jobs, sub-agents) cost
+    ~1.3k tokens of schema. A model loaded with a tiny window (the 2k CI smoke model) cannot do
+    agent work anyway, and with them its prompt no longer fits beside the terminal tool.
+    GANJALF_AGENT_TOOLS_MIN_CONTEXT (default 8192) sets the floor; 0 always offers them."""
+    try:
+        floor = int(os.environ.get("GANJALF_AGENT_TOOLS_MIN_CONTEXT", "8192"))
+    except ValueError:
+        floor = 8192
+    if floor <= 0:
+        return True
+    try:
+        backend = get_llama_cpp_backend()
+        if not backend.is_loaded:
+            return True
+        context = int(backend.context_length or 0)
+    except Exception:  # noqa: BLE001 -- unknown window: keep the tools
+        return True
+    return context <= 0 or context >= floor
+
+
 async def _select_request_tools(
     payload: ChatCompletionRequest,
     *,
@@ -6523,7 +6544,7 @@ async def _select_request_tools(
         and _check_page_offered(tool)
     ]
     # A plugin's agents ride with the local code tools, on a llama.cpp model (core/plugins/agents.py).
-    if any(tool["function"]["name"] == "terminal" for tool in tools):
+    if any(tool["function"]["name"] == "terminal" for tool in tools) and _agent_tools_fit():
         _agent_tool = _plugin_agent_tool()
         if _agent_tool is not None:
             tools = tools + [_agent_tool]

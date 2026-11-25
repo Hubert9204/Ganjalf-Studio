@@ -421,3 +421,37 @@ def test_the_plan_card_is_not_repeated_as_text():
         "Do not repeat or summarise the plan" in reply
         and "write the plan as your answer" not in reply
     )
+
+
+@pytest.mark.parametrize(("context", "offered"), [(2048, False), (32768, True)])
+def test_agent_tools_need_a_real_window(monkeypatch, context, offered):
+    """A 2k model (the CI smoke model) gets terminal alone: the agent schemas would not fit."""
+    import asyncio
+    from types import SimpleNamespace
+
+    import routes.inference as routes
+    from models.inference import ChatCompletionRequest
+
+    monkeypatch.setattr(
+        routes,
+        "get_llama_cpp_backend",
+        lambda: SimpleNamespace(is_loaded = True, context_length = context),
+    )
+    chat = ChatCompletionRequest(
+        model = "m",
+        messages = [{"role": "user", "content": "run echo hi"}],
+        enable_tools = True,
+        enabled_tools = ["terminal"],
+    )
+    names = [
+        t["function"]["name"]
+        for t in asyncio.run(routes._select_request_tools(chat, tools_on = True, mcp_allowed = False))
+    ]
+    assert "terminal" in names
+    assert ("todo_write" in names) is offered
+    monkeypatch.setenv("GANJALF_AGENT_TOOLS_MIN_CONTEXT", "0")
+    names = [
+        t["function"]["name"]
+        for t in asyncio.run(routes._select_request_tools(chat, tools_on = True, mcp_allowed = False))
+    ]
+    assert "todo_write" in names
