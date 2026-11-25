@@ -112,6 +112,8 @@ _QUIET_SUCCESS_PATHS = {
     "/api/inference/images/queue",
     # Ganjalf: the chat's background-jobs menu; stopping a job is a POST and still logs.
     "/api/inference/background-jobs",
+    # Ganjalf: the project-rules menu; adding and removing a rule are POSTs and still log.
+    "/api/inference/permission-rules/all",
     # Polled by the Images page while the FLUX.3 prompt upsampler downloads.
     "/api/inference/images/prompt-upsampler/status",
     "/api/llama/update-status",

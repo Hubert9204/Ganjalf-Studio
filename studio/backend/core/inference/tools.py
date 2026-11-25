@@ -6974,8 +6974,12 @@ def _read_only_sub_agent(name: str, arguments: dict) -> bool:
         return False
     from core.plugins.agents import BUILT_IN_AGENTS
 
-    wanted = str((arguments or {}).get("agent") or "").strip()
-    return any(agent.get("read_only") and agent["id"] == wanted for agent in BUILT_IN_AGENTS)
+    from core.plugins.agents import requested_tasks
+
+    read_only = {agent["id"] for agent in BUILT_IN_AGENTS if agent.get("read_only")}
+    tasks = requested_tasks(arguments or {})
+    # Every task must be read-only: one general-purpose task among explores still asks.
+    return bool(tasks) and all(task["agent"] in read_only for task in tasks)
 
 
 def _read_skill_writes(name: str, arguments: dict) -> bool:
@@ -9712,10 +9716,27 @@ def is_high_risk_tool_call(name: str, arguments: dict) -> bool:
             return True
         return False
     if name == "terminal":
-        return _terminal_is_high_risk(str(arguments.get("command", "")))
+        command = str(arguments.get("command", ""))
+        return _terminal_is_high_risk(command) or _publishes_outward(command)
     if name == "python":
         return _python_is_high_risk(str(arguments.get("code", "")))
     return True
+
+
+# Ganjalf: what others see (a push, a PR, a release, a published package) asks even in Auto,
+# as Claude Code asks before it pushes or opens a pull request.
+_PUBLISHES_OUTWARD_RE = re.compile(
+    r"\bgit\s+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?\s+)*push\b"
+    r"|\bgh\s+(?:pr\s+(?:create|merge|close|reopen|edit|comment|review)|"
+    r"release\s+(?:create|delete|edit|upload)|repo\s+(?:create|delete|edit|rename|archive)|"
+    r"issue\s+(?:create|close|reopen|edit|comment|delete)|gist\s+create|api\b)"
+    r"|\b(?:npm|pnpm|yarn)\s+publish\b|\btwine\s+upload\b|\bcargo\s+publish\b",
+    re.IGNORECASE,
+)
+
+
+def _publishes_outward(command: str) -> bool:
+    return bool(_PUBLISHES_OUTWARD_RE.search(command or ""))
 
 
 def _canon_win_path(p: str) -> str:
@@ -9893,9 +9914,21 @@ def _safe_path(shell: "str | None" = None) -> "tuple[str, str]":
     return os.pathsep.join(deduped), git_ext
 
 
+def _plugin_bin_dirs() -> list[str]:
+    """Ganjalf: bin/ of the plugins that are on, last on PATH so they never shadow a system command."""
+    try:
+        from core.plugins.manager import bin_dirs
+        return bin_dirs()
+    except Exception:  # noqa: BLE001 -- a plugin problem must never break the terminal
+        return []
+
+
 def _build_safe_env(workdir: str, shell: "str | None" = None) -> dict[str, str]:
     """Env is built from a whitelist, not inherited; user-writable PATH entries could shadow commands."""
     path, git_ext = _safe_path(shell)
+    plugin_bins = _plugin_bin_dirs()
+    if plugin_bins:
+        path = os.pathsep.join([path, *plugin_bins]) if path else os.pathsep.join(plugin_bins)
     venv = os.environ.get("VIRTUAL_ENV")
     temp_dir = _sandbox_temp_dir(workdir)
     env = {
@@ -15354,6 +15387,9 @@ def _execute_tool_unhooked(
         )
 
     if name == "read_skill":
+        from .skill_mentions import _start_skill_monitors
+
+        _start_skill_monitors(session_id, str((arguments or {}).get("name") or ""))
         from .skills import (
             MAX_SKILL_PAGE_CHARS,
             MIN_SKILL_PAGE_CHARS,
@@ -15688,10 +15724,10 @@ def _execute_tool_unhooked(
                 result += BACKGROUND_AMPERSAND_NOTE
         return result
     if name == "run_agent":
-        from core.plugins.agents import run_agent
+        from core.plugins.agents import run_agents
         with _session_in_flight(session_id):
             return _fit_result_to_room(
-                run_agent(
+                run_agents(
                     arguments,
                     session_id = session_id,
                     cancel_event = cancel_event,

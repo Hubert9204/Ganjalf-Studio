@@ -964,6 +964,15 @@ def _make_cache_mountpoints(workdir: str, names: tuple[str, ...]) -> None:
                 pass
 
 
+def _plugin_roots_with_bin() -> tuple[str, ...]:
+    """Ganjalf: plugins with bin/ (on PATH) or monitors, read-only, so they run inside the sandbox too."""
+    try:
+        from core.plugins.manager import sandbox_roots
+        return tuple(sandbox_roots())
+    except Exception:  # noqa: BLE001 -- never break a launch over a plugin
+        return ()
+
+
 def prepare(plan: ToolLaunchPlan) -> PreparedSandboxLaunch:
     bwrap = _trusted_bwrap_path()
     if not plan.argv:
@@ -988,7 +997,7 @@ def prepare(plan: ToolLaunchPlan) -> PreparedSandboxLaunch:
         runtime_paths = tuple(p for p in runtime_paths if not _within(p, _NIXOS_CURRENT_SYSTEM))
     silent_roots = tuple(
         root
-        for root in model_library_roots()
+        for root in (*model_library_roots(), *_plugin_roots_with_bin())
         if not _within(root, workdir) and not any(_within(root, r) for r in system_roots)
     )
     model_cache = _model_cache_binds(workdir)

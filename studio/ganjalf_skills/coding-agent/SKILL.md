@@ -27,6 +27,8 @@ Use this for code in a project folder: building a program, game, app or script, 
 - Read the README or build file first (package.json, Makefile, pyproject.toml). Do not open every file.
 - If a result is truncated, narrow the range or the pattern; do not repeat the same call.
 - In a large project, give a survey ("where is X handled", "how do these modules connect") to `run_agent` with agent `explore`: it reads on its own and returns only the answer with paths and lines, so your context stays small. Use `general-purpose` for a separate piece of work with its own check.
+- Several independent surveys at once: `run_agent` with `tasks` (up to 4, e.g. one `explore` per folder). With `run_in_background: true` the agents keep working while you do; read their reports with `terminal_output`.
+- If the project has an AGENTS.md (or CLAUDE.md), it is already in your instructions: follow its commands. To commit or open a pull request, follow the git-workflow skill.
 
 ## Writing and changing code
 - Follow the plan: the first step is the smallest version that runs, at most 4 source files; compile and check it before the next step. Never write a dozen files before running anything.

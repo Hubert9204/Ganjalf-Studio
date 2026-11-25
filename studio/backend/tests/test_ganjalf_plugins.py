@@ -130,10 +130,8 @@ def test_inspect_lists_every_part_and_what_is_not_used(tmp_path):
     assert len(summary["hooks"]["PostToolUse"][0]["hooks"]) == 1
     assert any("background" in warning for warning in summary["warnings"])
     assert list(summary["mcp_servers"]) == ["docs"]
-    assert (
-        "LSP servers" in summary["unsupported"]
-        and "bin/ (executables on the PATH)" in summary["unsupported"]
-    )
+    # bin/ is supported now (on the terminal's PATH while the plugin is on).
+    assert summary["unsupported"] == ["LSP servers"] and summary["bin"] == ["tool"]
 
 
 def test_a_folder_with_nothing_usable_is_refused(tmp_path):

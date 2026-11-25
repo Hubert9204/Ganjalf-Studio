@@ -93,6 +93,12 @@ def _key(session_id: Optional[str]) -> str:
     return f"{_account()}\x00{session_id or '_'}"
 
 
+def is_running(job_id: str) -> bool:
+    with _lock:
+        job = _jobs.get(job_id)
+    return bool(job and job.running)
+
+
 def start(
     command: str,
     session_id: Optional[str],

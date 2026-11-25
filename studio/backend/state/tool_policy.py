@@ -152,6 +152,11 @@ def needs_tool_confirmation(
         never_needs = never_needs or tools.never_needs_approval
     if not confirm_tool_calls or bypass_permissions or never_needs(name):
         return False
+    # Ganjalf: "always allow" rules the user saved for this project (core/inference/permission_rules.py).
+    if name in ("terminal", "edit_file"):
+        from core.inference import permission_rules
+        if permission_rules.allows(session_id, name, arguments):
+            return False
     if permission_mode in ("off", "auto") and _is_computer_tool(name):
         from core.inference.computer_use import policy as computer_policy
 

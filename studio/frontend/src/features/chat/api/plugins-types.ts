@@ -18,6 +18,10 @@ export type PluginContents = {
   agents: { name: string; description: string; tools?: string[]; model?: string }[];
   hooks: Record<string, PluginHookGroup[]>;
   mcp_servers: Record<string, { command?: string; args?: string[]; url?: string; type?: string }>;
+  // Ganjalf: bin/ on the terminal's PATH, output styles, monitors (Claude Code's plugin layout).
+  bin?: string[];
+  output_styles?: { name: string; description: string; keep_coding_instructions: boolean }[];
+  monitors?: { name: string; command: string; description: string; when: string }[];
   unsupported: string[];
   warnings: string[];
   installed?: boolean;
@@ -69,5 +73,6 @@ export function pluginCommands(contents: PluginContents): string[] {
   for (const [name, server] of Object.entries(contents.mcp_servers)) {
     if (server.command) commands.push(`MCP ${name}: ${[server.command, ...(server.args ?? [])].join(" ")}`);
   }
+  for (const monitor of contents.monitors ?? []) commands.push(`Monitor ${monitor.name}: ${monitor.command}`);
   return commands;
 }

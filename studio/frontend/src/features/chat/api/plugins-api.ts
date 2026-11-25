@@ -88,3 +88,14 @@ export async function refreshMarketplace(name: string): Promise<Marketplace> {
 export async function removeMarketplace(name: string): Promise<void> {
   return parse(await authFetch(`/api/plugins/marketplaces/${encodeURIComponent(name)}`, json("DELETE")));
 }
+
+export type OutputStyles = { styles: { id: string; plugin: string; name: string }[]; active: string | null };
+
+/** Ganjalf: the output styles of the plugins that are on, and the one chats use. */
+export async function listOutputStyles(): Promise<OutputStyles> {
+  return parse(await authFetch("/api/plugins/output-styles"));
+}
+
+export async function setOutputStyle(style: string | null): Promise<void> {
+  await parse(await authFetch("/api/plugins/output-style", json("PUT", { style })));
+}

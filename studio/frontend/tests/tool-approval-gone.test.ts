@@ -141,7 +141,8 @@ test("the gone case gets its own copy and does not tell the user to retry", () =
 
 test("a decision that is gone disables the buttons instead of inviting another 404", () => {
   const disabled = CONTROLS.match(/disabled=\{pending !== null[^}]*\}/g) ?? [];
-  assert.equal(disabled.length, 5, "approval buttons and the Full Access shortcut share the gone gate");
+  // Ganjalf adds two: "always allow this command here" and "accept file edits here".
+  assert.equal(disabled.length, 7, "approval buttons and the Full Access shortcut share the gone gate");
   for (const expr of disabled) {
     assert.match(
       expr,

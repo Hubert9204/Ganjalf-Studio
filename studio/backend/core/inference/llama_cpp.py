@@ -409,6 +409,26 @@ def _compaction_reporter(perf_callback):
     return report if callable(report) else None
 
 
+def _compaction_hooks(
+    perf_callback,
+    session_id,
+    manual = False,
+):
+    """The progress report plus the plugins' PreCompact hook (core/plugins/hooks.py)."""
+    report = _compaction_reporter(perf_callback)
+
+    def fire() -> None:
+        if report is not None:
+            report()
+        try:
+            from core.plugins import hooks as plugin_hooks
+            plugin_hooks.pre_compact(session_id, "manual" if manual else "auto")
+        except Exception:  # noqa: BLE001 -- a hook must never break a fit
+            logger.debug("PreCompact hooks failed", exc_info = True)
+
+    return fire
+
+
 def _fit_with_instruction_pins(
     messages,
     *,
@@ -419,6 +439,54 @@ def _fit_with_instruction_pins(
     """Pins are recomputed each fit (inline recall swaps the user dict), dropped if they block a fit, and must never mutate the anchor set the caller passed."""
     if on_compacting is not None:
         kwargs["on_evict"] = _once(on_compacting)
+    # Ganjalf: the record of the work so far, added only when this fit drops turns.
+    work_block = ""
+    if not kwargs.get("replay_only"):
+        try:
+            from core.inference.work_state import work_state_block
+            work_block = work_state_block(messages)
+        except Exception:  # noqa: BLE001 -- a record must never break a chat
+            work_block = ""
+    if work_block:
+        kwargs["reserve_tokens"] = int(kwargs.get("reserve_tokens") or 0) + len(work_block) // 3 + 8
+    fitted, truncation = _fit_with_instruction_pins_inner(messages, anchor_ids = anchor_ids, **kwargs)
+    if work_block and truncation and int(truncation.get("dropped_messages") or 0) > 0:
+        # Only what left the context: kept turns are still in view, and a record that changes
+        # with every new tool call would re-prefill the whole prompt each round.
+        try:
+            from core.inference.work_state import work_state_block
+
+            kept = {id(message) for message in fitted}
+            dropped = [message for message in messages if id(message) not in kept]
+            work_block = work_state_block(dropped)
+        except Exception:  # noqa: BLE001
+            work_block = ""
+        if work_block:
+            fitted = _with_work_state_if_it_fits(fitted, work_block, kwargs)
+    return fitted, truncation
+
+
+def _with_work_state_if_it_fits(fitted, block, kwargs):
+    from core.inference.work_state import with_work_state
+
+    candidate = with_work_state(fitted, block)
+    count = kwargs.get("count_tokens")
+    if callable(count):
+        try:
+            budget = prompt_budget(kwargs.get("context_length") or 0, kwargs.get("max_tokens") or 0)
+            if budget and count(candidate) > budget:
+                return fitted
+        except Exception:  # noqa: BLE001
+            return fitted
+    return candidate
+
+
+def _fit_with_instruction_pins_inner(
+    messages,
+    *,
+    anchor_ids = None,
+    **kwargs,
+):
     anchors = set(anchor_ids or ())
     try:
         from core.inference import instruction_pin
@@ -41693,7 +41761,7 @@ class LlamaCppBackend:
                         _fit_count_prefetch.join()
                     conversation, truncation = _fit_with_instruction_pins(
                         conversation,
-                        on_compacting = _compaction_reporter(perf_callback),
+                        on_compacting = _compaction_hooks(perf_callback, session_id, compact_context),
                         context_length = self._effective_context_length,
                         max_tokens = _iteration_max_tokens,
                         count_tokens = lambda fitted: _fit_count_tokens(
@@ -41872,7 +41940,7 @@ class LlamaCppBackend:
                 try:
                     conversation, truncation = _fit_with_instruction_pins(
                         conversation,
-                        on_compacting = _compaction_reporter(perf_callback),
+                        on_compacting = _compaction_hooks(perf_callback, session_id, compact_context),
                         context_length = self._effective_context_length,
                         max_tokens = _iteration_max_tokens,
                         count_tokens = lambda fitted: self.count_chat_tokens(
@@ -43041,6 +43109,16 @@ class LlamaCppBackend:
                                     )
                             except Exception as _hook_exc:
                                 logger.warning(f"Plugin Stop hooks failed: {_hook_exc}")
+                        if active_tools and not _stop_hook_reason:
+                            try:
+                                from core.plugins import hooks as _plugin_hooks
+                                _plugin_hooks.notification(
+                                    session_id,
+                                    "Ganjalf finished and is waiting for your input",
+                                    "idle_prompt",
+                                )
+                            except Exception:  # noqa: BLE001
+                                logger.debug("Notification hooks failed", exc_info = True)
                         if _stop_hook_reason:
                             _stop_hook_rounds += 1
                             append_assistant_turn(
@@ -43483,6 +43561,15 @@ class LlamaCppBackend:
                     )
                     if needs_confirm:
                         note_host_access(approval_id, decision.tool_name, decision.arguments)
+                        try:
+                            from core.plugins import hooks as _plugin_hooks
+                            _plugin_hooks.notification(
+                                session_id,
+                                f"Ganjalf needs your permission to use {decision.tool_name}",
+                                "permission_prompt",
+                            )
+                        except Exception:  # noqa: BLE001
+                            logger.debug("Notification hooks failed", exc_info = True)
                     start_event = decision.tool_start_event()
                     start_event["approval_id"] = approval_id
                     start_event["awaiting_confirmation"] = needs_confirm
@@ -44442,7 +44529,7 @@ class LlamaCppBackend:
                 )
                 conversation, truncation = _fit_with_instruction_pins(
                     conversation,
-                    on_compacting = _compaction_reporter(perf_callback),
+                    on_compacting = _compaction_hooks(perf_callback, session_id, compact_context),
                     context_length = self._effective_context_length,
                     max_tokens = _final_max_tokens,
                     count_tokens = lambda fitted: self.count_chat_tokens(
@@ -44612,7 +44699,7 @@ class LlamaCppBackend:
             try:
                 conversation, truncation = _fit_with_instruction_pins(
                     conversation,
-                    on_compacting = _compaction_reporter(perf_callback),
+                    on_compacting = _compaction_hooks(perf_callback, session_id, compact_context),
                     context_length = self._effective_context_length,
                     max_tokens = max_tokens,
                     count_tokens = lambda fitted: self.count_chat_tokens(

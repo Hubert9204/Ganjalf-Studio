@@ -41,6 +41,8 @@ IDLE_POLLS: dict[str, tuple[float, str]] = {
     "/api/chat/revision": (4.0, "declared"),
     # Ganjalf: the chat header's background-jobs menu, every 5s (background-jobs-menu.tsx).
     "/api/inference/background-jobs": (5.0, "declared"),
+    # Ganjalf: the chat header's project-rules menu, every 30s and on focus (project-rules-menu.tsx).
+    "/api/inference/permission-rules/all": (30.0, "declared"),
 }
 
 # Polls only while an operation is in flight; separate so the idle envelope is not averaged.

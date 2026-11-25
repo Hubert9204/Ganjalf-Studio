@@ -6055,10 +6055,30 @@ def _build_tool_action_nudge(
         full_access_only = full_access_only,
         user_folder = user_folder,
     )
+    # Ganjalf: the output style the user chose from a plugin (Claude Code's /output-style).
+    style = _active_output_style_text()
+    if style:
+        text = f"{text}\n\n{style}".strip()
     # Ganjalf: plan mode leads, so the missing editing tools read as a phase, not a limit.
     if plan_mode_on(tools):
         return f"{PLAN_MODE_TIP} {text}".strip()
     return text
+
+
+def _active_output_style_text() -> str:
+    try:
+        from core.plugins.manager import active_output_style
+        style = active_output_style()
+    except Exception:  # noqa: BLE001 -- a plugin problem must never break a chat
+        return ""
+    if not style or not style["body"]:
+        return ""
+    keep = (
+        " Keep following the coding and tool instructions above."
+        if style["keep_coding_instructions"]
+        else " It takes precedence over the general style guidance above, not over safety or tool rules."
+    )
+    return f"Output style chosen by the user ({style['id']}).{keep}\n{style['body']}"
 
 
 def _tool_action_nudge_text(
@@ -18540,6 +18560,80 @@ async def stop_background_job(job_id: str, current_subject: str = Depends(get_cu
     if result is None:
         raise HTTPException(status_code = 404, detail = "No such background job.")
     return {"message": result}
+
+
+class _PermissionRuleRequest(BaseModel):
+    session_id: Optional[str] = None
+    # The rules menu names a stored project directly (it lists every project's rules).
+    project: Optional[str] = None
+    command_prefix: str = ""
+    tool: str = ""
+
+
+@studio_router.get("/permission-rules/all")
+async def get_all_permission_rules(current_subject: str = Depends(get_current_subject)):
+    """Ganjalf: every project's "always allow" rules, for the chat's rules menu."""
+    from core.inference import permission_rules
+    return {"projects": await asyncio.to_thread(permission_rules.all_rules)}
+
+
+@studio_router.get("/permission-rules")
+async def get_permission_rules(
+    session_id: Optional[str] = None,
+    command: str = "",
+    current_subject: str = Depends(get_current_subject),
+):
+    """Ganjalf: this project's "always allow" rules, plus the prefix a card would offer for ``command``."""
+    from core.inference import permission_rules
+
+    project = await asyncio.to_thread(permission_rules.project_key, session_id)
+    rules = await asyncio.to_thread(permission_rules.rules_for, project)
+    return {
+        "project": project,
+        **rules,
+        "suggested_prefix": permission_rules.suggested_prefix(command) if command else "",
+    }
+
+
+@studio_router.post("/permission-rules")
+async def add_permission_rule(
+    body: _PermissionRuleRequest, current_subject: str = Depends(get_current_subject)
+):
+    """Ganjalf: remember "always allow" for a command prefix or for file edits in this project."""
+    from core.inference import permission_rules
+
+    project = await asyncio.to_thread(permission_rules.project_key, body.session_id)
+    try:
+        rules = await asyncio.to_thread(
+            lambda: permission_rules.add_rule(
+                project, command_prefix = body.command_prefix, tool = body.tool
+            )
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code = 400, detail = str(exc)) from exc
+    return {"project": project, **rules}
+
+
+@studio_router.post("/permission-rules/remove")
+async def remove_permission_rule(
+    body: _PermissionRuleRequest, current_subject: str = Depends(get_current_subject)
+):
+    """Ganjalf: forget one rule of this project."""
+    from core.inference import permission_rules
+
+    if body.project:
+        known = await asyncio.to_thread(permission_rules.all_rules)
+        if body.project not in known:
+            raise HTTPException(status_code = 404, detail = "No rules for that project.")
+        project = body.project
+    else:
+        project = await asyncio.to_thread(permission_rules.project_key, body.session_id)
+    rules = await asyncio.to_thread(
+        lambda: permission_rules.remove_rule(
+            project, command_prefix = body.command_prefix, tool = body.tool
+        )
+    )
+    return {"project": project, **rules}
 
 
 @studio_router.get("/active-generations")

@@ -35,13 +35,13 @@ HOOK_EVENTS = (
     "PreCompact",
 )
 
+# bin/, output-styles/ and monitors are supported (see below); these two have no Ganjalf meaning:
+# workflows run on Claude Code's own JavaScript runtime, themes colour its terminal.
 _UNSUPPORTED_DIRS = {
-    "bin": "bin/ (executables on the PATH)",
-    "monitors": "monitors",
-    "output-styles": "output styles",
-    "themes": "themes",
-    "workflows": "workflows",
+    "themes": "themes (Claude Code's terminal colours)",
+    "workflows": "workflows (Claude Code's JavaScript runtime)",
 }
+MAX_MONITORS = 10
 
 
 class PluginError(ValueError):
@@ -342,6 +342,102 @@ def _server_map(config: Any) -> dict:
     return {}
 
 
+def _bin(root: Path) -> list[str]:
+    """Executables in bin/: on the terminal's PATH while the plugin is on."""
+    folder = root / "bin"
+    if not folder.is_dir():
+        return []
+    names = []
+    for path in sorted(folder.iterdir())[:MAX_COMPONENTS]:
+        try:
+            if (
+                path.is_file()
+                and not path.is_symlink()
+                and path.resolve().is_relative_to(root.resolve())
+            ):
+                names.append(path.name)
+        except OSError:
+            continue
+    return names
+
+
+def _output_styles(root: Path, manifest: dict, warnings: list[str]) -> list[dict]:
+    """Output styles: Markdown that changes how the model writes (Claude Code's /output-style)."""
+    spec = manifest.get("outputStyles")
+    candidates: list[Path] = []
+    for value in _paths(spec) if spec is not None else ["./output-styles"]:
+        resolved = _rel(root, value) if isinstance(value, str) else None
+        if resolved is None or not resolved.exists():
+            if spec is not None:
+                warnings.append(f"output style {value!r} is missing or outside the plugin")
+            continue
+        candidates += _markdown_files(root, resolved) if resolved.is_dir() else [resolved]
+    styles = []
+    for path in candidates[:MAX_COMPONENTS]:
+        try:
+            frontmatter, body = read_markdown(path)
+        except PluginError as exc:
+            warnings.append(str(exc))
+            continue
+        if not body.strip():
+            continue
+        styles.append(
+            {
+                "name": str(frontmatter.get("name") or path.stem)[:64],
+                "path": path.relative_to(root.resolve()).as_posix(),
+                "description": _description(frontmatter, body),
+                "keep_coding_instructions": bool(frontmatter.get("keep-coding-instructions")),
+            }
+        )
+    return styles
+
+
+def _monitors(root: Path, manifest: dict, warnings: list[str]) -> list[dict]:
+    """Monitors: commands that run in the background for the whole chat (or from a skill on)."""
+    experimental = (
+        manifest.get("experimental") if isinstance(manifest.get("experimental"), dict) else {}
+    )
+    spec = experimental.get("monitors", manifest.get("monitors"))
+    entries: Any = None
+    if isinstance(spec, list):
+        entries = spec
+    else:
+        path = _rel(root, spec) if isinstance(spec, str) else root / "monitors" / "monitors.json"
+        if path is not None and path.is_file():
+            try:
+                entries = read_json(path)
+            except PluginError as exc:
+                warnings.append(str(exc))
+        elif spec is not None:
+            warnings.append(f"monitors {spec!r} is missing or outside the plugin")
+    monitors = []
+    for entry in entries if isinstance(entries, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        name, command = (
+            str(entry.get("name") or "").strip(),
+            str(entry.get("command") or "").strip(),
+        )
+        if not name or not command:
+            warnings.append("a monitor needs a name and a command")
+            continue
+        if "${user_config." in command:
+            warnings.append(f"monitor {name} uses userConfig, which Ganjalf does not have")
+            continue
+        when = str(entry.get("when") or "always")
+        monitors.append(
+            {
+                "name": name[:64],
+                "command": command[:2000],
+                "description": str(entry.get("description") or "")[:300],
+                "when": when
+                if when == "always" or when.startswith("on-skill-invoke:")
+                else "always",
+            }
+        )
+    return monitors[:MAX_MONITORS]
+
+
 def _mcp_servers(root: Path, manifest: dict, warnings: list[str]) -> dict:
     servers: dict = {}
     default = root / ".mcp.json"
@@ -414,10 +510,25 @@ def inspect_plugin(root: Path, entry: Optional[dict] = None) -> dict:
         "agents": _agents(root, manifest, warnings),
         "hooks": _hooks(root, manifest, warnings),
         "mcp_servers": _mcp_servers(root, manifest, warnings),
+        "bin": _bin(root),
+        "output_styles": _output_styles(root, manifest, warnings),
+        "monitors": _monitors(root, manifest, warnings),
         "unsupported": unsupported,
         "warnings": warnings[:50],
     }
-    if not any(summary[key] for key in ("skills", "commands", "agents", "hooks", "mcp_servers")):
+    if not any(
+        summary[key]
+        for key in (
+            "skills",
+            "commands",
+            "agents",
+            "hooks",
+            "mcp_servers",
+            "bin",
+            "output_styles",
+            "monitors",
+        )
+    ):
         raise PluginError(
             "This folder has no skills, commands, agents, hooks or MCP servers Ganjalf can use."
         )

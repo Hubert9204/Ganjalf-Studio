@@ -546,6 +546,9 @@ def install(
             "agents": [agent["name"] for agent in summary.get("agents", [])],
             "hook_events": sorted(summary.get("hooks", {})),
             "mcp_servers": sorted(summary.get("mcp_servers", {})),
+            "bin": list(summary.get("bin", [])),
+            "output_styles": [style["name"] for style in summary.get("output_styles", [])],
+            "monitors": [monitor["name"] for monitor in summary.get("monitors", [])],
             "unsupported": summary.get("unsupported", []),
         }
         record["mcp_server_ids"] = _mcp_rows(name, summary, enabled, validate, warnings)
@@ -742,6 +745,128 @@ def plugin_details(name: str) -> dict:
 
 def enabled_records() -> list[dict]:
     return [record for record in load_registry()["plugins"].values() if record.get("enabled")]
+
+
+# ------------------------------------------------- bin/, output styles and monitors (Ganjalf)
+
+
+def _part(record: dict, key: str) -> list:
+    """A record field; plugins installed before Ganjalf read these parts are inspected instead."""
+    if key in record:
+        return list(record.get(key) or ())
+    try:
+        summary = inspect_plugin(plugin_dir(record["name"]))
+    except (PluginError, OSError):
+        return []
+    value = summary.get(key) or []
+    return [item["name"] if isinstance(item, dict) else item for item in value]
+
+
+def bin_dirs() -> list[str]:
+    """bin/ folders of the plugins that are on: appended to the terminal's PATH."""
+    dirs = []
+    for record in enabled_records():
+        if _part(record, "bin"):
+            folder = plugin_dir(record["name"]) / "bin"
+            if folder.is_dir():
+                dirs.append(str(folder))
+    return dirs
+
+
+def sandbox_roots() -> list[str]:
+    """Plugin folders a sandboxed command may need to read: those with bin/ or monitors."""
+    roots = []
+    for record in enabled_records():
+        if _part(record, "bin") or _part(record, "monitors"):
+            folder = plugin_dir(record["name"])
+            if folder.is_dir():
+                roots.append(str(folder))
+    return roots
+
+
+def output_style_choices() -> list[dict]:
+    """Every output style of the plugins that are on, as ``plugin:name`` ids."""
+    choices = []
+    for record in enabled_records():
+        for name in _part(record, "output_styles"):
+            choices.append(
+                {"id": f"{record['name']}:{name}", "plugin": record["name"], "name": name}
+            )
+    return choices
+
+
+def set_output_style(style_id: Optional[str]) -> Optional[str]:
+    """Choose the output style chats use (None for the default); returns the choice."""
+    with _LOCK:
+        registry = load_registry()
+        if style_id:
+            if style_id not in {choice["id"] for choice in output_style_choices()}:
+                raise PluginError(f"No output style {style_id!r} in the plugins that are on.")
+            registry["output_style"] = style_id
+        else:
+            registry.pop("output_style", None)
+        _save_registry(registry)
+        return registry.get("output_style")
+
+
+def active_output_style() -> Optional[dict]:
+    """The chosen style's text, or None: its plugin was switched off or removed, or none is chosen."""
+    style_id = load_registry().get("output_style")
+    if not style_id or ":" not in style_id:
+        return None
+    plugin, name = style_id.split(":", 1)
+    record = load_registry()["plugins"].get(plugin)
+    if not record or not record.get("enabled") or name not in _part(record, "output_styles"):
+        return None
+    try:
+        summary = inspect_plugin(plugin_dir(plugin))
+    except (PluginError, OSError):
+        return None
+    style = next((s for s in summary.get("output_styles", []) if s["name"] == name), None)
+    if style is None:
+        return None
+    try:
+        _front, body = read_markdown(plugin_dir(plugin) / style["path"])
+    except PluginError:
+        return None
+    body = expand(body, plugin) if "${" in body else body
+    return {
+        "id": style_id,
+        "body": body.strip()[:20_000],
+        "keep_coding_instructions": style["keep_coding_instructions"],
+    }
+
+
+def _monitor_fires(when: str, trigger: str, plugin: str) -> bool:
+    """ "always" on "always"; "on-skill-invoke:S" when skill S of this plugin loads, under any of
+    the names Ganjalf gives it (S, plugin-S, plugin:S)."""
+    if when == "always" or trigger == "always":
+        return when == trigger
+    wanted = when.split(":", 1)[1] if ":" in when else ""
+    loaded = trigger.split(":", 1)[1] if ":" in trigger else ""
+    return bool(wanted) and loaded in (wanted, f"{plugin}-{wanted}", f"{plugin}:{wanted}")
+
+
+def monitors_for(trigger: str = "always") -> list[dict]:
+    """Monitors of the plugins that are on for ``trigger`` ("always" or "on-skill-invoke:<skill>")."""
+    found = []
+    for record in enabled_records():
+        if not _part(record, "monitors"):
+            continue
+        try:
+            summary = inspect_plugin(plugin_dir(record["name"]))
+        except (PluginError, OSError):
+            continue
+        for monitor in summary.get("monitors", []):
+            if _monitor_fires(monitor["when"], trigger, record["name"]):
+                found.append(
+                    {
+                        **monitor,
+                        "plugin": record["name"],
+                        "command": expand(monitor["command"], record["name"]),
+                    }
+                )
+    return found
 
 
 __all__ = [

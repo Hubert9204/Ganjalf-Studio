@@ -470,7 +470,7 @@ def test_terminal_classifier(command, unsafe):
         ("git push origin :main", True),
         ("git push --mirror origin", True),
         ("git push --prune origin", True),
-        ("git push origin main", False),
+        ("git push origin main", True),  # Ganjalf: a push is seen by others, so Auto asks
         ("git branch -D feature", True),
         ("git branch feature", False),
         ("git rm -f important.py", True),
@@ -579,7 +579,7 @@ def test_terminal_classifier(command, unsafe):
         ("git checkout -qf main", True),
         ("git branch -qD topic", True),
         ("git branch -f topic HEAD~3", True),
-        ("git push -q origin main", False),
+        ("git push -q origin main", True),  # Ganjalf: a push is seen by others, so Auto asks
         ("git checkout -q main", False),
         ("getent shadow", True),
         ("getent gshadow root", True),
@@ -717,7 +717,7 @@ def test_terminal_classifier(command, unsafe):
         ("sort -c data.txt", False),
         ("make -j4", False),
         ("git commit -m 'add feature'", False),
-        ("git push origin main", False),
+        ("git push origin main", True),  # Ganjalf: a push is seen by others, so Auto asks
         ("git status", False),
         ("git reset --soft HEAD~1", False),
         ("git checkout main", False),
@@ -3608,7 +3608,7 @@ _BENIGN_TERMINAL = (
     "git diff",
     "git add -A",
     "git commit -m 'add scheduler'",
-    "git push origin feature",
+    # Ganjalf: "git push origin feature" asks in Auto (others see it), see test_ganjalf_permission_rules
     "git pull --rebase",
     "git checkout main",
     "git checkout -b experiment",

@@ -120,6 +120,30 @@ def install(
     )
 
 
+class OutputStyleRequest(BaseModel):
+    style: Optional[str] = None
+
+
+@router.get("/output-styles")
+def output_styles(
+    current_subject: str = Depends(get_current_subject), via_api_key: ViaApiKey = False
+) -> dict[str, Any]:
+    """Ganjalf: the output styles of the plugins that are on, and the chosen one."""
+    _owner_ui(via_api_key)
+    active = manager.active_output_style()
+    return {"styles": manager.output_style_choices(), "active": active["id"] if active else None}
+
+
+@router.put("/output-style")
+def set_output_style(
+    payload: OutputStyleRequest,
+    current_subject: str = Depends(get_current_subject),
+    via_api_key: ViaApiKey = False,
+) -> dict[str, Any]:
+    _owner_ui(via_api_key)
+    return {"active": _run(lambda: manager.set_output_style(payload.style))}
+
+
 @router.get("/updates")
 def updates(
     current_subject: str = Depends(get_current_subject), via_api_key: ViaApiKey = False

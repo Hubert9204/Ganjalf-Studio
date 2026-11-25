@@ -65,6 +65,12 @@ function harness({ owner = true, disclosure = false, grantedThread = "", scopedF
       },
       "@/features/chat/stores/chat-runtime-store": { useChatRuntimeStore: store },
       "@/features/computer-use/summary": { COMPUTER_USE_TOOL: "computer", alwaysAllowableApp },
+      // Ganjalf: the project-rule buttons (permission-rules-api) ask nothing in these tests.
+      "@/features/chat/api/permission-rules-api": {
+        addPermissionRule: async () => undefined,
+        commandOf: () => "",
+        suggestPermissionRule: async () => null,
+      },
       "@/features/computer-use/store": {
         alwaysAllowComputerUseApp: async (app: string) => { alwaysApps.push(app); },
       },

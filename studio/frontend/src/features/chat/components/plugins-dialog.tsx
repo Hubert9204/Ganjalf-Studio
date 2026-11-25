@@ -32,6 +32,9 @@ import {
   setPluginHooks,
   updatePlugin,
   uploadPlugin,
+  listOutputStyles,
+  type OutputStyles,
+  setOutputStyle,
 } from "../api/plugins-api";
 
 type Staged = { token: string; plugin: PluginContents };
@@ -74,7 +77,9 @@ function Preview({
   const [enableHooks, setEnableHooks] = useState(false);
   const plugin = staged.plugin;
   const commands = pluginCommands(plugin);
-  const hookCount = Object.values(plugin.hooks).reduce((sum, groups) => sum + groups.length, 0);
+  // Monitors run commands too, so they ride on the same "switch hooks on" consent.
+  const hookCount =
+    Object.values(plugin.hooks).reduce((sum, groups) => sum + groups.length, 0) + (plugin.monitors?.length ?? 0);
   return (
     <section className="space-y-3 rounded-2xl border border-border/70 p-4" aria-label={t("plugins.previewTitle")}>
       <div className="flex flex-wrap items-baseline gap-2">
@@ -94,6 +99,9 @@ function Preview({
         />
         <List title={t("plugins.agents")} items={plugin.agents.map((agent) => `${plugin.name}:${agent.name}`)} />
         <List title={t("plugins.mcpServers")} items={Object.keys(plugin.mcp_servers)} />
+        <List title={t("plugins.binTitle")} items={plugin.bin ?? []} />
+        <List title={t("plugins.outputStyles")} items={(plugin.output_styles ?? []).map((style) => style.name)} />
+        <List title={t("plugins.monitors")} items={(plugin.monitors ?? []).map((monitor) => monitor.name)} />
       </div>
       {commands.length > 0 ? (
         <div className="space-y-1.5 rounded-xl bg-amber-500/10 p-3">
@@ -351,6 +359,8 @@ export function PluginsDialog({ open, onOpenChange }: { open: boolean; onOpenCha
             </section>
           ) : null}
 
+          <OutputStylePicker plugins={plugins} />
+
           <section className="space-y-2">
             <h3 className="px-1 text-xs font-medium text-muted-foreground">{t("plugins.installedTitle")}</h3>
             {plugins.length === 0 ? (
@@ -430,5 +440,56 @@ export function PluginsDialog({ open, onOpenChange }: { open: boolean; onOpenCha
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Ganjalf: the output style chats use, from the plugins that are on (Claude Code's /output-style). */
+function OutputStylePicker({ plugins }: { plugins: InstalledPlugin[] }): ReactElement | null {
+  const t = useT();
+  const selectId = useId();
+  const [styles, setStyles] = useState<OutputStyles>({ styles: [], active: null });
+
+  useEffect(() => {
+    let live = true;
+    void listOutputStyles()
+      .then((found) => {
+        if (live) setStyles(found);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [plugins]);
+
+  if (styles.styles.length === 0) return null;
+  const choose = async (value: string) => {
+    const style = value || null;
+    try {
+      await setOutputStyle(style);
+      setStyles((current) => ({ ...current, active: style }));
+    } catch (cause) {
+      toast.error(t("plugins.error"), { description: message(cause) });
+    }
+  };
+  return (
+    <section className="space-y-1.5 px-1">
+      <label htmlFor={selectId} className="text-xs font-medium text-muted-foreground">
+        {t("plugins.outputStyle")}
+      </label>
+      <select
+        id={selectId}
+        className="block w-full rounded-md border border-border bg-background px-2 py-1.5 text-ui-13"
+        value={styles.active ?? ""}
+        onChange={(event) => void choose(event.target.value)}
+      >
+        <option value="">{t("plugins.outputStyleDefault")}</option>
+        {styles.styles.map((style) => (
+          <option key={style.id} value={style.id}>
+            {style.name} ({style.plugin})
+          </option>
+        ))}
+      </select>
+      <p className="text-ui-11 text-muted-foreground">{t("plugins.outputStyleHint")}</p>
+    </section>
   );
 }

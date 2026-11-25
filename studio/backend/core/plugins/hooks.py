@@ -467,6 +467,68 @@ def stop_check(
     return "A plugin hook asks you to keep working before you finish:\n" + outcome.reason
 
 
+# ------------------------------------------------- events that only inform (no answer is read)
+
+
+def _in_background(target, *args, **kwargs) -> None:
+    """Hooks that only inform must never hold up a reply or an approval card."""
+    threading.Thread(target = target, args = args, kwargs = kwargs, daemon = True).start()
+
+
+def subagent_stop(session_id: Optional[str], agent: str, report: str) -> None:
+    """SubagentStop: a run_agent sub-agent finished; hooks see its id and report."""
+    if not has_hooks("SubagentStop"):
+        return
+    run_event(
+        "SubagentStop",
+        {
+            "session_id": session_id or "",
+            "agent_type": agent,
+            "stop_hook_active": False,
+            "last_assistant_message": (report or "")[:MAX_OUTPUT_CHARS],
+        },
+        cwd = workdir_for(session_id),
+    )
+
+
+def pre_compact(session_id: Optional[str], trigger: str = "auto") -> None:
+    """PreCompact: older turns are about to leave the context ("auto") or /compact ("manual")."""
+    if not has_hooks("PreCompact"):
+        return
+    _in_background(
+        run_event,
+        "PreCompact",
+        {"session_id": session_id or "", "trigger": trigger, "custom_instructions": ""},
+        cwd = workdir_for(session_id),
+        tool_names = (trigger,),
+    )
+
+
+def notification(session_id: Optional[str], message: str, kind: str) -> None:
+    """Notification: the agent waits for the user ("permission_prompt") or finished ("idle_prompt")."""
+    if not has_hooks("Notification"):
+        return
+    _in_background(
+        run_event,
+        "Notification",
+        {"session_id": session_id or "", "message": message, "notification_type": kind},
+        cwd = workdir_for(session_id),
+        tool_names = (kind,),
+    )
+
+
+def session_end(session_id: Optional[str], reason: str) -> None:
+    """SessionEnd: a chat was deleted ("clear") or Ganjalf is shutting down ("other")."""
+    if not has_hooks("SessionEnd"):
+        return
+    run_event(
+        "SessionEnd",
+        {"session_id": session_id or "", "reason": reason},
+        cwd = workdir_for(session_id),
+        tool_names = (reason,),
+    )
+
+
 def workdir_for(session_id: Optional[str]) -> str:
     try:
         from core.inference.tools import _get_workdir

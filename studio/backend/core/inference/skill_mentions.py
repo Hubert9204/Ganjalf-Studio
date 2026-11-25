@@ -151,6 +151,15 @@ def _append_system(messages: list[dict], block: str) -> None:
         messages[system_index] = {**system, "content": _text(system) + "\n\n" + block.lstrip()}
 
 
+def _start_skill_monitors(session_id, skill_name: str) -> None:
+    """Plugin monitors declared "on-skill-invoke:<skill>" start the first time the skill is used."""
+    try:
+        from core.plugins import monitors as plugin_monitors
+        plugin_monitors.start(session_id, f"on-skill-invoke:{skill_name}")
+    except Exception:
+        pass
+
+
 def load_mentioned_skills(
     messages: list[dict],
     tools: list[dict],
@@ -183,6 +192,15 @@ def load_mentioned_skills(
             hooked = None
         if hooked:
             _append_system(messages, hooked)
+        # Plugin monitors that run for the whole chat (core/plugins/monitors.py).
+        try:
+            from core.plugins import monitors as plugin_monitors
+            plugin_monitors.start(session_id, "always")
+            monitor_note = plugin_monitors.note(session_id)
+        except Exception:
+            monitor_note = ""
+        if monitor_note:
+            _append_system(messages, monitor_note)
     if continue_final_message or not any(
         tool.get("function", {}).get("name") == "read_skill" for tool in (tools or [])
     ):
@@ -239,6 +257,7 @@ def load_mentioned_skills(
                 continue
             if loaded_bytes + auto_size > min(budget // 2, _MAX_AUTO_LOAD_BYTES):
                 continue
+        _start_skill_monitors(session_id, name)
         event = {
             "type": "skill_load",
             "load_id": f"skill-load-{uuid.uuid4().hex}",

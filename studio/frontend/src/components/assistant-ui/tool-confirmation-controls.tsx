@@ -28,6 +28,11 @@ import type {
 } from "@assistant-ui/react";
 import { useCallback, useEffect, useState } from "react";
 import { useChatActive, useChatNavigationStore } from "@/features/chat";
+import {
+  addPermissionRule,
+  commandOf,
+  suggestPermissionRule,
+} from "@/features/chat/api/permission-rules-api";
 
 /** Shown only when the adapter registered a backend-gated pending call for this card. */
 export function ToolConfirmationControls({
@@ -35,11 +40,13 @@ export function ToolConfirmationControls({
   toolName,
   result,
   status,
+  args,
 }: {
   toolCallId?: string;
   toolName: string;
   result: unknown;
   status?: ToolCallMessagePartStatus;
+  args?: unknown;
 }) {
   const confirmation = useChatRuntimeStore((s) =>
     toolCallId &&
@@ -184,6 +191,30 @@ export function ToolConfirmationControls({
     textFieldException: COMPOSER_INPUT_SELECTOR,
   });
 
+  // Ganjalf: project rules ("always allow `npm run build` here", "accept edits here"), kept by the server.
+  const ruleSession = confirmation?.sessionId ?? "";
+  const ruleCommand = toolName === "terminal" ? commandOf(args) : "";
+  const [rulePrefix, setRulePrefix] = useState("");
+  useEffect(() => {
+    if (!showControls || !ruleSession || !ruleCommand) return;
+    let live = true;
+    void suggestPermissionRule(ruleSession, ruleCommand).then((found) => {
+      if (live) setRulePrefix(found?.suggested_prefix ?? "");
+    });
+    return () => {
+      live = false;
+    };
+  }, [showControls, ruleSession, ruleCommand]);
+  const allowWithRule = useCallback(
+    async (rule: { command_prefix?: string; tool?: string }) => {
+      // A rule that fails to save still allows this call; the next one asks again.
+      await addPermissionRule(ruleSession, rule).catch(() => undefined);
+      await resolve("allow");
+    },
+    [ruleSession, resolve],
+  );
+  const offersEditRule = toolName === "edit_file" && !!ruleSession;
+
   const computerReasons = [
     ...(computerAsk?.risks ?? []),
     ...(computerAsk?.apps ?? []).map((app) => t("computerUse.approval.newApp", { app })),
@@ -236,6 +267,28 @@ export function ToolConfirmationControls({
           Always allow
         </Button>
       )}
+      {rulePrefix && !disclosure ? (
+        <Button
+          size="xs"
+          variant="outline"
+          disabled={pending !== null || failure === "gone"}
+          onClick={() => void allowWithRule({ command_prefix: rulePrefix })}
+          title={t("permissionRules.commandHint")}
+        >
+          {t("permissionRules.allowCommand", { command: rulePrefix })}
+        </Button>
+      ) : null}
+      {offersEditRule && !disclosure ? (
+        <Button
+          size="xs"
+          variant="outline"
+          disabled={pending !== null || failure === "gone"}
+          onClick={() => void allowWithRule({ tool: "edit_file" })}
+          title={t("permissionRules.editsHint")}
+        >
+          {t("permissionRules.allowEdits")}
+        </Button>
+      ) : null}
       <Button
         size="xs"
         variant="destructive"
@@ -287,6 +340,7 @@ export function withToolConfirmation(
         toolName={props.toolName}
         result={props.result}
         status={props.status}
+        args={props.args}
       />
     </>
   );

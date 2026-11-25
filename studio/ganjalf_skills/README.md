@@ -7,6 +7,8 @@ Ogni cartella qui è una skill (`<nome>/SKILL.md`). `scripts/ganjalf-launch.sh` 
 | `coding-agent` | scrivere o correggere codice in una cartella di progetto |
 | `web-research` | fatti attuali da cercare online, con fonti |
 | `data-analysis` | CSV, Excel, JSON: numeri e grafici calcolati con Python |
+| `git-workflow` | commit, branch, push, pull request, conflitti: legge le modifiche prima, messaggi chiari, niente force e niente salti degli hook; push e PR chiedono conferma |
+| `init` | solo quando scrivi `/init`: esplora il progetto e scrive `AGENTS.md`, la guida che ogni chat nuova del progetto legge per prima |
 
 ## Come Ganjalf sceglie una skill
 

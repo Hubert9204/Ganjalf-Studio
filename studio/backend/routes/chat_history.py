@@ -1123,12 +1123,25 @@ async def delete_threads(
     _cancel_research_runs(request, deleted_research_run_ids)
     _cancel_chat_generation_runs(request, deleted_chat_run_ids)
     _cancel_active_generations(payload.ids)
+    # Ganjalf: plugins' SessionEnd hooks, while each chat's folder still exists.
+    await run_in_threadpool(_session_end_hooks, payload.ids)
     # Off-loop: the legacy move can be a cross-filesystem copy; folder is keyed by thread id, so unreachable once the thread is gone.
     removed, kept = await _remove_sandboxes(payload.ids, payload.delete_files)
     # Archives and uploads are keyed by thread id; drop them so each deleted chat does not leak a scope.
     await run_in_threadpool(_remove_thread_rag_data, payload.ids, cutoff = cutoff)
     await run_in_threadpool(chat_originals.sweep)
     return {"status": "deleted", "sandboxes_removed": removed, "sandboxes_kept": kept}
+
+
+def _session_end_hooks(thread_ids) -> None:
+    try:
+        from core.plugins import hooks as plugin_hooks
+        if not plugin_hooks.has_hooks("SessionEnd"):
+            return
+        for thread_id in thread_ids or ():
+            plugin_hooks.session_end(str(thread_id), "clear")
+    except Exception:  # noqa: BLE001 - deletion must still complete
+        logger.warning("Plugin SessionEnd hooks failed", exc_info = True)
 
 
 def _archive_cutoff() -> str:

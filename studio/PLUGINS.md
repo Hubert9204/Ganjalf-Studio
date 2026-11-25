@@ -32,7 +32,10 @@ account gestiti non possono installarli.
 | `agents/*.md` | il tool `run_agent`, offerto con gli strumenti di codice quando è caricato un modello GGUF |
 | `hooks/hooks.json` | eseguiti solo dopo averli attivati con l'interruttore **Hook** del plugin |
 | `.mcp.json` | righe nell'elenco dei server MCP, con nome `<plugin> · <server>` |
-| `bin/`, `.lsp.json`, monitor, temi, stili di output, workflow, `userConfig` | elencati come non usati |
+| `bin/` | i programmi finiscono nel PATH del terminale finché il plugin è acceso, in coda (non sostituiscono mai un comando di sistema); nella sandbox la cartella del plugin è montata in sola lettura |
+| `output-styles/*.md` | stili di risposta: si sceglie quello attivo in fondo alla finestra Plugin; il testo entra nelle istruzioni delle chat con gli strumenti (`keep-coding-instructions: true` tiene anche le istruzioni di codice) |
+| `monitors/monitors.json` | comandi in background per tutta la chat (`when: always`) o dal primo uso di una skill (`on-skill-invoke:<skill>`); girano come processi della chat (pannello in alto, `terminal_output`), **solo con l'interruttore Hook acceso**, perché eseguono comandi come gli hook |
+| `.lsp.json`, temi, workflow, `userConfig` | elencati come non usati: temi e workflow appartengono al terminale e al motore JavaScript di Claude Code |
 
 `${CLAUDE_PLUGIN_ROOT}` e `${CLAUDE_PLUGIN_DATA}` vengono sostituiti nelle skill, nei comandi, negli
 agenti, negli hook e nei server MCP; `${VAR}` e `${VAR:-predefinito}` nei server MCP vengono presi
@@ -56,6 +59,10 @@ nella cartella di lavoro della chat con `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DAT
 | `UserPromptSubmit` | prima di generare | lo stdout entra nel prompt di sistema; un blocco chiede al modello di non eseguire la richiesta e spiegare perché |
 | `SessionStart` | al primo messaggio di una chat | lo stdout entra nel prompt di sistema |
 | `Stop` | quando l'agente sta per finire (modelli GGUF) | un blocco lo rimanda al lavoro con il motivo, al massimo 3 volte |
+| `SubagentStop` | quando un agente di `run_agent` finisce | informativo: riceve `agent_type` e il resoconto |
+| `PreCompact` | prima che i turni vecchi escano dal contesto (`matcher`: `auto` o `manual` per `/compact`) | informativo, in background |
+| `Notification` | quando serve un permesso (`permission_prompt`) o il lavoro è finito (`idle_prompt`) | informativo, in background: utile per avvisi sul telefono |
+| `SessionEnd` | quando cancelli una chat (`reason: clear`) | informativo, prima che la cartella della chat sparisca |
 
 I tool di Studio vengono presentati agli hook con i nomi di Claude Code: `terminal` → `Bash`,
 `edit_file` → `Edit`/`MultiEdit`/`Write`, `view_image` → `Read`, `web_search` → `WebSearch`; i

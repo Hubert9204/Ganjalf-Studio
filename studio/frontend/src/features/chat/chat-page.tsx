@@ -159,6 +159,7 @@ import {
 } from "./components/temporary-chat-save";
 import { ChatFilesBridge, ChatFilesMenu } from "./components/chat-files-menu";
 import { BackgroundJobsMenu } from "./components/background-jobs-menu";
+import { ProjectRulesMenu } from "./components/project-rules-menu";
 import { useT } from "@/i18n";
 import { Tooltip as TooltipPrimitive } from "radix-ui";
 import {
@@ -5162,6 +5163,7 @@ export function ChatPage({
               />
             ) : null}
             {view.mode === "single" ? <BackgroundJobsMenu /> : null}
+            {view.mode === "single" ? <ProjectRulesMenu /> : null}
             {view.mode === "single" ? <ChatFilesMenu /> : null}
             {view.mode === "single" && (
               <ChatHeaderMenu temporary={incognito} onToggleTemporary={toggleIncognito} />

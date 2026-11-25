@@ -35,6 +35,8 @@ MIN_CONTEXT_CHARS = 16_000
 MAX_CONTEXT_CHARS = 400_000
 KEEP_RECENT_RESULTS = 2
 MAX_LISTED_AGENTS = 30
+# Several agents at once share the llama-server slots; more would only queue behind each other.
+MAX_PARALLEL = 4
 
 _TOOL_MAP = {
     "bash": ("terminal", "python"),
@@ -139,8 +141,30 @@ def tool_definition(agents: Optional[list[dict]] = None) -> Optional[dict]:
                         "type": "string",
                         "description": "The complete task, with paths, goals and constraints.",
                     },
+                    "tasks": {
+                        "type": "array",
+                        "description": (
+                            f"Instead of agent/task: up to {MAX_PARALLEL} independent tasks run at "
+                            "the same time, e.g. several explore surveys of different folders. "
+                            "Returns all reports together."
+                        ),
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "agent": {"type": "string"},
+                                "task": {"type": "string"},
+                            },
+                            "required": ["agent", "task"],
+                        },
+                    },
+                    "run_in_background": {
+                        "type": "boolean",
+                        "description": (
+                            "Start the agent(s) and return at once with a job id; keep working and "
+                            "read the reports later with terminal_output (wait_seconds to wait)."
+                        ),
+                    },
                 },
-                "required": ["agent", "task"],
             },
         },
     }
@@ -436,6 +460,92 @@ def run_agent(
                 }
             )
     return _report(agent, steps, "", f"stopped after {MAX_ROUNDS} rounds without a final report")
+
+
+def requested_tasks(arguments: Any) -> list[dict]:
+    """The (agent, task) pairs a run_agent call asks for, from `tasks` or from agent/task."""
+    if not isinstance(arguments, dict):
+        return []
+    tasks = arguments.get("tasks")
+    if isinstance(tasks, str):
+        try:
+            tasks = json.loads(tasks)
+        except ValueError:
+            tasks = None
+    if isinstance(tasks, list) and tasks:
+        return [
+            {"agent": str(t.get("agent") or "").strip(), "task": str(t.get("task") or "").strip()}
+            for t in tasks
+            if isinstance(t, dict)
+        ]
+    return [
+        {
+            "agent": str(arguments.get("agent") or "").strip(),
+            "task": str(arguments.get("task") or "").strip(),
+        }
+    ]
+
+
+def run_agents(
+    arguments: Any,
+    *,
+    session_id: Optional[str],
+    cancel_event = None,
+    **kwargs,
+) -> str:
+    """run_agent as the tool sees it: one agent, several in parallel, or either in the background."""
+    tasks = requested_tasks(arguments)
+    if not tasks:
+        return 'Error: run_agent takes {"agent": ..., "task": ...} or {"tasks": [...]}.'
+    if len(tasks) > MAX_PARALLEL:
+        return f"Error: at most {MAX_PARALLEL} tasks at once; group the rest or run them after."
+    background = isinstance(arguments, dict) and arguments.get("run_in_background") is True
+
+    def run_all(cancel, append = None) -> str:
+        if len(tasks) == 1:
+            report = run_agent(tasks[0], session_id = session_id, cancel_event = cancel, **kwargs)
+            _subagent_stop(session_id, tasks[0], report)
+            return report
+        import concurrent.futures
+        import contextvars
+
+        def one(task: dict) -> str:
+            report = run_agent(task, session_id = session_id, cancel_event = cancel, **kwargs)
+            _subagent_stop(session_id, task, report)
+            if append is not None:
+                append(f"[{task['agent']} done]\n")
+            return report
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers = len(tasks)) as pool:
+            futures = [pool.submit(contextvars.copy_context().run, one, task) for task in tasks]
+            reports = [future.result() for future in futures]
+        return "\n\n".join(
+            f"## {index}. {task['agent']}: {task['task'][:80]}\n{report}"
+            for index, (task, report) in enumerate(zip(tasks, reports), start = 1)
+        )
+
+    if not background:
+        return run_all(cancel_event)
+
+    from core.inference import background_jobs
+
+    label = "agent " + ", ".join(task["agent"] for task in tasks) + ": " + tasks[0]["task"][:60]
+
+    def _job(job_cancel, append, _timeout) -> str:
+        report = run_all(job_cancel, append)
+        append(report + "\n")
+        return ""
+
+    return background_jobs.start(label, session_id, _job)
+
+
+def _subagent_stop(session_id: Optional[str], task: dict, report: str) -> None:
+    """Plugins' SubagentStop hooks see each finished agent (core/plugins/hooks.py)."""
+    try:
+        from . import hooks
+        hooks.subagent_stop(session_id, task.get("agent") or "", report)
+    except Exception:  # noqa: BLE001 -- a hook must never break the agent's report
+        pass
 
 
 def _report(agent: dict, steps: list[str], text: str, problem: Optional[str]) -> str:
