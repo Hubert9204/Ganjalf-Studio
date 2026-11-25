@@ -163,6 +163,9 @@ def test_the_override_reaches_the_setup_runner(monkeypatch, tmp_path):
 
 def test_a_pypi_update_passes_no_checkout(monkeypatch):
     studio, seen = _neutered(monkeypatch)
+    # Ganjalf: run from its own checkout, update pulls that checkout instead of PyPI; this
+    # test is about an install that is not a Ganjalf tree.
+    monkeypatch.setattr(studio, "_ganjalf_checkout", lambda: None)
 
     def _setup(*a, **k):
         seen["repo_root"] = k.get("repo_root")
