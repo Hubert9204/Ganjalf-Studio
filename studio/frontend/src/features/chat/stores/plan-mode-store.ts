@@ -21,3 +21,11 @@ export function planModeField(planMode: boolean, codeTools: boolean): { plan_mod
 
 /** What the approve button puts in the composer. */
 export const PLAN_APPROVED_TEXT = "Piano approvato: procedi con l'implementazione.";
+
+/**
+ * A plan card that just finished (it was running while on screen) ends plan mode by itself:
+ * the user's next message builds the plan. A card loaded already complete (an old chat) does not.
+ */
+export function planJustPresented(previous: string | undefined, current: string | undefined): boolean {
+  return current === "complete" && previous !== undefined && previous !== "complete";
+}

@@ -6619,8 +6619,10 @@ async def _select_request_tools(
         tools = [tool for tool in tools if tool["function"]["name"] in delegated]
     if tools_on and getattr(payload, "plan_mode", None) is True:
         # Ganjalf plan mode: explore read-only, then present the plan with exit_plan_mode.
-        from core.inference.agent_tools import apply_plan_mode
-        tools = apply_plan_mode(tools)
+        # Once a plan was presented, the next user message builds it (plan mode switches off).
+        from core.inference.agent_tools import apply_plan_mode, plan_presented_last_turn
+        if not plan_presented_last_turn(payload.messages):
+            tools = apply_plan_mode(tools)
     return tools
 
 

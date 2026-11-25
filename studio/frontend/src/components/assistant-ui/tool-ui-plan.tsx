@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Ganjalf: the plan the model presented in plan mode (exit_plan_mode), with approve / change.
 
-import { PLAN_APPROVED_TEXT, usePlanModeStore } from "@/features/chat/stores/plan-mode-store";
+import { PLAN_APPROVED_TEXT, planJustPresented, usePlanModeStore } from "@/features/chat";
 import { useT } from "@/i18n";
 import { type ToolCallMessagePartComponent, useAui } from "@assistant-ui/react";
 import { Task01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useEffect, useRef } from "react";
 import { toolArgText } from "./tool-arg-text";
 import { ToolFallbackContent, ToolFallbackRoot, ToolFallbackTrigger } from "./tool-fallback";
 
@@ -19,6 +20,13 @@ export const PlanToolUI: ToolCallMessagePartComponent<{ plan?: unknown }> = ({ a
   const plan = toolArgText(args?.plan);
   const planMode = usePlanModeStore((s) => s.planMode);
   const setPlanMode = usePlanModeStore((s) => s.setPlanMode);
+  const statusType = status?.type;
+  const seenStatus = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    // Plan presented: plan mode switches itself off, so the next message builds it.
+    if (planJustPresented(seenStatus.current, statusType)) setPlanMode(false);
+    seenStatus.current = statusType;
+  }, [statusType, setPlanMode]);
   if (!plan) return null;
   const approve = () => {
     setPlanMode(false);

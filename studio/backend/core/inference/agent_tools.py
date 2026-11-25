@@ -582,15 +582,45 @@ def apply_plan_mode(tools: list[dict]) -> list[dict]:
     return kept + [EXIT_PLAN_MODE_TOOL]
 
 
+def _field(message, name: str):
+    return message.get(name) if isinstance(message, dict) else getattr(message, name, None)
+
+
+def plan_presented_last_turn(messages) -> bool:
+    """Ganjalf: the turn before the user's latest message presented a plan. That message is the
+    go-ahead, whatever it says ("vai avanti", "ok", a change to make): plan mode ends there
+    even if the client still asks for it, so the user never has to switch it off by hand."""
+    messages = list(messages or [])
+    last_user = next(
+        (i for i in range(len(messages) - 1, -1, -1) if _field(messages[i], "role") == "user"),
+        None,
+    )
+    if last_user is None:
+        return False
+    for message in reversed(messages[:last_user]):
+        role = _field(message, "role")
+        if role == "user":
+            return False
+        for call in _field(message, "tool_calls") or ():
+            function = call.get("function") if isinstance(call, dict) else None
+            if isinstance(function, dict) and function.get("name") == "exit_plan_mode":
+                return True
+        content = _field(message, "content")
+        if role == "tool" and isinstance(content, str) and content.startswith(PLAN_APPROVAL_TAG):
+            return True
+    return False
+
+
 def exit_plan_mode(arguments: dict) -> str:
     plan = str((arguments or {}).get("plan") or "").strip()
     if not plan:
         return "Error: give the plan in 'plan'."
     return (
-        f"{PLAN_APPROVAL_TAG} The user now sees this plan in a card with an Approve button. End "
-        "your turn with one or two short sentences: an open question if you have one, otherwise "
-        "ask whether to proceed. Do not repeat or summarise the plan (it is already on screen) "
-        "and do not start the work."
+        f"{PLAN_APPROVAL_TAG} The user now sees this plan in a card. Plan mode ends here: the "
+        "user's next message is the go-ahead, and you will then have all your tools back. End "
+        "your turn with one short sentence: an open question if you have one, otherwise ask "
+        "whether to proceed. Do not say the plan is approved, do not repeat or summarise it (it "
+        "is already on screen) and do not start the work in this turn."
     )
 
 

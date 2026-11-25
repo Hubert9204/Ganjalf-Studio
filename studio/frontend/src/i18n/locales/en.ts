@@ -897,8 +897,8 @@ export const en = {
   planMode: {
     cardTitle: "Plan",
     approve: "Approve and build",
-    approveHint: "Turns plan mode off and writes the go-ahead in the box: press Enter to start.",
-    approvedHint: "Plan mode is off: send the go-ahead, or ask for changes.",
+    approveHint: "Writes the go-ahead in the box: press Enter to start.",
+    approvedHint: "Plan mode switched itself off: your next message starts the work (say ok, or what to change).",
   },
   permissionRules: {
     title: "Project permissions",

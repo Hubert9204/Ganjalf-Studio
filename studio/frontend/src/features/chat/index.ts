@@ -720,3 +720,9 @@ export { chatLocalModelOptions } from "./local-model-options";
 export { readLastLocalModelLoad } from "./utils/last-local-model-load";
 export { decideAutoRead } from "./utils/auto-read-aloud";
 export { wantsDownloadManagerStaging } from "./utils/model-download-staging";
+// Ganjalf plan mode (the plan card switches it off once a plan is presented).
+export {
+  PLAN_APPROVED_TEXT,
+  planJustPresented,
+  usePlanModeStore,
+} from "./stores/plan-mode-store";

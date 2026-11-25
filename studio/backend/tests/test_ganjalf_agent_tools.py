@@ -263,7 +263,7 @@ def test_exit_plan_mode_ends_the_tool_rounds():
     )
     reply = tools.execute_tool("exit_plan_mode", {"plan": "1. Scene"}, session_id = "s")
     # The card shows the plan from the call's arguments; the result only says to end the turn.
-    assert reply.startswith(agent_tools.PLAN_APPROVAL_TAG) and "Do not repeat" in reply
+    assert reply.startswith(agent_tools.PLAN_APPROVAL_TAG) and "do not repeat" in reply
     controller.record_result(decision, reply)
     assert controller.force_final_answer and controller.active_tools() == []
     assert controller.awaiting_user
@@ -418,8 +418,9 @@ def test_agent_rounds_think_within_a_budget_unless_the_user_set_one(monkeypatch)
 def test_the_plan_card_is_not_repeated_as_text():
     reply = tools.execute_tool("exit_plan_mode", {"plan": "1. Scene"}, session_id = "s")
     assert (
-        "Do not repeat or summarise the plan" in reply
+        "do not repeat or summarise it" in reply
         and "write the plan as your answer" not in reply
+        and "Plan mode ends here" in reply
     )
 
 
@@ -477,3 +478,55 @@ def test_more_errors_than_last_time_says_the_edits_made_it_worse():
     assert "worse" not in shapes.compile_errors_note(
         errors(5), session_id = "other", command = "npx tsc --noEmit"
     )
+
+
+def test_the_message_after_a_plan_builds_it_even_if_plan_mode_is_still_asked():
+    """The user typed "vai avanti" instead of pressing Approve: plan mode must not come back."""
+    import asyncio
+
+    from models.inference import ChatCompletionRequest
+    from routes.inference import _select_request_tools
+
+    plan_turn = [
+        {"role": "user", "content": "build an L2 demo"},
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": "p1",
+                    "type": "function",
+                    "function": {"name": "exit_plan_mode", "arguments": '{"plan": "1. Files"}'},
+                }
+            ],
+        },
+        {"role": "tool", "tool_call_id": "p1", "content": agent_tools.PLAN_APPROVAL_TAG + " ..."},
+        {"role": "assistant", "content": "Procedo?"},
+    ]
+
+    def names(messages):
+        chat = ChatCompletionRequest(
+            model = "m",
+            messages = messages,
+            enable_tools = True,
+            enabled_tools = ["terminal", "edit_file", "web_search"],
+            plan_mode = True,
+        )
+        return {
+            t["function"]["name"]
+            for t in asyncio.run(_select_request_tools(chat, tools_on = True, mcp_allowed = False))
+        }
+
+    go = names([*plan_turn, {"role": "user", "content": "vai avanti"}])
+    assert {"terminal", "edit_file"} <= go and "exit_plan_mode" not in go
+    # A new request, a turn later, with plan mode switched on again: it plans again.
+    again = names(
+        [
+            *plan_turn,
+            {"role": "user", "content": "vai"},
+            {"role": "assistant", "content": "Fatto."},
+            {"role": "user", "content": "ora un altro gioco"},
+        ]
+    )
+    assert "exit_plan_mode" in again and "terminal" not in again
+    assert not agent_tools.plan_presented_last_turn([{"role": "user", "content": "hi"}])

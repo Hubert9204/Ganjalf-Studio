@@ -4028,8 +4028,8 @@ export const it = {
   planMode: {
     cardTitle: "Piano",
     approve: "Approva e procedi",
-    approveHint: "Spegne la modalità piano e scrive l'ok nella casella: premi Invio per partire.",
-    approvedHint: "Modalità piano spenta: manda l'ok, oppure chiedi modifiche.",
+    approveHint: "Scrive l'ok nella casella: premi Invio per partire.",
+    approvedHint: "La modalità piano si è spenta da sola: il prossimo messaggio avvia il lavoro (scrivi ok, o cosa cambiare).",
   },
   permissionRules: {
     title: "Permessi del progetto",
