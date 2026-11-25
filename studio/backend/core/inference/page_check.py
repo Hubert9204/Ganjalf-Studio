@@ -114,11 +114,15 @@ CHECK_PAGE_TOOL = {
                 "evaluate": {
                     "type": "string",
                     "description": (
-                        "A JavaScript expression run in the page after the keys, whose JSON value "
-                        "is returned, to check what happened instead of guessing from the "
-                        "screenshot: e.g. `window.game.player.position` (expose what you need on "
-                        "window first) or `document.querySelectorAll('.mob').length`. Run "
-                        "check_page twice (before and after keys) to compare."
+                        "JavaScript run in the page after the keys; the value of its last "
+                        "expression comes back as JSON (a promise is awaited). Use it to check "
+                        "what happened instead of guessing from the screenshot "
+                        "(`window.game.player.position`), and to use the page as the user would: "
+                        "fill a field, click a button, then read the result, e.g. "
+                        "`document.querySelector('#desc').value='Taxi'; "
+                        "document.querySelector('#add').click(); await new Promise(r => "
+                        "setTimeout(r, 500)); document.querySelector('#list').innerText`. An "
+                        "error thrown by the page's own handler comes back as `failed: ...`."
                     ),
                 },
             },
@@ -504,6 +508,8 @@ def _run(
         try:
             context = browser.new_context(
                 viewport = VIEWPORT,
+                # The model's own page under test: a strict CSP must not block `evaluate`.
+                bypass_csp = True,
                 service_workers = "block",
                 accept_downloads = False,
             )
@@ -603,14 +609,54 @@ def _run(
             browser.close()
 
 
+# Runs the model's code as the body of an async function whose result is its last statement, so
+# top-level `await` works and `a(); b; c.innerText` returns c.innerText. Statements are split on
+# top-level `;` (outside strings and brackets); a last statement that is not an expression
+# (`if`, `const`) runs as written and gives undefined.
+_EVALUATE_JS = r"""
+async (source) => {
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  const split = (s) => {
+    const parts = []; let depth = 0, quote = null, cur = '';
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (quote) {
+        cur += c;
+        if (c === '\\') { cur += s[++i] || ''; continue; }
+        if (c === quote) quote = null;
+        continue;
+      }
+      if (c === '"' || c === "'" || c === '`') { quote = c; cur += c; continue; }
+      if ('([{'.includes(c)) depth++;
+      if (')]}'.includes(c)) depth--;
+      if ((c === ';' || c === '\n') && depth === 0) { if (cur.trim()) parts.push(cur); cur = ''; continue; }
+      cur += c;
+    }
+    if (cur.trim()) parts.push(cur);
+    return parts.map((p) => p.trim());
+  };
+  let run;
+  const parts = split(source);
+  const last = parts.pop() || 'undefined';
+  try {
+    run = new AsyncFunction(parts.join(';\n') + ';\nreturn (' + last + '\n);');
+  } catch (e) {
+    // The last statement is not an expression (`if`, `const`, `return x`): run it as written.
+    if (!(e instanceof SyntaxError)) throw e;
+    run = new AsyncFunction(source);
+  }
+  const v = await run();
+  try { return JSON.stringify(v) ?? String(v); } catch (e) { return String(v); }
+}
+"""
+
+
 def _evaluate(page, expression: str) -> str:
     """Ganjalf: the value of the model's expression, as JSON text, or why it failed."""
     try:
-        value = page.evaluate(
-            "(source) => { const v = (0, eval)(source); "
-            "try { return JSON.stringify(v, null, 0) ?? String(v); } catch (e) { return String(v); } }",
-            expression,
-        )
+        # Awaited when it returns a promise, so `await addExpense(); document.body.innerText`
+        # or a handler that fetches is read after it finished.
+        value = page.evaluate(_EVALUATE_JS, expression)
     except Exception as exc:  # noqa: BLE001 -- the page's own error goes back to the model
         first = str(exc).splitlines()[0] if str(exc) else type(exc).__name__
         return "failed: " + _clip(first.replace("Page.evaluate: ", "", 1), 300)

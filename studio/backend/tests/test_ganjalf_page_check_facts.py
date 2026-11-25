@@ -81,3 +81,41 @@ def test_evaluate_reports_what_the_page_holds(tmp_path):
     assert page_check.check_page({"path": "index.html", "evaluate": 5}, str(tmp_path)).startswith(
         "Error"
     )
+
+
+def test_evaluate_uses_the_page_like_the_user(tmp_path):
+    """Fill, click, await, read: the UI path the API checks with curl never exercised."""
+    import pytest
+
+    if not page_check.check_page_available():
+        pytest.skip("needs Playwright and Chromium")
+    (tmp_path / "index.html").write_text(
+        '<input id="d"><button id="add" onclick="add()">Add</button><ul id="list"></ul><script>'
+        "async function add(){await new Promise(r=>setTimeout(r,100));const li=document.createElement('li');"
+        "li.textContent=document.querySelector('#d').value;document.querySelector('#list').appendChild(li)}"
+        "function custom(){return document.querySelector('.split-row select').value}</script>"
+    )
+
+    def value(expression):
+        out = page_check.check_page(
+            {"path": "index.html", "wait_seconds": 0.1, "evaluate": expression}, str(tmp_path)
+        )
+        return next(line for line in out.splitlines() if line.startswith("evaluate: "))[10:]
+
+    assert (
+        value(
+            "document.querySelector('#d').value='Taxi';\nawait add();\ndocument.querySelector('#list').innerText"
+        )
+        == '"Taxi"'
+    )
+    assert (
+        value(
+            "document.querySelector('#d').value='Pizza'; document.querySelector('#add').click(); "
+            "await new Promise(r => setTimeout(r, 300)); document.querySelector('#list').innerText"
+        )
+        == '"Pizza"'
+    )
+    assert value("custom()").startswith("failed: TypeError")  # the handler's own bug comes back
+    assert value("const f = () => {\n  return 2\n}\nf()") == "2"
+    assert value("return {n: 1}") == '{"n":1}'
+    assert value("`a;${1+1}`") == '"a;2"'
