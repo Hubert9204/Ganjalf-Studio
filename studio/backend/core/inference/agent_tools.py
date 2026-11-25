@@ -520,7 +520,8 @@ PLAN_MODE_TIP = (
     "then call exit_plan_mode with a concrete plan: the files you will create or change, the "
     "steps in order, and how you will check the result. Do not write the code or the contents "
     "of files in your reply and do not ask the user to copy code: after approval you create "
-    "and run everything yourself."
+    "and run everything yourself. A plan names files and steps, it does not design the code: "
+    "as soon as you know them, call exit_plan_mode instead of thinking further."
 )
 
 
@@ -550,9 +551,10 @@ def exit_plan_mode(arguments: dict) -> str:
     if not plan:
         return "Error: give the plan in 'plan'."
     return (
-        f"{PLAN_APPROVAL_TAG} The plan is ready for the user. Now end your turn: write the plan as "
-        "your answer (clear headings, the steps in order, files, checks, open questions) and ask "
-        "the user to approve it or say what to change. Do not start the work.\n\nPlan:\n" + plan
+        f"{PLAN_APPROVAL_TAG} The user now sees this plan in a card with an Approve button. End "
+        "your turn with one or two short sentences: an open question if you have one, otherwise "
+        "ask whether to proceed. Do not repeat or summarise the plan (it is already on screen) "
+        "and do not start the work."
     )
 
 

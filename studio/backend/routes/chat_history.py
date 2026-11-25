@@ -1595,16 +1595,17 @@ def _resolve_project_working_folder(lease: str) -> tuple[str, tuple[int, int]]:
     return _checked_project_folder(path)
 
 
-def _resolve_server_working_folder(server_path: str) -> tuple[str, tuple[int, int]]:
+def _resolve_server_working_folder(server_path: str, request = None) -> tuple[str, tuple[int, int]]:
     from core.rag import folder_sync
     from routes.models import _build_browse_allowlist, _resolve_browse_target
 
-    if not policy.server_folder_pick_permitted():
+    if not policy.server_folder_pick_permitted(request):
         raise HTTPException(
             status_code = 403,
             detail = (
-                "Choosing a folder from the browser only works on this computer with remote "
-                "access off. Use Unsloth Desktop, or turn off remote access."
+                "Choosing a folder from the browser only works from this computer (127.0.0.1), "
+                "not from another device or through remote access. Use Ganjalf Desktop, or open "
+                "Ganjalf on this computer."
             ),
         )
     target = _resolve_browse_target(server_path, _build_browse_allowlist())
@@ -1651,8 +1652,10 @@ def _checked_project_folder(path: str) -> tuple[str, tuple[int, int]]:
 
 
 @router.get("/project-folder-access", response_model = ChatProjectFolderAccess)
-def get_project_folder_access(current_subject: str = Depends(get_current_subject)):
-    return ChatProjectFolderAccess(serverPath = policy.server_folder_pick_permitted())
+def get_project_folder_access(
+    current_subject: str = Depends(get_current_subject), request: Request = None
+):
+    return ChatProjectFolderAccess(serverPath = policy.server_folder_pick_permitted(request))
 
 
 @router.put("/projects/{project_id}/working-folder", response_model = ChatProject)
@@ -1660,6 +1663,7 @@ def set_project_working_folder(
     project_id: str,
     payload: ChatProjectWorkingFolder,
     current_subject: str = Depends(get_current_subject),
+    request: Request = None,  # FastAPI fills it; direct callers may leave it out
 ):
     if not is_owner_context():
         raise HTTPException(status_code = 403, detail = "Only the owner can use a local folder.")
@@ -1669,7 +1673,7 @@ def set_project_working_folder(
         path, identity = (
             _resolve_project_working_folder(payload.native_path_lease)
             if payload.native_path_lease is not None
-            else _resolve_server_working_folder(payload.server_path or "")
+            else _resolve_server_working_folder(payload.server_path or "", request)
         )
         project = set_chat_project_working_folder(project_id, path, identity)
     except HTTPException:

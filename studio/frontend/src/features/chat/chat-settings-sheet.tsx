@@ -2000,7 +2000,7 @@ function ThinkingBudgetSlider() {
       step={256}
       onChange={setTokens}
       format={(v) => (v === 0 ? "Auto" : undefined)}
-      info="Most tokens a local model may spend thinking before it has to answer (Anthropic's thinking budget_tokens). Auto keeps the model's own setting. A long agent run with a thinking model stays faster and on task with a budget of a few thousand tokens."
+      info="Most tokens a local model may spend thinking before it has to answer (Anthropic's thinking budget_tokens). Auto: plain chats think freely, each round of an agent run with tools stops thinking at 6144 tokens (GANJALF_AGENT_THINKING_BUDGET). Set a value to use it everywhere."
     />
   );
 }

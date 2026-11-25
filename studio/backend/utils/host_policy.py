@@ -280,6 +280,16 @@ def serves_this_machine_only() -> bool:
     return _local_bind and not remote_connector_active()
 
 
+def serves_this_request_locally(request) -> bool:
+    """Ganjalf: a request from this very computer (loopback on both ends) while only the LAN
+    listener widens the server. A tunnel delivers its traffic over loopback too, so it never counts."""
+    if not _local_bind or tunnel_connector_active() or request is None:
+        return False
+    from utils.lan_access_settings import request_is_loopback
+
+    return request_is_loopback(request)
+
+
 def loopback_default_active() -> bool:
     """True when stdio MCP is on only because a loopback bind auto-enabled it, rather than an explicit operator opt-in. Lets the gate tell the two apart."""
     return _auto_enabled

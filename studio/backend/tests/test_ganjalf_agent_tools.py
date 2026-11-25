@@ -262,7 +262,8 @@ def test_exit_plan_mode_ends_the_tool_rounds():
         {"id": "p1", "function": {"name": "exit_plan_mode", "arguments": {"plan": "1. Scene"}}}
     )
     reply = tools.execute_tool("exit_plan_mode", {"plan": "1. Scene"}, session_id = "s")
-    assert reply.startswith(agent_tools.PLAN_APPROVAL_TAG) and "1. Scene" in reply
+    # The card shows the plan from the call's arguments; the result only says to end the turn.
+    assert reply.startswith(agent_tools.PLAN_APPROVAL_TAG) and "Do not repeat" in reply
     controller.record_result(decision, reply)
     assert controller.force_final_answer and controller.active_tools() == []
     assert controller.awaiting_user
@@ -401,3 +402,22 @@ def test_plan_mode_is_said_in_the_system_text_not_only_in_the_tool_list(monkeypa
     assert "No local python or terminal tool is available" not in text
     normal = routes._build_tool_action_nudge(tools = full, model_name = "Qwen3.8-27B-GGUF")
     assert "PLAN MODE" not in normal
+
+
+def test_agent_rounds_think_within_a_budget_unless_the_user_set_one(monkeypatch):
+    from core.inference import llama_cpp
+
+    monkeypatch.delenv("GANJALF_AGENT_THINKING_BUDGET", raising = False)
+    assert llama_cpp.agent_thinking_budget() == 6144
+    monkeypatch.setenv("GANJALF_AGENT_THINKING_BUDGET", "0")
+    assert llama_cpp.agent_thinking_budget() is None
+    monkeypatch.setenv("GANJALF_AGENT_THINKING_BUDGET", "2048")
+    assert llama_cpp.agent_thinking_budget() == 2048
+
+
+def test_the_plan_card_is_not_repeated_as_text():
+    reply = tools.execute_tool("exit_plan_mode", {"plan": "1. Scene"}, session_id = "s")
+    assert (
+        "Do not repeat or summarise the plan" in reply
+        and "write the plan as your answer" not in reply
+    )

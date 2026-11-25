@@ -404,6 +404,19 @@ def _once(on_compacting):
     return fire
 
 
+def agent_thinking_budget() -> Optional[int]:
+    """Ganjalf: tokens one agent round may think before it must act (GANJALF_AGENT_THINKING_BUDGET,
+    default 6144; 0 leaves it to the model). Local models otherwise draft whole files in their
+    reasoning, or plan in circles, before a single tool call: at 4-12 tokens a second that is
+    tens of minutes."""
+    raw = (os.environ.get("GANJALF_AGENT_THINKING_BUDGET") or "").strip()
+    try:
+        value = int(raw) if raw else 6144
+    except ValueError:
+        value = 6144
+    return value if value > 0 else None
+
+
 def _compaction_reporter(perf_callback):
     report = getattr(perf_callback, "compacting", None)
     return report if callable(report) else None
@@ -41047,6 +41060,13 @@ class LlamaCppBackend:
           {"type": "content", "text": "token"}            -- streamed content tokens (cumulative)
           {"type": "reasoning", "text": "token"}          -- streamed reasoning tokens (cumulative)
         """
+        # Ganjalf: an agent round thinks within a budget unless the user set one (Thinking Budget).
+        if (
+            thinking_budget_tokens is None
+            and enable_thinking is not False
+            and getattr(self, "_reasoning_budget", -1) < 0  # a budget set at load time wins
+        ):
+            thinking_budget_tokens = agent_thinking_budget()
         if replay_preserve_thinking:
             preserve_thinking = self._replay_preserve_thinking(
                 preserve_thinking, messages, enable_thinking, reasoning_effort

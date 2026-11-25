@@ -21,6 +21,8 @@
 #                           server at http://<this computer's IP>:<port>. Every device must use
 #                           one server: chats running in another server cannot be followed live.
 #   GANJALF_NO_BROWSER=1    do not open the browser
+#   GANJALF_AGENT_THINKING_BUDGET=<n>  tokens each agent round may think when the Thinking
+#                           Budget is on Auto (default 6144; 0 leaves it to the model)
 #   GANJALF_AUTO_SKILLS=0   do not let the backend load the skill that fits each request
 #   GANJALF_PAGE_CHECK=0    do not install or offer check_page (headless Chromium for web pages)
 #   UNSLOTH_NO_TORCH=1      first run only: skip PyTorch (GGUF-only, much smaller install)

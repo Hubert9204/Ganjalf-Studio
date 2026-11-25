@@ -89,3 +89,21 @@ def test_a_path_goes_through_the_browser_allowlist_and_the_folder_checks(
     with pytest.raises(HTTPException) as exc_info:
         chat_history._resolve_server_working_folder(str(home / ".ssh"))
     assert exc_info.value.status_code == 403
+
+
+class _Request:
+    def __init__(self, server, client):
+        self.scope = {"server": server, "client": client}
+
+
+def test_ganjalf_this_computer_may_choose_a_folder_while_lan_access_is_on(local, monkeypatch):
+    """LAN access on for a phone must not stop the PC itself (loopback) from choosing a folder."""
+    monkeypatch.setattr(host_policy, "_lan_connector_active", True)
+    from_pc = _Request(("127.0.0.1", 8888), ("127.0.0.1", 50000))
+    from_phone = _Request(("192.168.1.9", 8888), ("192.168.1.20", 50000))
+    assert policy.server_folder_pick_permitted() is False
+    assert policy.server_folder_pick_permitted(from_pc) is True
+    assert policy.server_folder_pick_permitted(from_phone) is False
+    # A tunnel also arrives over loopback: never counts as this computer.
+    monkeypatch.setattr(host_policy, "_remote_connector_active", True)
+    assert policy.server_folder_pick_permitted(from_pc) is False

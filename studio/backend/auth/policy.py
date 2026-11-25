@@ -108,14 +108,15 @@ def api_full_access_refused() -> bool:
     return via_api_key_context() and os.environ.get("UNSLOTH_STUDIO_ALLOW_API_FULL_ACCESS") != "1"
 
 
-def server_folder_pick_permitted() -> bool:
-    """Path-named folders run tools unsandboxed: only on a loopback bind with no tunnel/LAN (the bind decides, not the MCP env)."""
+def server_folder_pick_permitted(request = None) -> bool:
+    """Path-named folders run tools unsandboxed: only on a loopback bind with no tunnel/LAN (the bind decides, not the MCP env).
+    Ganjalf: with only LAN access on, a request from this computer itself may still choose one."""
     from utils.account_context import is_owner_context, via_api_key_context
-    from utils.host_policy import serves_this_machine_only
+    from utils.host_policy import serves_this_machine_only, serves_this_request_locally
 
     if not is_owner_context() or via_api_key_context():
         return False
-    return serves_this_machine_only()
+    return serves_this_machine_only() or serves_this_request_locally(request)
 
 
 def _forbid(detail: str) -> HTTPException:

@@ -251,7 +251,7 @@ export function WorkingFolderPicker({
             ? "Choose the folder again to retry, or use the managed folder."
             : !isTauri
               ? isOwner
-                ? "Choosing a folder here works on this computer with remote access off. Otherwise use Ganjalf Desktop, or the managed folder."
+                ? "Choosing a folder here works from this computer (127.0.0.1), not from another device or through remote access. Otherwise use Ganjalf Desktop, or the managed folder."
                 : "Only the owner can choose a local working folder."
               : !isOwner
                 ? "Only the owner can choose a local working folder."
