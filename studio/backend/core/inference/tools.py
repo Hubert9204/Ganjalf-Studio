@@ -10330,7 +10330,8 @@ def _low_memory_guard(
 
 
 def _guard_system_memory(proc, pgid) -> None:
-    if not _psutil_available() and not os.path.exists("/proc/meminfo"):
+    # Needs psutil to measure the command's own tree.
+    if not _psutil_available():
         return
     reading = _system_memory()
     if reading is None or not _low_memory_floor_bytes(reading[1]):
@@ -10340,8 +10341,6 @@ def _guard_system_memory(proc, pgid) -> None:
 
 def _cap_tool_memory(proc, pgid, sandboxed: bool) -> None:
     """The sandbox memory limit where RLIMIT_AS does not work: a job memory limit on Windows, a watchdog elsewhere."""
-    if _psutil_available():
-        _guard_system_memory(proc, pgid)
     if not sandboxed or (sys.platform == "linux" and not _linux_rss_watchdog):
         return
     limit_bytes = sandbox_memory_limit.memory_limit_bytes()
@@ -25072,6 +25071,7 @@ def _python_exec(
         # Capture the group before any watcher can reap the leader (see _capture_process_group); None on Windows.
         pgid = _capture_process_group(proc)
         _cap_tool_memory(proc, pgid, not disable_sandbox)
+        _guard_system_memory(proc, pgid)
         _adopt_tool_pid(proc.pid)
 
         if cancel_event is not None:
@@ -25379,6 +25379,7 @@ def _bash_exec(
         pgid = _capture_process_group(proc)
         _lower_tool_priority(pgid)
         _cap_tool_memory(proc, pgid, not disable_sandbox)
+        _guard_system_memory(proc, pgid)
         _adopt_tool_pid(proc.pid)
 
         if cancel_event is not None:
