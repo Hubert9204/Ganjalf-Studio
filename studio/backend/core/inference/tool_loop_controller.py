@@ -20,6 +20,13 @@ from core.inference.llama_tool_schema import unrelaxed
 from core.inference.mcp_images import is_image_tool, mark_as_taken, split_images as split_mcp_images
 from core.inference.media_chat_tools import MEDIA_CHAT_TOOLS
 from core.inference.tool_facts import REPEATABLE, awaits_user, reads_only, repeatable
+from core.inference.command_shapes import (
+    ROOT_ALREADY_REFUSED,
+    ROOT_REFUSED_MARK,
+    remember_no_root,
+    needs_elevation,
+    root_refused,
+)
 
 # Provenance the envelope is trusted on; stamped by mcp_client.
 MCP_TOOL_PREFIX = "mcp__"
@@ -1518,6 +1525,11 @@ class ToolLoopController:
             # reason to end the turn (that left the user typing "continue").
             action = "retired"
             noop = PLAN_ALREADY_APPROVED
+        elif tool_name == "terminal" and self._root_already_refused(arguments):
+            # Ganjalf: sudo / dnf install already failed for lack of the password in this chat;
+            # every other spelling fails the same way, so it is not run again.
+            action = "retired"
+            noop = ROOT_ALREADY_REFUSED
         elif tool_name in self._completed_one_shot_tools:
             action = "render_html_repeat"
             noop = _noop_result("render_html_repeat", tool_name)
@@ -1563,6 +1575,12 @@ class ToolLoopController:
             session_id = self._thread_id or self._session_id or "",
         )
 
+    def _root_already_refused(self, arguments: Mapping[str, Any]) -> bool:
+        command = arguments.get("command") if isinstance(arguments, Mapping) else None
+        if not needs_elevation(command):
+            return False
+        return any(root_refused(key) for key in {self._thread_id, self._session_id} if key)
+
     def reprepare_call(
         self,
         decision: ToolCallDecision,
@@ -1595,6 +1613,10 @@ class ToolLoopController:
             # Ganjalf plan mode: the plan is the answer; the next pass has no tools.
             self._force_final_answer = True
         self._note_todo_stall(decision.tool_name, result_text)
+        if decision.tool_name == "terminal" and ROOT_REFUSED_MARK in result_text:
+            for key in {self._thread_id, self._session_id}:
+                if key and not root_refused(key):
+                    remember_no_root(key)
         result_text = self._cap_result(result_text, decision.tool_name)
         self._history.append(
             _ToolCallRecord(

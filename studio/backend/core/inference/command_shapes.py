@@ -236,3 +236,81 @@ def literal_newline_note(path: str, text: str) -> str:
         f"\n[Line {lines} holds a literal \\n between two statements: the newline was escaped "
         "twice. Fix every one now with real line breaks, before running anything.]"
     )
+
+
+# --- installs that need the administrator password ------------------------------------------
+# Ganjalf: run as a normal user, the agent cannot give sudo a password, yet it kept trying
+# sudo, su, pkexec, another package manager... one after the other. The first refusal is turned
+# into a clear note, and the session remembers it so the tool loop can refuse the next try at once.
+
+_ELEVATION_RE = re.compile(
+    r"(?:^|[\s;&|(`$])(?:sudo|su|doas|pkexec|run0)(?=\s|$)"
+    r"|(?:^|[\s;&|(`$])(?:dnf5?|yum|microdnf|apt|apt-get|aptitude|zypper|apk|rpm-ostree|emerge|"
+    r"xbps-install|eopkg|snap|pkg)\s+(?:-\S+\s+)*(?:install|reinstall|add|in|upgrade|update|groupinstall)\b"
+    r"|(?:^|[\s;&|(`$])pacman\s+-S"
+    r"|(?:^|[\s;&|(`$])(?:dpkg\s+-i|rpm\s+-[iU])"
+    r"|(?:^|[\s;&|(`$])flatpak\s+install\b(?![^;&|]*--user)"
+)
+
+_NEEDS_ROOT_RE = re.compile(
+    r"a password is required|a terminal is required|no tty present|no askpass program"
+    r"|sudo: \d+ incorrect password|Sorry, try again|is not in the sudoers file"
+    r"|may not run sudo|su: (?:Authentication failure|must be run from a terminal)"
+    r"|Not authorized|Request dismissed|Error executing command as another user"
+    r"|has to be run with superuser privileges|you need to be root|are you root\?"
+    r"|must be run as root|requires root|root privileges are required"
+    r"|you cannot perform this operation unless you are root|Permission denied.*(?:lock|/var/lib/)"
+    r"|Could not open lock file|Unable to acquire the dpkg frontend lock"
+    r"|Unable to lock the administration directory|insufficient privileges",
+    re.IGNORECASE,
+)
+
+ROOT_REFUSED_MARK = "[No administrator password:"
+
+_NO_ROOT_SESSIONS: "dict[str, int]" = {}
+_MAX_REMEMBERED_SESSIONS = 200
+
+
+def needs_elevation(command) -> bool:
+    return isinstance(command, str) and bool(_ELEVATION_RE.search(command))
+
+
+def remember_no_root(session_id) -> None:
+    key = str(session_id or "")
+    if not key:
+        return
+    if len(_NO_ROOT_SESSIONS) >= _MAX_REMEMBERED_SESSIONS and key not in _NO_ROOT_SESSIONS:
+        _NO_ROOT_SESSIONS.pop(next(iter(_NO_ROOT_SESSIONS)))
+    _NO_ROOT_SESSIONS[key] = _NO_ROOT_SESSIONS.get(key, 0) + 1
+
+
+def root_refused(session_id) -> bool:
+    return bool(session_id) and str(session_id) in _NO_ROOT_SESSIONS
+
+
+def no_root_note(
+    output,
+    command,
+    session_id = None,
+) -> str:
+    """A note when an install or sudo failed for lack of the administrator password."""
+    if not isinstance(output, str) or not needs_elevation(command):
+        return ""
+    if not _NEEDS_ROOT_RE.search(output[-6000:]):
+        return ""
+    remember_no_root(session_id)
+    return (
+        f"\n{ROOT_REFUSED_MARK} this needs root and Studio cannot type the user's password. Do not "
+        "try again with sudo, su, pkexec, doas, another package manager or a downloaded binary: "
+        "every such try fails the same way. Tell the user the exact command to run in their own "
+        "terminal (e.g. `sudo dnf install curl`), then carry on without it if you can -- for a "
+        'download without curl or wget: python3 -c "import urllib.request,sys; '
+        'urllib.request.urlretrieve(sys.argv[1], sys.argv[2])" URL FILE -- or stop and wait.]'
+    )
+
+
+ROOT_ALREADY_REFUSED = (
+    "Not run: this session already found that installs and sudo need the administrator password, "
+    "which Studio does not have. Give the user the command to run themselves and continue "
+    "without it, or stop and wait for them."
+)
