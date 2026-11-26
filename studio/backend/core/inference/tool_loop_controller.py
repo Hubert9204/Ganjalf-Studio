@@ -28,6 +28,16 @@ from core.inference.command_shapes import (
     root_refused,
 )
 
+
+def _already_installed(arguments: Mapping[str, Any]) -> str:
+    from core.inference.system_installs import already_installed_note
+    command = arguments.get("command") if isinstance(arguments, Mapping) else None
+    try:
+        return already_installed_note(command)
+    except Exception:  # noqa: BLE001 - a failed look just lets the command run
+        return ""
+
+
 # Provenance the envelope is trusted on; stamped by mcp_client.
 MCP_TOOL_PREFIX = "mcp__"
 # tools.MCP_TOOL_SEARCH_NAME; tools imports this module.
@@ -168,7 +178,13 @@ _ONE_SHOT_TOOLS = frozenset({"render_html"})
 
 NoopReason = Literal["duplicate", "disabled", "forced_mismatch", "render_html_repeat", "retired"]
 ToolAction = Literal[
-    "execute", "duplicate", "disabled", "forced_mismatch", "render_html_repeat", "retired"
+    "execute",
+    "duplicate",
+    "disabled",
+    "forced_mismatch",
+    "render_html_repeat",
+    "retired",
+    "satisfied",
 ]
 
 # The task list sent unchanged this many times in a row (no other tool in between) is a loop:
@@ -1525,6 +1541,11 @@ class ToolLoopController:
             # reason to end the turn (that left the user typing "continue").
             action = "retired"
             noop = PLAN_ALREADY_APPROVED
+        elif tool_name == "terminal" and (installed := _already_installed(arguments)):
+            # Ganjalf: the tools are on this computer already, whatever the chat said; no install,
+            # no approval card and no password box.
+            action = "satisfied"
+            noop = installed
         elif tool_name == "terminal" and self._root_already_refused(arguments):
             # Ganjalf: sudo / dnf install already failed for lack of the password in this chat;
             # every other spelling fails the same way, so it is not run again.

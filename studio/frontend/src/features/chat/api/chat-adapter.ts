@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright 2026-present the Unsloth AI Inc. team. All rights reserved. See /studio/LICENSE.AGPL-3.0
 
+import { parseSudoPrompt, useSudoPromptStore } from "../sudo-prompt-store";
 import { thinkingBudgetField, useThinkingBudgetStore } from "../stores/thinking-budget-store";
 import { planModeField, usePlanModeStore } from "../stores/plan-mode-store";
 import { hasChatFullAccess, withChatFullAccess } from "../utils/chat-full-access";
@@ -7764,6 +7765,12 @@ export function createOpenAIStreamAdapter(
                       custom: liveCustom(),
                     },
                   };
+                  continue;
+                }
+                if (toolEvent.type === "tool_output" && toolEvent.sudo_prompt) {
+                  // Ganjalf: an agent command waits for the sudo password; the box answers on its own request.
+                  const prompt = parseSudoPrompt(toolEvent.sudo_prompt);
+                  if (prompt) useSudoPromptStore.getState().open(prompt);
                   continue;
                 }
                 if (toolEvent.type === "tool_output" && toolEvent.browser_action) {

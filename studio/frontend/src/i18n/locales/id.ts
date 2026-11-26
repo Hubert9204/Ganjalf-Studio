@@ -6552,6 +6552,15 @@ export const id = {
   agentTools: {
     tasks: "Tugas",
   },
+  sudoPrompt: {
+    title: "Kata sandi administrator",
+    description: "Agen ingin menjalankan perintah ini dengan sudo. Kata sandi diperiksa oleh sudo di komputer ini: model tidak melihatnya dan tidak disimpan di obrolan.",
+    label: "Kata sandi untuk sudo",
+    wrong: "Kata sandi salah, coba lagi.",
+    run: "Jalankan",
+    cancel: "Jangan jalankan",
+    remembered: "Disimpan di memori beberapa menit, hanya untuk obrolan ini.",
+  },
   planMode: {
     cardTitle: "Rencana",
     approve: "Setujui dan bangun",

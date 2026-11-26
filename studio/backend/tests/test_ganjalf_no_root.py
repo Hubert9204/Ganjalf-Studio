@@ -25,7 +25,7 @@ def _call(command):
 
 def test_the_elevating_commands_are_recognised():
     for command in (
-        "sudo dnf install -y curl",
+        "sudo dnf install -y nopkg-x1",
         "cd x && sudo apt-get install curl",
         "dnf install curl",
         "apt install -y wget",
@@ -70,16 +70,16 @@ def test_a_refused_sudo_gets_one_clear_note():
 def test_the_tool_loop_refuses_the_next_tries_and_ends_after_three():
     session = str(uuid.uuid4())
     controller = ToolLoopController(tools = [TERMINAL], session_id = session)
-    first = controller.prepare_call(_call("sudo dnf install -y curl"))
+    first = controller.prepare_call(_call("sudo dnf install -y nopkg-x1"))
     assert first.action == "execute"
     controller.record_result(
-        first, SUDO_FAILED + command_shapes.no_root_note(SUDO_FAILED, "sudo dnf install -y curl")
+        first, SUDO_FAILED + command_shapes.no_root_note(SUDO_FAILED, "sudo dnf install -y nopkg-x1")
     )
 
     for command in (
-        "pkexec dnf install curl",
-        "su -c 'dnf install curl'",
-        "sudo -S apt install curl",
+        "pkexec dnf install nopkg-x1",
+        "su -c 'dnf install nopkg-x1'",
+        "sudo -S apt install nopkg-x1",
     ):
         decision = controller.prepare_call(_call(command))
         assert decision.action == "retired"
@@ -90,4 +90,4 @@ def test_the_tool_loop_refuses_the_next_tries_and_ends_after_three():
 
     # Another chat is not affected.
     fresh = ToolLoopController(tools = [TERMINAL], session_id = str(uuid.uuid4()))
-    assert fresh.prepare_call(_call("sudo dnf install curl")).action == "execute"
+    assert fresh.prepare_call(_call("sudo dnf install nopkg-x1")).action == "execute"

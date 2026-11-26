@@ -6043,6 +6043,15 @@ export const zhCN = {
   agentTools: {
     tasks: "任务",
   },
+  sudoPrompt: {
+    title: "管理员密码",
+    description: "智能体想用 sudo 运行这条命令。密码由这台电脑上的 sudo 验证：模型看不到它，也不会保存在聊天中。",
+    label: "sudo 密码",
+    wrong: "密码错误，请重试。",
+    run: "运行",
+    cancel: "不运行",
+    remembered: "仅在此聊天中于内存保留几分钟。",
+  },
   planMode: {
     cardTitle: "计划",
     approve: "批准并构建",

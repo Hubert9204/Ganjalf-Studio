@@ -6227,6 +6227,15 @@ export const fr = {
   agentTools: {
     tasks: "Tâches",
   },
+  sudoPrompt: {
+    title: "Mot de passe administrateur",
+    description: "L'agent veut exécuter cette commande avec sudo. Le mot de passe est vérifié par sudo sur cet ordinateur : le modèle ne le voit pas et il n'est pas enregistré dans la discussion.",
+    label: "Mot de passe pour sudo",
+    wrong: "Mot de passe incorrect, réessayez.",
+    run: "Exécuter",
+    cancel: "Ne pas exécuter",
+    remembered: "Gardé en mémoire quelques minutes, pour cette discussion seulement.",
+  },
   planMode: {
     cardTitle: "Plan",
     approve: "Approuver et construire",

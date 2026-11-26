@@ -6172,6 +6172,15 @@ export const ptBR = {
   agentTools: {
     tasks: "Tarefas",
   },
+  sudoPrompt: {
+    title: "Senha de administrador",
+    description: "O agente quer executar este comando com sudo. A senha é verificada pelo sudo neste computador: o modelo não a vê e ela não é salva no chat.",
+    label: "Senha do sudo",
+    wrong: "Senha incorreta, tente de novo.",
+    run: "Executar",
+    cancel: "Não executar",
+    remembered: "Fica na memória por alguns minutos, só para este chat.",
+  },
   planMode: {
     cardTitle: "Plano",
     approve: "Aprovar e construir",

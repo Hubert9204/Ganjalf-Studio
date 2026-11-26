@@ -6222,6 +6222,15 @@ export const zhTW = {
   agentTools: {
     tasks: "工作",
   },
+  sudoPrompt: {
+    title: "管理員密碼",
+    description: "代理想用 sudo 執行這個指令。密碼由這台電腦上的 sudo 驗證：模型看不到，也不會儲存在聊天中。",
+    label: "sudo 密碼",
+    wrong: "密碼錯誤，請再試一次。",
+    run: "執行",
+    cancel: "不執行",
+    remembered: "僅在此聊天中於記憶體保留幾分鐘。",
+  },
   planMode: {
     cardTitle: "計畫",
     approve: "核准並建置",

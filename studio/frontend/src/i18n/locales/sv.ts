@@ -6386,6 +6386,15 @@ export const sv = {
   agentTools: {
     tasks: "Uppgifter",
   },
+  sudoPrompt: {
+    title: "Administratörslösenord",
+    description: "Agenten vill köra det här kommandot med sudo. Lösenordet kontrolleras av sudo på den här datorn: modellen ser det inte och det sparas inte i chatten.",
+    label: "Lösenord för sudo",
+    wrong: "Fel lösenord, försök igen.",
+    run: "Kör",
+    cancel: "Kör inte",
+    remembered: "Sparas i minnet några minuter, bara för den här chatten.",
+  },
   planMode: {
     cardTitle: "Plan",
     approve: "Godkänn och bygg",

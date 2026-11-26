@@ -6547,6 +6547,15 @@ export const tr = {
   agentTools: {
     tasks: "Görevler",
   },
+  sudoPrompt: {
+    title: "Yönetici parolası",
+    description: "Ajan bu komutu sudo ile çalıştırmak istiyor. Parolayı bu bilgisayarda sudo denetler: model görmez ve sohbette kaydedilmez.",
+    label: "sudo parolası",
+    wrong: "Yanlış parola, tekrar deneyin.",
+    run: "Çalıştır",
+    cancel: "Çalıştırma",
+    remembered: "Yalnızca bu sohbet için birkaç dakika bellekte tutulur.",
+  },
   planMode: {
     cardTitle: "Plan",
     approve: "Onayla ve oluştur",

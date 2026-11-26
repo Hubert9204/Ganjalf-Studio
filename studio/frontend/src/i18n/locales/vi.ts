@@ -6550,6 +6550,15 @@ export const vi = {
   agentTools: {
     tasks: "Công việc",
   },
+  sudoPrompt: {
+    title: "Mật khẩu quản trị",
+    description: "Tác tử muốn chạy lệnh này bằng sudo. Mật khẩu được sudo kiểm tra trên máy tính này: mô hình không thấy và nó không được lưu trong cuộc trò chuyện.",
+    label: "Mật khẩu cho sudo",
+    wrong: "Sai mật khẩu, hãy thử lại.",
+    run: "Chạy",
+    cancel: "Không chạy",
+    remembered: "Được giữ trong bộ nhớ vài phút, chỉ cho cuộc trò chuyện này.",
+  },
   planMode: {
     cardTitle: "Kế hoạch",
     approve: "Duyệt và xây dựng",

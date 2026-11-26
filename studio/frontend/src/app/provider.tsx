@@ -51,6 +51,7 @@ import {
 import { notifyRendererReady } from "@/features/settings/api/gpu-rendering";
 import { usePalette, useTheme } from "@/features/settings/stores/theme-store";
 import { SttDownloadPrompt } from "@/features/settings/components/stt-download-prompt";
+import { SudoPasswordDialog } from "@/features/chat/sudo-password-dialog";
 import { TauriRepairContext } from "@/hooks/tauri-repair-context";
 import { TauriUpdateContext } from "@/hooks/tauri-update-context";
 import { type BackendStatus, useTauriBackend } from "@/hooks/use-tauri-backend";
@@ -1242,6 +1243,7 @@ export function AppProvider({ children }: AppProviderProps) {
         <DeepLinkHandler onOpenUrls={receiveSharedRunConfigUrls} />
         <TauriWrapper>{children}</TauriWrapper>
         <SttDownloadPrompt />
+        <SudoPasswordDialog />
         <Toaster
           position="top-right"
           visibleToasts={2}

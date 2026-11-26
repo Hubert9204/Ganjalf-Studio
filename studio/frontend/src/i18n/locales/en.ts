@@ -894,6 +894,15 @@ export const en = {
   agentTools: {
     tasks: "Tasks",
   },
+  sudoPrompt: {
+    title: "Administrator password",
+    description: "The agent wants to run this command with sudo. Your password is checked by sudo on this computer: it is not shown to the model or saved in the chat.",
+    label: "Password for sudo",
+    wrong: "Wrong password, try again.",
+    run: "Run",
+    cancel: "Don't run",
+    remembered: "Remembered in memory for a few minutes, for this chat only.",
+  },
   planMode: {
     cardTitle: "Plan",
     approve: "Approve and build",

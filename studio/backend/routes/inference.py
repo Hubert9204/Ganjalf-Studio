@@ -87,7 +87,7 @@ from dataclasses import dataclass, fields as dataclass_fields, replace
 
 
 import re as _re
-from pydantic import BaseModel, BeforeValidator
+from pydantic import BaseModel, BeforeValidator, Field
 from urllib.parse import quote as _urlquote, unquote as _urlunquote
 
 # Model size extraction (shared with core/inference/llama_cpp.py)
@@ -23450,6 +23450,26 @@ async def confirm_tool_call(
         raise HTTPException(status_code = 404, detail = "No pending tool call confirmation")
     # An older backend ignores the new request field; clients require this acknowledgement.
     return {"resolved": True, **({"full_access_granted": True} if full_access else {})}
+
+
+class SudoPasswordRequest(BaseModel):
+    """Ganjalf: the user's answer to a sudo password box. Never logged or stored."""
+
+    prompt_id: str
+    session_id: Optional[str] = None
+    password: Optional[str] = Field(default = None, max_length = 1024, repr = False)
+
+
+@studio_router.post("/sudo-password")
+async def sudo_password(
+    body: SudoPasswordRequest, current_subject: str = Depends(get_current_subject)
+):
+    from core.inference.sudo_prompt import resolve_prompt
+    from utils.account_context import current_account_id
+
+    if not resolve_prompt(body.prompt_id, body.session_id, current_account_id(), body.password):
+        raise HTTPException(status_code = 404, detail = "No pending password request")
+    return {"resolved": True}
 
 
 @studio_router.post("/browser-action-result")

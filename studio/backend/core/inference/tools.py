@@ -15819,20 +15819,56 @@ def _execute_tool_unhooked(
             compile_errors_note,
             leaves_background_process,
             no_root_note,
+            remember_no_root,
         )
 
-        with _session_in_flight(session_id):
-            result = _bash_exec(
-                arguments.get("command", ""),
-                cancel_event,
-                effective_timeout,
-                session_id,
-                disable_sandbox = disable_sandbox,
-                output_callback = output_callback,
-                thread_id = thread_id,
-                tool_execution_mode = tool_execution_mode,
-                host_access_approved = host_access_approved,
-            )
+        from . import sudo_prompt
+        from .system_installs import already_installed_note
+
+        command_text = arguments.get("command", "")
+        installed = already_installed_note(command_text)
+        if installed:
+            return installed
+        # Ganjalf: sudo that wants a password asks the user in a box; see sudo_prompt.
+        askpass = None
+        password = None
+        if sudo_prompt.uses_sudo(command_text) and sudo_prompt.enabled():
+            if not disable_sandbox:
+                return sudo_prompt.SANDBOX_NOTE
+            if arguments.get("run_in_background"):
+                return (
+                    "Not run: run commands that need sudo in the foreground (without "
+                    "run_in_background), so Studio can ask the user for the password."
+                )
+            if sudo_prompt.needs_password():
+                password, refusal = sudo_prompt.obtain_password(
+                    thread_id or session_id or "", command_text, output_callback, cancel_event
+                )
+                if password is None:
+                    if refusal == "declined":
+                        remember_no_root(thread_id or session_id)
+                        return "Not run." + sudo_prompt.DECLINED_NOTE
+                    return refusal
+                askpass = sudo_prompt.AskpassServer(password)
+        try:
+            with _session_in_flight(session_id):
+                result = _bash_exec(
+                    command_text,
+                    cancel_event,
+                    effective_timeout,
+                    session_id,
+                    disable_sandbox = disable_sandbox,
+                    output_callback = output_callback,
+                    thread_id = thread_id,
+                    tool_execution_mode = tool_execution_mode,
+                    host_access_approved = host_access_approved,
+                    extra_env = askpass.env() if askpass is not None else None,
+                )
+        finally:
+            if askpass is not None:
+                askpass.close()
+        if isinstance(result, str) and password:
+            result = sudo_prompt.scrub(result, password)
         if isinstance(result, str):
             result += compile_errors_note(
                 result, session_id = thread_id or session_id, command = arguments.get("command", "")
@@ -25208,6 +25244,7 @@ def _bash_exec(
     *,
     tool_execution_mode: str = "auto",
     host_access_approved: bool = False,
+    extra_env: "dict | None" = None,
 ) -> str:
     """disable_sandbox skips the command blocklist and rlimits; the host env minus secrets is used."""
     if not command or not command.strip():
@@ -25304,6 +25341,12 @@ def _bash_exec(
             if disable_sandbox
             else _build_safe_env(workdir, shell = profile if profile == "cmd_isolated" else None)
         )
+        if extra_env:
+            extra_env = dict(extra_env)
+            prepend = extra_env.pop("__ganjalf_path_prepend__", None)
+            safe_env = {**safe_env, **extra_env}
+            if prepend:
+                safe_env["PATH"] = prepend + os.pathsep + (safe_env.get("PATH") or os.defpath)
         popen_kwargs = dict(
             stdout = subprocess.PIPE,
             stderr = subprocess.STDOUT,

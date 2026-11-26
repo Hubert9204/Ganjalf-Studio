@@ -6609,6 +6609,15 @@ export const nl = {
   agentTools: {
     tasks: "Taken",
   },
+  sudoPrompt: {
+    title: "Beheerderswachtwoord",
+    description: "De agent wil deze opdracht met sudo uitvoeren. sudo controleert het wachtwoord op deze computer: het model ziet het niet en het wordt niet in de chat opgeslagen.",
+    label: "Wachtwoord voor sudo",
+    wrong: "Verkeerd wachtwoord, probeer het opnieuw.",
+    run: "Uitvoeren",
+    cancel: "Niet uitvoeren",
+    remembered: "Blijft een paar minuten in het geheugen, alleen voor deze chat.",
+  },
   planMode: {
     cardTitle: "Plan",
     approve: "Goedkeuren en bouwen",

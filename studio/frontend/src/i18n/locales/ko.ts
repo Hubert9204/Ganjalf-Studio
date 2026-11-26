@@ -6132,6 +6132,15 @@ export const ko = {
   agentTools: {
     tasks: "작업",
   },
+  sudoPrompt: {
+    title: "관리자 비밀번호",
+    description: "에이전트가 이 명령을 sudo로 실행하려고 합니다. 비밀번호는 이 컴퓨터의 sudo가 확인합니다. 모델은 볼 수 없으며 채팅에 저장되지 않습니다.",
+    label: "sudo 비밀번호",
+    wrong: "비밀번호가 틀렸습니다. 다시 시도하세요.",
+    run: "실행",
+    cancel: "실행 안 함",
+    remembered: "이 채팅에서만 몇 분 동안 메모리에 보관됩니다.",
+  },
   planMode: {
     cardTitle: "계획",
     approve: "승인하고 만들기",

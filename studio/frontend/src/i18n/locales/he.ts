@@ -6242,6 +6242,15 @@ export const he = {
   agentTools: {
     tasks: "משימות",
   },
+  sudoPrompt: {
+    title: "סיסמת מנהל",
+    description: "הסוכן רוצה להריץ את הפקודה הזו עם sudo. sudo בודק את הסיסמה במחשב הזה: המודל לא רואה אותה והיא לא נשמרת בצ'אט.",
+    label: "סיסמה ל-sudo",
+    wrong: "סיסמה שגויה, נסו שוב.",
+    run: "הרצה",
+    cancel: "לא להריץ",
+    remembered: "נשמרת בזיכרון לכמה דקות, רק לצ'אט הזה.",
+  },
   planMode: {
     cardTitle: "תוכנית",
     approve: "לאשר ולבנות",

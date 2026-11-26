@@ -6216,6 +6216,15 @@ export const es = {
   agentTools: {
     tasks: "Tareas",
   },
+  sudoPrompt: {
+    title: "Contraseña de administrador",
+    description: "El agente quiere ejecutar este comando con sudo. sudo comprueba la contraseña en este ordenador: el modelo no la ve y no se guarda en el chat.",
+    label: "Contraseña para sudo",
+    wrong: "Contraseña incorrecta, inténtalo de nuevo.",
+    run: "Ejecutar",
+    cancel: "No ejecutar",
+    remembered: "Se guarda en memoria unos minutos, solo para este chat.",
+  },
   planMode: {
     cardTitle: "Plan",
     approve: "Aprobar y construir",

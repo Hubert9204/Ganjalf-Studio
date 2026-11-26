@@ -6217,6 +6217,15 @@ export const de = {
   agentTools: {
     tasks: "Aufgaben",
   },
+  sudoPrompt: {
+    title: "Administratorpasswort",
+    description: "Der Agent möchte diesen Befehl mit sudo ausführen. Das Passwort prüft sudo auf diesem Computer: Das Modell sieht es nicht und es wird nicht im Chat gespeichert.",
+    label: "Passwort für sudo",
+    wrong: "Falsches Passwort, bitte erneut versuchen.",
+    run: "Ausführen",
+    cancel: "Nicht ausführen",
+    remembered: "Bleibt einige Minuten im Speicher, nur für diesen Chat.",
+  },
   planMode: {
     cardTitle: "Plan",
     approve: "Freigeben und bauen",

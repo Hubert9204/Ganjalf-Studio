@@ -6603,6 +6603,15 @@ export const pl = {
   agentTools: {
     tasks: "Zadania",
   },
+  sudoPrompt: {
+    title: "Hasło administratora",
+    description: "Agent chce uruchomić to polecenie przez sudo. Hasło sprawdza sudo na tym komputerze: model go nie widzi i nie jest zapisywane w czacie.",
+    label: "Hasło do sudo",
+    wrong: "Złe hasło, spróbuj ponownie.",
+    run: "Uruchom",
+    cancel: "Nie uruchamiaj",
+    remembered: "Pozostaje w pamięci przez kilka minut, tylko dla tego czatu.",
+  },
   planMode: {
     cardTitle: "Plan",
     approve: "Zatwierdź i buduj",

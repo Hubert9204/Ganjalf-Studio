@@ -6092,6 +6092,15 @@ export const ja = {
   agentTools: {
     tasks: "タスク",
   },
+  sudoPrompt: {
+    title: "管理者パスワード",
+    description: "エージェントがこのコマンドを sudo で実行しようとしています。パスワードはこのコンピューター上の sudo が確認します。モデルには見えず、チャットにも保存されません。",
+    label: "sudo のパスワード",
+    wrong: "パスワードが違います。もう一度お試しください。",
+    run: "実行",
+    cancel: "実行しない",
+    remembered: "このチャットに限り、数分間メモリに保持されます。",
+  },
   planMode: {
     cardTitle: "プラン",
     approve: "承認して作成",

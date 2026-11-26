@@ -6572,6 +6572,15 @@ export const cs = {
   agentTools: {
     tasks: "Úkoly",
   },
+  sudoPrompt: {
+    title: "Heslo správce",
+    description: "Agent chce spustit tento příkaz přes sudo. Heslo ověří sudo na tomto počítači: model ho nevidí a do chatu se neukládá.",
+    label: "Heslo pro sudo",
+    wrong: "Špatné heslo, zkuste to znovu.",
+    run: "Spustit",
+    cancel: "Nespouštět",
+    remembered: "Zůstane v paměti několik minut, jen pro tento chat.",
+  },
   planMode: {
     cardTitle: "Plán",
     approve: "Schválit a sestavit",
